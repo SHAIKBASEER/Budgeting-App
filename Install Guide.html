@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Install Budget App</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#0d0d12;color:#f0f0f8;font-family:-apple-system,system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;}
+  .hero{background:linear-gradient(135deg,#1a1a28,#0d0d18);padding:48px 24px 36px;text-align:center;border-bottom:1px solid rgba(255,255,255,.07);}
+  .icon{width:90px;height:90px;border-radius:22px;margin:0 auto 18px;display:block;}
+  h1{font-size:28px;font-weight:800;letter-spacing:-0.5px;margin-bottom:6px;}
+  .sub{font-size:15px;color:#7878a0;line-height:1.5;max-width:320px;margin:0 auto 24px;}
+  .open-btn{display:inline-block;padding:13px 32px;background:#f5a623;color:#000;font-weight:800;font-size:16px;border-radius:14px;text-decoration:none;transition:opacity .15s;}
+  .open-btn:hover{opacity:.85;}
+  .platforms{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:24px 16px 0;max-width:600px;margin:0 auto;}
+  .platform{background:#1a1a24;border-radius:18px;border:1px solid rgba(255,255,255,.07);overflow:hidden;}
+  .platform-header{padding:16px 18px 12px;display:flex;align-items:center;gap:10;border-bottom:1px solid rgba(255,255,255,.06);}
+  .platform-icon{font-size:28px;flex-shrink:0;}
+  .platform-name{font-size:16px;font-weight:700;}
+  .platform-sub{font-size:12px;color:#7878a0;margin-top:1px;}
+  .steps{padding:14px 18px 18px;list-style:none;display:flex;flex-direction:column;gap:10;}
+  .step{display:flex;gap:10;align-items:flex-start;}
+  .step-num{width:22px;height:22px;border-radius:50%;background:#f5a623;color:#000;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+  .step-text{font-size:13px;color:#c0c0d8;line-height:1.5;}
+  .step-text strong{color:#f0f0f8;}
+  .tip{background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.18);border-radius:12px;padding:12px 14px;margin:0 16px;display:flex;gap:10;align-items:flex-start;}
+  .tip-icon{font-size:18px;flex-shrink:0;}
+  .tip-text{font-size:13px;color:#c0c0d0;line-height:1.5;}
+  .features{padding:24px 16px;max-width:600px;margin:0 auto;}
+  .features h2{font-size:17px;font-weight:700;margin-bottom:14px;color:#f0f0f8;}
+  .feat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .feat{background:#1a1a24;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:12px 14px;display:flex;align-items:flex-start;gap:9;}
+  .feat-icon{font-size:20px;flex-shrink:0;}
+  .feat-label{font-size:13px;font-weight:600;color:#f0f0f8;margin-bottom:2px;}
+  .feat-desc{font-size:11px;color:#7878a0;line-height:1.4;}
+  .footer{text-align:center;padding:24px 16px 40px;color:#4a4a6a;font-size:12px;}
+  @media(max-width:400px){.platforms{grid-template-columns:1fr;}.feat-grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<!-- Hero -->
+<div class="hero">
+  <img src="pwa/icons/icon-180.png" class="icon" alt="Budget App"/>
+  <h1>Budget App</h1>
+  <p class="sub">Your personal finance tracker. Works offline, feels native — on both iPhone and Android.</p>
+  <a href="pwa/index.html" class="open-btn">Open App →</a>
+</div>
+
+<!-- Tip -->
+<div style="padding:20px 16px 0;max-width:600px;margin:0 auto;">
+  <div class="tip">
+    <span class="tip-icon">💡</span>
+    <span class="tip-text">For the best experience, install the app to your home screen. It will open fullscreen — no browser bar — and work offline.</span>
+  </div>
+</div>
+
+<!-- Platform steps -->
+<div class="platforms">
+
+  <!-- iOS -->
+  <div class="platform">
+    <div class="platform-header">
+      <span class="platform-icon"></span>
+      <div>
+        <div class="platform-name">iPhone / iPad</div>
+        <div class="platform-sub">iOS 16.4+ · Safari</div>
+      </div>
+    </div>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">Open the app link in <strong>Safari</strong> (not Chrome or Firefox)</div>
+      </li>
+      <li class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">Tap the <strong>Share</strong> button <strong>⎙</strong> at the bottom of the screen</div>
+      </li>
+      <li class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">Scroll down and tap <strong>"Add to Home Screen"</strong></div>
+      </li>
+      <li class="step">
+        <div class="step-num">4</div>
+        <div class="step-text">Tap <strong>"Add"</strong> — the app icon appears on your home screen</div>
+      </li>
+      <li class="step">
+        <div class="step-num">5</div>
+        <div class="step-text">Open from home screen to get <strong>full-screen mode</strong> with no browser UI</div>
+      </li>
+    </ol>
+  </div>
+
+  <!-- Android -->
+  <div class="platform">
+    <div class="platform-header">
+      <span class="platform-icon">🤖</span>
+      <div>
+        <div class="platform-name">Android</div>
+        <div class="platform-sub">Android 8+ · Chrome</div>
+      </div>
+    </div>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">Open the app link in <strong>Google Chrome</strong></div>
+      </li>
+      <li class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">Chrome shows a banner — tap <strong>"Install"</strong> or <strong>"Add to Home Screen"</strong></div>
+      </li>
+      <li class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">Or tap the <strong>⋮ menu</strong> → <strong>"Install app"</strong> or <strong>"Add to Home Screen"</strong></div>
+      </li>
+      <li class="step">
+        <div class="step-num">4</div>
+        <div class="step-text">Tap <strong>"Install"</strong> in the dialog that appears</div>
+      </li>
+      <li class="step">
+        <div class="step-num">5</div>
+        <div class="step-text">Find the <strong>Budget App icon</strong> in your app drawer or home screen</div>
+      </li>
+    </ol>
+  </div>
+
+</div>
+
+<!-- Features -->
+<div class="features">
+  <h2>What's included</h2>
+  <div class="feat-grid">
+    <div class="feat"><span class="feat-icon">💰</span><div><div class="feat-label">Income & Expenses</div><div class="feat-desc">Log daily transactions with categories</div></div></div>
+    <div class="feat"><span class="feat-icon">📊</span><div><div class="feat-label">Monthly Portfolio</div><div class="feat-desc">Charts, calendar & running balance</div></div></div>
+    <div class="feat"><span class="feat-icon">🎤</span><div><div class="feat-label">Voice Input</div><div class="feat-desc">"Grocery $50 spent" auto-logs it</div></div></div>
+    <div class="feat"><span class="feat-icon">🔔</span><div><div class="feat-label">Reminders</div><div class="feat-desc">Every 3 hrs · push, email & SMS</div></div></div>
+    <div class="feat"><span class="feat-icon">🎨</span><div><div class="feat-label">6 Themes</div><div class="feat-desc">Midnight, Navy, Forest, Cosmos…</div></div></div>
+    <div class="feat"><span class="feat-icon">📄</span><div><div class="feat-label">PDF Export</div><div class="feat-desc">Print or share monthly reports</div></div></div>
+    <div class="feat"><span class="feat-icon">📴</span><div><div class="feat-label">Works Offline</div><div class="feat-desc">No internet needed after first load</div></div></div>
+    <div class="feat"><span class="feat-icon">💾</span><div><div class="feat-label">Local Storage</div><div class="feat-desc">All data stays private on your device</div></div></div>
+  </div>
+</div>
+
+<div class="footer">Budget App · Built for iPhone 17 Pro Max & Android · Data stored locally on your device</div>
+
+</body>
+</html>
