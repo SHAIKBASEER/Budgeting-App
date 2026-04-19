@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Budget App</title>
+
+<!-- PWA / iOS install -->
+<link rel="manifest" href="pwa/manifest.json"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Budget"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="theme-color" content="#0d0d12"/>
+<link rel="apple-touch-icon" sizes="180x180" href="pwa/icons/icon-180.png"/>
+<link rel="apple-touch-icon" sizes="120x120" href="pwa/icons/icon-120.png"/>
+<link rel="icon" sizes="192x192" href="pwa/icons/icon-192.png"/>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="budget-screens.jsx"></script>
+<script type="text/babel" src="budget-settings.jsx"></script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{height:100%;height:-webkit-fill-available;}
+  body{width:100%;height:100%;min-height:-webkit-fill-available;overflow:hidden;background:#080810;}
+  ::-webkit-scrollbar{display:none;}
+  input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(.5);}
+  @supports(height:100dvh){html,body{height:100dvh;}}
+
+  /* ── Theme CSS vars (default: Midnight) ── */
+  :root {
+    --accent:#f5a623; --accent-10:#f5a62318; --accent-20:#f5a62333;
+    --bg:#0d0d12; --card:#1a1a24; --card2:#22222e;
+    --text:#f0f0f8; --muted:#7878a0; --muted2:#4a4a6a;
+    --border:rgba(255,255,255,0.07);
+    --green:#30d158; --red:#ff453a;
+    --hero-a:#1e1a2e; --hero-b:#1a1a28;
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+// ── Seed data ─────────────────────────────────────────────
+const SEED = [
+  {id:1,  type:'income',  amount:3200, category:'salary',        note:'Monthly salary',    date:'2026-04-01'},
+  {id:2,  type:'income',  amount:450,  category:'freelance',     note:'Web project',       date:'2026-04-05'},
+  {id:3,  type:'expense', amount:85,   category:'food',          note:'Groceries',         date:'2026-04-06'},
+  {id:4,  type:'expense', amount:120,  category:'bills',         note:'Electric bill',     date:'2026-04-07'},
+  {id:5,  type:'expense', amount:45,   category:'transport',     note:'Metro card',        date:'2026-04-08'},
+  {id:6,  type:'expense', amount:200,  category:'shopping',      note:'Clothes',           date:'2026-04-10'},
+  {id:7,  type:'income',  amount:180,  category:'investment',    note:'Dividends',         date:'2026-04-12'},
+  {id:8,  type:'expense', amount:60,   category:'entertainment', note:'Concert',           date:'2026-04-14'},
+  {id:9,  type:'expense', amount:95,   category:'health',        note:'Pharmacy',          date:'2026-04-15'},
+  {id:10, type:'expense', amount:30,   category:'food',          note:'Restaurant',        date:'2026-04-17'},
+  {id:11, type:'income',  amount:500,  category:'freelance',     note:'Logo design',       date:'2026-04-18'},
+  {id:12, type:'expense', amount:75,   category:'education',     note:'Udemy course',      date:'2026-04-19'},
+];
+
+// ── Apply theme to CSS vars ───────────────────────────────
+function applyTheme(th) {
+  const r = document.documentElement.style;
+  r.setProperty('--accent',  th.accent);
+  r.setProperty('--bg',      th.bg);
+  r.setProperty('--card',    th.card);
+  r.setProperty('--card2',   th.card2);
+  r.setProperty('--text',    th.text);
+  r.setProperty('--muted',   th.muted);
+  r.setProperty('--muted2',  th.muted2);
+  r.setProperty('--hero-a',  th.heroA);
+  r.setProperty('--hero-b',  th.heroB);
+  r.setProperty('--border',  th.isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.08)');
+  // accent alpha channels
+  const hex = th.accent.replace('#','');
+  const [rr,gg,bb] = [0,2,4].map(i=>parseInt(hex.slice(i,i+2),16));
+  r.setProperty('--accent-10', `rgba(${rr},${gg},${bb},0.10)`);
+  r.setProperty('--accent-20', `rgba(${rr},${gg},${bb},0.20)`);
+  document.body.style.background = th.bg;
+}
+
+// ── Tab icon components ───────────────────────────────────
+const TabIcon = {
+  Home: (a) => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <path d="M3 12L12 3l9 9" stroke={a?'var(--accent)':'#666'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9" stroke={a?'var(--accent)':'#666'} strokeWidth="2" strokeLinecap="round"/>
+    </svg>
+  ),
+  Add: (a) => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="9" stroke={a?'var(--accent)':'#666'} strokeWidth="2"/>
+      <path d="M12 8v8M8 12h8" stroke={a?'var(--accent)':'#666'} strokeWidth="2.5" strokeLinecap="round"/>
+    </svg>
+  ),
+  Portfolio: (a) => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <rect x="2" y="3" width="20" height="18" rx="3" stroke={a?'var(--accent)':'#666'} strokeWidth="2"/>
+      <path d="M7 8h2v8H7zM11 11h2v5h-2zM15 6h2v10h-2z" fill={a?'var(--accent)':'#666'}/>
+    </svg>
+  ),
+  History: (a) => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" stroke={a?'var(--accent)':'#666'} strokeWidth="2"/>
+      <rect x="9" y="3" width="6" height="4" rx="1" stroke={a?'var(--accent)':'#666'} strokeWidth="2"/>
+      <path d="M9 12h6M9 16h4" stroke={a?'var(--accent)':'#666'} strokeWidth="2" strokeLinecap="round"/>
+    </svg>
+  ),
+  Settings: (a) => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="3" stroke={a?'var(--accent)':'#666'} strokeWidth="2"/>
+      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke={a?'var(--accent)':'#666'} strokeWidth="2"/>
+    </svg>
+  ),
+};
+
+const TABS = [
+  {key:'Home',      label:'Home'},
+  {key:'Add',       label:'Add'},
+  {key:'Portfolio', label:'Portfolio'},
+  {key:'History',   label:'History'},
+  {key:'Settings',  label:'Settings'},
+];
+
+// ── Main App ──────────────────────────────────────────────
+function App() {
+  const [tab, setTab]       = React.useState(()=>parseInt(localStorage.getItem('budget_tab')||'0'));
+  const [voiceMode, setVM]  = React.useState(false);
+  const [transactions, setTx] = React.useState(()=>{
+    try{ const s=localStorage.getItem('budget_txns'); return s?JSON.parse(s):SEED; }catch{return SEED;}
+  });
+  const [profile, setProfile] = React.useState(()=>{
+    try{ return JSON.parse(localStorage.getItem('budget_profile')||'{"name":"","email":"shaikabd@cua.edu","phone":"","goal":""}'); }
+    catch{ return {name:'',email:'shaikabd@cua.edu',phone:'',goal:''}; }
+  });
+  const [theme, setTheme] = React.useState(()=>{
+    try{ const t=localStorage.getItem('budget_theme'); return t?JSON.parse(t):THEMES[0]; }
+    catch{ return THEMES[0]; }
+  });
+  const [tweaks, setTweaks] = React.useState(false);
+
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "accentColor": "#f5a623",
+    "darkMode": true,
+    "fontSize": 14
+  }/*EDITMODE-END*/;
+  const [twkVals, setTwkVals] = React.useState(TWEAK_DEFAULTS);
+
+  // Apply theme on mount + change
+  React.useEffect(()=>{ applyTheme(theme); }, [theme]);
+
+  React.useEffect(()=>{ localStorage.setItem('budget_tab',tab); },[tab]);
+  React.useEffect(()=>{ localStorage.setItem('budget_txns',JSON.stringify(transactions)); },[transactions]);
+  React.useEffect(()=>{ localStorage.setItem('budget_profile',JSON.stringify(profile)); },[profile]);
+
+  const handleThemeChange = (th) => {
+    setTheme(th);
+    localStorage.setItem('budget_theme',JSON.stringify(th));
+  };
+
+  // Tweaks host protocol
+  React.useEffect(()=>{
+    const handler=(e)=>{
+      if(e.data?.type==='__activate_edit_mode')   setTweaks(true);
+      if(e.data?.type==='__deactivate_edit_mode')  setTweaks(false);
+    };
+    window.addEventListener('message',handler);
+    window.parent.postMessage({type:'__edit_mode_available'},'*');
+    return ()=>window.removeEventListener('message',handler);
+  },[]);
+
+  const updateTweak=(k,v)=>{
+    const next={...twkVals,[k]:v}; setTwkVals(next);
+    window.parent.postMessage({type:'__edit_mode_set_keys',edits:{[k]:v}},'*');
+    if(k==='accentColor'){
+      // Apply accent immediately via CSS
+      const th={...theme,accent:v};
+      applyTheme(th);
+    }
+  };
+
+  // Detect real phone vs desktop preview
+  const isRealPhone = window.innerWidth <= 500 && 'ontouchstart' in window;
+
+  // Set screen padding CSS vars
+  React.useEffect(() => {
+    const r = document.documentElement.style;
+    if (isRealPhone) {
+      r.setProperty('--screen-pt', 'calc(env(safe-area-inset-top) + 16px)');
+      r.setProperty('--screen-pb', 'calc(env(safe-area-inset-bottom) + 80px)');
+    } else {
+      r.setProperty('--screen-pt', '72px');
+      r.setProperty('--screen-pb', '100px');
+    }
+  }, []);
+
+  // Scale to viewport (desktop only)
+  const [scale, setScale] = React.useState(1);
+  React.useEffect(()=>{
+    if(isRealPhone) return;
+    const resize=()=>{ setScale(Math.min(window.innerWidth/402, window.innerHeight/874)*0.97); };
+    resize(); window.addEventListener('resize',resize);
+    return ()=>window.removeEventListener('resize',resize);
+  },[]);
+
+  const navTo = (i, mode) => {
+    setTab(i);
+    setVM(mode==='voice');
+  };
+
+  const screens = [
+    <HomeScreen transactions={transactions} onNav={navTo} userName={profile.name}/>,
+    <AddScreen onSave={t=>{setTx(p=>[t,...p]);setTab(0);}} startVoice={voiceMode}/>,
+    <PortfolioScreen transactions={transactions}/>,
+    <HistoryScreen transactions={transactions} onDelete={id=>setTx(p=>p.filter(t=>t.id!==id))}/>,
+    <SettingsScreen
+      profile={profile} onProfileChange={p=>{setProfile(p);}}
+      onThemeChange={handleThemeChange} currentTheme={theme}
+      transactions={transactions}
+    />,
+  ];
+
+  const TabBar = ({pb=28}) => (
+    <div style={{
+      background: theme.isDark?'rgba(10,10,18,0.96)':'rgba(250,250,255,0.96)',
+      backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
+      borderTop:`0.5px solid ${theme.isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'}`,
+      paddingBottom:pb,paddingTop:10,
+      display:'flex',justifyContent:'space-around',alignItems:'center',
+    }}>
+      {TABS.map((t,i)=>(
+        <button key={i} onClick={()=>{setTab(i);setVM(false);}} style={{
+          background:'none',border:'none',cursor:'pointer',
+          display:'flex',flexDirection:'column',alignItems:'center',gap:3,
+          padding:'4px 10px',borderRadius:12,opacity:tab===i?1:.5,transition:'opacity .18s',
+        }}>
+          {TabIcon[t.key](tab===i)}
+          <span style={{fontSize:10,fontFamily:'-apple-system',color:tab===i?'var(--accent)':'#666',fontWeight:tab===i?700:400}}>{t.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+
+  return (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',width:'100vw',height:'100vh',background:'var(--bg)',position:'relative'}}>
+
+      {/* ── Real phone: full-screen no frame ── */}
+      {isRealPhone ? (
+        <div style={{
+          position:'fixed',inset:0,display:'flex',flexDirection:'column',
+          background:'var(--bg)',
+          height:'100dvh',
+        }}>
+          <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
+            {screens[tab]}
+          </div>
+          <div style={{paddingBottom:'env(safe-area-inset-bottom)'}}>
+            <TabBar pb={10}/>
+          </div>
+        </div>
+
+      ) : (
+
+      /* ── Desktop: scaled iOS frame ── */
+      <div style={{transform:`scale(${scale})`,transformOrigin:'center center'}}>
+        <IOSDevice width={402} height={874} dark={theme.isDark}>
+          <div style={{position:'relative',height:'100%',background:'var(--bg)',overflow:'hidden'}}>
+            <div style={{position:'absolute',inset:0,overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
+              {screens[tab]}
+            </div>
+            <div style={{position:'absolute',bottom:0,left:0,right:0,zIndex:100}}>
+              <TabBar pb={28}/>
+            </div>
+          </div>
+        </IOSDevice>
+      </div>
+      )}
+
+      {/* Tweaks Panel */}
+      {tweaks&&(
+        <div style={{
+          position:'fixed',bottom:24,right:24,zIndex:9999,
+          background:'#1a1a26',border:'1px solid rgba(255,255,255,.12)',
+          borderRadius:20,padding:'16px 18px',width:220,
+          fontFamily:'-apple-system',color:'#f0f0f8',
+          boxShadow:'0 8px 32px rgba(0,0,0,.5)',
+        }}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:14,color:'var(--accent)'}}>Tweaks</div>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11,color:'#7878a0',marginBottom:6}}>Accent Color</div>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              {['#f5a623','#30d158','#4e9af1','#af52de','#ff453a','#ff6b35'].map(c=>(
+                <div key={c} onClick={()=>updateTweak('accentColor',c)} style={{width:24,height:24,borderRadius:'50%',background:c,cursor:'pointer',border:twkVals.accentColor===c?'2.5px solid #fff':'2.5px solid transparent',transition:'border .15s'}}/>
+              ))}
+            </div>
+          </div>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11,color:'#7878a0',marginBottom:6}}>Font size: {twkVals.fontSize}px</div>
+            <input type="range" min={12} max={18} value={twkVals.fontSize} onChange={e=>updateTweak('fontSize',parseInt(e.target.value))} style={{width:'100%',accentColor:'var(--accent)'}}/>
+          </div>
+          <div style={{fontSize:11,color:'#7878a0',marginBottom:6}}>Theme (quick)</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+            {THEMES.slice(0,4).map(th=>(
+              <button key={th.id} onClick={()=>handleThemeChange(th)} style={{padding:'6px 4px',borderRadius:8,border:`1px solid ${theme.id===th.id?'var(--accent)':'rgba(255,255,255,.1)'}`,background:th.bg,color:th.text,fontSize:10,fontWeight:600,cursor:'pointer'}}>{th.name}</button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+
+<template id="__bundler_thumbnail">
+  <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100" height="100" fill="#0d0d12"/>
+    <rect x="20" y="20" width="60" height="60" rx="10" fill="#1a1a24"/>
+    <text x="50" y="58" text-anchor="middle" font-size="28" fill="#f5a623">💰</text>
+  </svg>
+</template>
+</body>
+</html>
