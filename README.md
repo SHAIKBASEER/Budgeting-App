@@ -1,2 +1,1 @@
-# Budgeting-App
-Bill and Utilities
+<meta http-equiv="refresh" content="0; url=Budget App.html">
