@@ -138,6 +138,10 @@ function HomeScreen({transactions, onNav, userName}) {
   const expense=monthTxns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
   const balance=transactions.reduce((s,t)=>t.type==='income'?s+t.amount:s-t.amount,0);
   const recent=[...transactions].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5);
+  const upcoming=[...transactions]
+    .filter(t=>new Date(t.date)>new Date())
+    .sort((a,b)=>new Date(a.date)-new Date(b.date))
+    .slice(0,4);
   const hr=now.getHours();
   const greet=hr<12?'Good morning':hr<17?'Good afternoon':'Good evening';
   const name=userName||'Friend';
@@ -181,6 +185,31 @@ function HomeScreen({transactions, onNav, userName}) {
       </div>
 
       {/* Recent */}
+      {upcoming.length>0&&(
+        <div style={{marginTop:18}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+            <div style={{fontSize:16,fontWeight:700}}>Upcoming</div>
+            <span style={{fontSize:12,color:T.muted}}>Scheduled</span>
+          </div>
+          <Card style={{padding:'6px 0'}}>
+            {upcoming.map((t,i)=>{
+              const cats=t.type==='income'?INCOME_CATS:EXPENSE_CATS;
+              const cat=cats.find(c=>c.id===t.category)||cats[cats.length-1];
+              return (
+                <div key={t.id} style={{display:'flex',alignItems:'center',padding:'11px 16px',borderBottom:i<upcoming.length-1?`1px solid ${T.border}`:'none'}}>
+                  <div style={{width:34,height:34,borderRadius:10,background:cat.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,marginRight:10}}>{cat.icon}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{t.note||cat.label}</div>
+                    <div style={{fontSize:11,color:T.muted}}>{dayStr(t.date)}</div>
+                  </div>
+                  <div style={{fontSize:13,fontWeight:700,color:t.type==='income'?'var(--green)':'var(--red)'}}>{t.type==='income'?'+':'-'}{fmt(t.amount)}</div>
+                </div>
+              );
+            })}
+          </Card>
+        </div>
+      )}
+
       {recent.length>0?(
         <div style={{marginTop:20}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
@@ -224,6 +253,7 @@ function AddScreen({onSave, startVoice=false}) {
   const [cat, setCat]     = React.useState('');
   const [note, setNote]   = React.useState('');
   const [date, setDate]   = React.useState(today());
+  const [notifyChannels, setNotifyChannels] = React.useState({push:true,email:false,sms:false});
   const [saved, setSaved] = React.useState(false);
   const [voiceState, setVS] = React.useState(startVoice?'idle':'off'); // off|idle|listening|result
   const [transcript, setTx] = React.useState('');
@@ -259,8 +289,9 @@ function AddScreen({onSave, startVoice=false}) {
   const handleSave = () => {
     const n=parseFloat(amount);
     if(!n||n<=0||!cat) return;
-    onSave({id:Date.now(),type,amount:n,category:cat||'other',note:note.trim(),date});
+    onSave({id:Date.now(),type,amount:n,category:cat||'other',note:note.trim(),date,notifyChannels});
     setAmt(''); setCat(''); setNote(''); setDate(today()); setTx(''); setVS(startVoice?'idle':'off');
+    setNotifyChannels({push:true,email:false,sms:false});
     setSaved(true); setTimeout(()=>setSaved(false),2000);
   };
 
@@ -359,6 +390,27 @@ function AddScreen({onSave, startVoice=false}) {
         <div style={{background:T.card,borderRadius:12,padding:'10px 12px',border:`1px solid ${T.border}`}}>
           <div style={{fontSize:11,color:T.muted,marginBottom:4}}>Date</div>
           <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{background:'none',border:'none',color:T.text,fontSize:13,fontFamily:'-apple-system',width:'100%',outline:'none',colorScheme:'dark'}}/>
+        </div>
+      </div>
+
+      <div style={{padding:'0 20px 8px'}}>
+        <div style={{background:T.card,borderRadius:12,padding:'10px 12px',border:`1px solid ${T.border}`}}>
+          <div style={{fontSize:11,color:T.muted,marginBottom:7}}>Notify me (for upcoming transactions)</div>
+          <div style={{display:'flex',gap:8}}>
+            {['push','email','sms'].map(ch=>(
+              <button
+                key={ch}
+                onClick={()=>setNotifyChannels(prev=>({...prev,[ch]:!prev[ch]}))}
+                style={{
+                  padding:'6px 10px',borderRadius:10,border:`1px solid ${notifyChannels[ch]?'var(--accent)':T.border}`,
+                  background:notifyChannels[ch]?'var(--accent-10)':T.card2,color:notifyChannels[ch]?'var(--accent)':T.muted,
+                  fontSize:12,fontWeight:600,cursor:'pointer'
+                }}
+              >
+                {notifyChannels[ch]?'✓ ':''}{ch.toUpperCase()}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -471,12 +523,35 @@ function PortfolioScreen({transactions}) {
 // ═══════════════════════════════════════════════════════════
 // HISTORY SCREEN
 // ═══════════════════════════════════════════════════════════
-function HistoryScreen({transactions, onDelete}) {
+function HistoryScreen({transactions, onDelete, onEdit}) {
   const [filter,setFilter]=React.useState('all');
+  const [swipedId,setSwipedId]=React.useState(null);
+  const [editing,setEditing]=React.useState(null);
+  const [dragStartX,setDragStartX]=React.useState(null);
   const filtered=transactions.filter(t=>filter==='all'||t.type===filter);
   const sorted=[...filtered].sort((a,b)=>new Date(b.date)-new Date(a.date));
   const groups=[];
   sorted.forEach(t=>{const last=groups[groups.length-1];if(last&&last.date===t.date)last.items.push(t);else groups.push({date:t.date,items:[t]});});
+
+  const startEdit=(t)=>setEditing({...t});
+  const saveEdit=()=>{
+    if(!editing?.amount || editing.amount<=0) return;
+    onEdit(editing.id,{...editing,amount:parseFloat(editing.amount)});
+    setEditing(null);
+  };
+  const swipeStart=(e,id)=>{
+    const x=e.touches?.[0]?.clientX ?? e.clientX;
+    setDragStartX(x);
+    setSwipedId(id);
+  };
+  const swipeEnd=(e,id)=>{
+    const x=e.changedTouches?.[0]?.clientX ?? e.clientX;
+    if(dragStartX===null) return;
+    const delta=x-dragStartX;
+    setSwipedId(delta<-30?id:null);
+    setDragStartX(null);
+  };
+
   return (
     <div style={{color:T.text,fontFamily:'-apple-system,system-ui',padding:'0 16px var(--screen-pb,100px)'}}>
       <div style={{paddingTop:'var(--screen-pt,72px)',marginBottom:14}}>
@@ -493,20 +568,28 @@ function HistoryScreen({transactions, onDelete}) {
       {groups.map(g=>(
         <div key={g.date} style={{marginBottom:16}}>
           <div style={{fontSize:12,color:T.muted,textTransform:'uppercase',letterSpacing:.5,marginBottom:6}}>{dayStr(g.date)}</div>
-          <Card style={{padding:'4px 0'}}>
+          <Card style={{padding:'4px 0',overflow:'hidden'}}>
             {g.items.map((t,i)=>{
               const cats=t.type==='income'?INCOME_CATS:EXPENSE_CATS;
               const cat=cats.find(c=>c.id===t.category)||cats[cats.length-1];
               return (
-                <div key={t.id} style={{display:'flex',alignItems:'center',padding:'11px 14px',borderBottom:i<g.items.length-1?`1px solid ${T.border}`:'none'}}>
-                  <div style={{width:36,height:36,borderRadius:11,background:cat.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,marginRight:10,flexShrink:0}}>{cat.icon}</div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:14,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{t.note||cat.label}</div>
-                    <div style={{fontSize:11,color:T.muted,marginTop:1}}>{cat.label}</div>
+                <div key={t.id} style={{position:'relative',borderBottom:i<g.items.length-1?`1px solid ${T.border}`:'none',background:T.card}}>
+                  <div style={{position:'absolute',right:0,top:0,bottom:0,display:'flex',alignItems:'center',gap:8,padding:'0 10px'}}>
+                    <button onClick={()=>startEdit(t)} style={{border:'none',borderRadius:10,padding:'8px 10px',background:'var(--accent-10)',color:'var(--accent)',fontSize:11,fontWeight:700,cursor:'pointer'}}>Edit</button>
+                    <button onClick={()=>onDelete(t.id)} style={{border:'none',borderRadius:10,padding:'8px 10px',background:'rgba(255,69,58,.16)',color:'var(--red)',fontSize:11,fontWeight:700,cursor:'pointer'}}>Delete</button>
                   </div>
-                  <div style={{textAlign:'right'}}>
+                  <div
+                    onTouchStart={(e)=>swipeStart(e,t.id)}
+                    onTouchEnd={(e)=>swipeEnd(e,t.id)}
+                    style={{display:'flex',alignItems:'center',padding:'12px 14px',transform:swipedId===t.id?'translateX(-116px)':'translateX(0)',transition:'transform .2s',position:'relative',zIndex:1,background:T.card}}
+                  >
+                    <div style={{width:36,height:36,borderRadius:11,background:cat.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,marginRight:10,flexShrink:0}}>{cat.icon}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:14,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{t.note||cat.label}</div>
+                      <div style={{fontSize:11,color:T.muted,marginTop:1}}>{cat.label} · {dayStr(t.date)}</div>
+                    </div>
                     <div style={{fontSize:15,fontWeight:700,color:t.type==='income'?'var(--green)':'var(--red)'}}>{t.type==='income'?'+':'-'}{fmt(t.amount)}</div>
-                    <button onClick={()=>onDelete(t.id)} style={{background:'none',border:'none',color:T.muted2,fontSize:10,cursor:'pointer',fontFamily:'-apple-system',padding:'2px 0'}}>delete</button>
+                    <button onClick={()=>startEdit(t)} style={{marginLeft:8,border:'none',background:'transparent',color:'var(--accent)',fontSize:12,fontWeight:700,cursor:'pointer'}}>Edit</button>
                   </div>
                 </div>
               );
@@ -514,6 +597,35 @@ function HistoryScreen({transactions, onDelete}) {
           </Card>
         </div>
       ))}
+
+      {editing&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.45)',display:'flex',alignItems:'flex-end',zIndex:1200}}>
+          <div style={{width:'100%',background:T.card,borderTopLeftRadius:20,borderTopRightRadius:20,padding:'16px 16px calc(env(safe-area-inset-bottom) + 18px)',borderTop:`1px solid ${T.border}`}}>
+            <div style={{width:42,height:4,borderRadius:99,background:T.muted2,margin:'0 auto 12px'}}/>
+            <div style={{fontSize:18,fontWeight:700,marginBottom:12}}>Edit transaction</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              <input value={editing.note||''} onChange={e=>setEditing(p=>({...p,note:e.target.value}))} placeholder="Note" style={{background:T.card2,border:`1px solid ${T.border}`,borderRadius:10,padding:'10px',color:T.text}}/>
+              <input type="number" value={editing.amount} onChange={e=>setEditing(p=>({...p,amount:e.target.value}))} placeholder="Amount" style={{background:T.card2,border:`1px solid ${T.border}`,borderRadius:10,padding:'10px',color:T.text}}/>
+              <input type="date" value={editing.date} onChange={e=>setEditing(p=>({...p,date:e.target.value}))} style={{background:T.card2,border:`1px solid ${T.border}`,borderRadius:10,padding:'10px',color:T.text,colorScheme:'dark'}}/>
+              <select value={editing.category} onChange={e=>setEditing(p=>({...p,category:e.target.value}))} style={{background:T.card2,border:`1px solid ${T.border}`,borderRadius:10,padding:'10px',color:T.text}}>
+                {(editing.type==='income'?INCOME_CATS:EXPENSE_CATS).map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
+              </select>
+            </div>
+            <div style={{marginTop:10}}>
+              <div style={{fontSize:11,color:T.muted,marginBottom:6}}>Type</div>
+              <div style={{display:'flex',gap:8}}>
+                {['expense','income'].map(tp=>(
+                  <button key={tp} onClick={()=>setEditing(p=>({...p,type:tp,category:''}))} style={{flex:1,padding:'9px',borderRadius:10,border:`1px solid ${editing.type===tp?(tp==='income'?'#30d158':'#ff453a'):T.border}`,background:editing.type===tp?(tp==='income'?'rgba(48,209,88,.16)':'rgba(255,69,58,.16)'):T.card2,color:editing.type===tp?(tp==='income'?'#30d158':'#ff6b6b'):T.muted,cursor:'pointer',textTransform:'capitalize',fontWeight:600}}>{tp}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:12}}>
+              <button onClick={()=>setEditing(null)} style={{padding:'11px',borderRadius:12,border:`1px solid ${T.border}`,background:T.card2,color:T.text,cursor:'pointer'}}>Cancel</button>
+              <button onClick={saveEdit} style={{padding:'11px',borderRadius:12,border:'none',background:'var(--accent)',color:'#000',fontWeight:700,cursor:'pointer'}}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

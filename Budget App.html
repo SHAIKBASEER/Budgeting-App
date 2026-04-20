@@ -129,7 +129,7 @@ function App() {
   const [tab, setTab]       = React.useState(()=>parseInt(localStorage.getItem('budget_tab')||'0'));
   const [voiceMode, setVM]  = React.useState(false);
   const [transactions, setTx] = React.useState(()=>{
-    try{ const s=localStorage.getItem('budget_txns'); return s?JSON.parse(s):SEED; }catch{return SEED;}
+    try{ const s=localStorage.getItem('budget_txns'); return s?JSON.parse(s):[]; }catch{return [];}
   });
   const [profile, setProfile] = React.useState(()=>{
     try{ return JSON.parse(localStorage.getItem('budget_profile')||'{"name":"","email":"shaikabd@cua.edu","phone":"","goal":""}'); }
@@ -210,15 +210,37 @@ function App() {
     setVM(mode==='voice');
   };
 
+  const updateTransaction = (id, updates) => {
+    setTx(prev=>prev.map(t=>t.id===id?{...t,...updates}:t));
+  };
+
+  const resetAllData = () => {
+    localStorage.removeItem('budget_txns');
+    localStorage.removeItem('budget_profile');
+    localStorage.removeItem('notif_en');
+    localStorage.removeItem('notif_times');
+    localStorage.removeItem('budget_theme');
+    localStorage.removeItem('budget_tab');
+    setTx([]);
+    setProfile({name:'',email:'shaikabd@cua.edu',phone:'',goal:''});
+    setTheme(THEMES[0]);
+    setTab(0);
+  };
+
   const screens = [
     <HomeScreen transactions={transactions} onNav={navTo} userName={profile.name}/>,
     <AddScreen onSave={t=>{setTx(p=>[t,...p]);setTab(0);}} startVoice={voiceMode}/>,
     <PortfolioScreen transactions={transactions}/>,
-    <HistoryScreen transactions={transactions} onDelete={id=>setTx(p=>p.filter(t=>t.id!==id))}/>,
+    <HistoryScreen
+      transactions={transactions}
+      onDelete={id=>setTx(p=>p.filter(t=>t.id!==id))}
+      onEdit={updateTransaction}
+    />,
     <SettingsScreen
       profile={profile} onProfileChange={p=>{setProfile(p);}}
       onThemeChange={handleThemeChange} currentTheme={theme}
       transactions={transactions}
+      onResetData={resetAllData}
     />,
   ];
 
