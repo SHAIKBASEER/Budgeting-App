@@ -12,12 +12,13 @@ const THEMES = [
 
 const REMINDER_TIMES = ['6:00 AM','9:00 AM','12:00 PM','3:00 PM','6:00 PM','9:00 PM'];
 
-function SettingsScreen({profile, onProfileChange, onThemeChange, currentTheme, transactions}) {
+function SettingsScreen({profile, onProfileChange, onThemeChange, currentTheme, transactions, onResetData}) {
   const [section, setSection] = React.useState('profile'); // profile|notifications|theme|export
   const [notifEnabled, setNE] = React.useState(()=>JSON.parse(localStorage.getItem('notif_en')||'{"push":true,"email":true,"sms":false}'));
   const [activeReminders, setAR] = React.useState(()=>JSON.parse(localStorage.getItem('notif_times')||JSON.stringify(REMINDER_TIMES)));
   const [testSent, setTS] = React.useState('');
   const [shareMsg, setShareMsg] = React.useState('');
+  const [notifMsg, setNotifMsg] = React.useState('');
 
   const saveNE = (v) => { setNE(v); localStorage.setItem('notif_en',JSON.stringify(v)); };
   const toggleTime = (t) => {
@@ -30,6 +31,56 @@ function SettingsScreen({profile, onProfileChange, onThemeChange, currentTheme, 
       <div style={{position:'absolute',top:3,left:on?20:3,width:20,height:20,borderRadius:'50%',background:'#fff',transition:'left .2s',boxShadow:'0 1px 4px rgba(0,0,0,.3)'}}/>
     </div>
   );
+
+  const showToast = (msg) => {
+    setNotifMsg(msg);
+    setTimeout(()=>setNotifMsg(''),2800);
+  };
+
+  const sendTestNotification = async (channel) => {
+    if(channel==='push'){
+      if(!('Notification' in window)){
+        alert('Push notifications are not supported in this browser.');
+        return;
+      }
+      let permission = Notification.permission;
+      if(permission==='default'){
+        permission = await Notification.requestPermission();
+      }
+      if(permission!=='granted'){
+        alert('Push permission is blocked. Allow notifications in browser settings.');
+        return;
+      }
+      new Notification('Budget App Reminder', {
+        body: 'This is a test reminder from your Budget app.',
+        tag: 'budget-test-reminder',
+      });
+      showToast('Push test sent.');
+      return;
+    }
+
+    if(channel==='email'){
+      if(!profile.email){
+        alert('Add an email in Profile first.');
+        return;
+      }
+      const subject = encodeURIComponent('Budget App Test Reminder');
+      const body = encodeURIComponent('This is a test reminder from your Budget app.');
+      window.location.href = `mailto:${profile.email}?subject=${subject}&body=${body}`;
+      showToast('Opened your mail app for test email.');
+      return;
+    }
+
+    if(channel==='sms'){
+      if(!profile.phone){
+        alert('Add a phone number in Profile first.');
+        return;
+      }
+      const body = encodeURIComponent('Budget App test reminder');
+      window.location.href = `sms:${profile.phone}?body=${body}`;
+      showToast('Opened messaging app for test SMS.');
+    }
+  };
 
   // ── PDF Export ──────────────────────────────────────────
   const exportPDF = () => {
@@ -198,12 +249,21 @@ function SettingsScreen({profile, onProfileChange, onThemeChange, currentTheme, 
             <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>Send Test Reminder</div>
             <div style={{display:'flex',gap:8}}>
               {[{key:'push',label:'Push',icon:'📱'},{key:'email',label:'Email',icon:'📧'},{key:'sms',label:'SMS',icon:'💬'}].map(ch=>(
-                <button key={ch.key} onClick={()=>{setTS(ch.key);setTimeout(()=>setTS(''),2500);}} style={{flex:1,padding:'10px 4px',borderRadius:12,border:'1px solid var(--border)',background:testSent===ch.key?'var(--accent-10)':'var(--card2)',color:testSent===ch.key?'var(--accent)':'var(--muted)',cursor:'pointer',fontFamily:'-apple-system',fontSize:12,fontWeight:600,transition:'all .2s'}}>
+                <button key={ch.key} onClick={async ()=>{ await sendTestNotification(ch.key); setTS(ch.key); setTimeout(()=>setTS(''),2500); }} style={{flex:1,padding:'10px 4px',borderRadius:12,border:'1px solid var(--border)',background:testSent===ch.key?'var(--accent-10)':'var(--card2)',color:testSent===ch.key?'var(--accent)':'var(--muted)',cursor:'pointer',fontFamily:'-apple-system',fontSize:12,fontWeight:600,transition:'all .2s'}}>
                   {testSent===ch.key?'✓ Sent':`${ch.icon} ${ch.label}`}
                 </button>
               ))}
             </div>
-            {testSent&&<div style={{marginTop:8,fontSize:12,color:'var(--accent)',textAlign:'center'}}>Test reminder sent!</div>}
+            {testSent&&<div style={{marginTop:8,fontSize:12,color:'var(--accent)',textAlign:'center'}}>Test reminder triggered.</div>}
+            {notifMsg&&<div style={{marginTop:6,fontSize:12,color:'var(--muted)',textAlign:'center'}}>{notifMsg}</div>}
+          </div>
+
+          <div style={{background:'var(--card)',borderRadius:20,padding:'14px 16px',border:'1px solid var(--border)',marginTop:12}}>
+            <div style={{fontSize:13,fontWeight:600,marginBottom:8}}>Upcoming transaction alerts</div>
+            <div style={{fontSize:12,color:'var(--muted)',lineHeight:1.5}}>
+              Any future transaction created in Add screen can include Push / Email / SMS flags.
+              Use those per-transaction toggles to control reminder channels.
+            </div>
           </div>
         </div>
       )}
@@ -292,6 +352,20 @@ function SettingsScreen({profile, onProfileChange, onThemeChange, currentTheme, 
           </div>
         </div>
       )}
+
+      {/* Always visible reset area so it's easy to find */}
+      <div style={{marginTop:14,background:'var(--card)',borderRadius:16,padding:'14px 16px',border:'1px solid rgba(255,69,58,.25)'}}>
+        <div style={{fontSize:13,fontWeight:700,color:'#ff6b6b',marginBottom:6}}>Danger Zone</div>
+        <div style={{fontSize:12,color:'var(--muted)',lineHeight:1.45,marginBottom:10}}>Reset button clears transactions, profile, theme, and reminder preferences.</div>
+        <button
+          onClick={()=>{
+            if(window.confirm('Reset all app data? This cannot be undone.')) onResetData?.();
+          }}
+          style={{width:'100%',padding:'11px',borderRadius:12,border:'1px solid rgba(255,69,58,.45)',background:'rgba(255,69,58,.12)',color:'#ff453a',fontSize:13,fontWeight:700,cursor:'pointer'}}
+        >
+          Reset App Data
+        </button>
+      </div>
     </div>
   );
 }
