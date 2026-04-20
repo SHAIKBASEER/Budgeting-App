@@ -12,7 +12,7 @@ const THEMES = [
 
 const REMINDER_TIMES = ['6:00 AM','9:00 AM','12:00 PM','3:00 PM','6:00 PM','9:00 PM'];
 
-function SettingsScreen({profile, onProfileChange, onThemeChange, currentTheme, transactions}) {
+function SettingsScreen({profile, onProfileChange, onThemeChange, currentTheme, transactions, onResetData}) {
   const [section, setSection] = React.useState('profile'); // profile|notifications|theme|export
   const [notifEnabled, setNE] = React.useState(()=>JSON.parse(localStorage.getItem('notif_en')||'{"push":true,"email":true,"sms":false}'));
   const [activeReminders, setAR] = React.useState(()=>JSON.parse(localStorage.getItem('notif_times')||JSON.stringify(REMINDER_TIMES)));
@@ -205,6 +205,14 @@ function SettingsScreen({profile, onProfileChange, onThemeChange, currentTheme, 
             </div>
             {testSent&&<div style={{marginTop:8,fontSize:12,color:'var(--accent)',textAlign:'center'}}>Test reminder sent!</div>}
           </div>
+
+          <div style={{background:'var(--card)',borderRadius:20,padding:'14px 16px',border:'1px solid var(--border)',marginTop:12}}>
+            <div style={{fontSize:13,fontWeight:600,marginBottom:8}}>Upcoming transaction alerts</div>
+            <div style={{fontSize:12,color:'var(--muted)',lineHeight:1.5}}>
+              Any future transaction created in Add screen can include Push / Email / SMS flags.
+              Use those per-transaction toggles to control reminder channels.
+            </div>
+          </div>
         </div>
       )}
 
@@ -289,6 +297,15 @@ function SettingsScreen({profile, onProfileChange, onThemeChange, currentTheme, 
                 <span style={{fontSize:13,fontWeight:700}}>{s.val}</span>
               </div>
             ))}
+
+            <button
+              onClick={()=>{
+                if(window.confirm('Reset all app data? This cannot be undone.')) onResetData?.();
+              }}
+              style={{marginTop:14,width:'100%',padding:'11px',borderRadius:12,border:'1px solid rgba(255,69,58,.45)',background:'rgba(255,69,58,.12)',color:'#ff453a',fontSize:13,fontWeight:700,cursor:'pointer'}}
+            >
+              Reset App Data
+            </button>
           </div>
         </div>
       )}
