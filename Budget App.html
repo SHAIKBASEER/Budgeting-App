@@ -129,7 +129,7 @@ function App() {
   const [tab, setTab]       = React.useState(()=>parseInt(localStorage.getItem('budget_tab')||'0'));
   const [voiceMode, setVM]  = React.useState(false);
   const [transactions, setTx] = React.useState(()=>{
-    try{ const s=localStorage.getItem('budget_txns'); return s?JSON.parse(s):SEED; }catch{return SEED;}
+    try{ const s=localStorage.getItem('budget_txns'); return s?JSON.parse(s):[]; }catch{return [];}
   });
   const [profile, setProfile] = React.useState(()=>{
     try{ return JSON.parse(localStorage.getItem('budget_profile')||'{"name":"","email":"shaikabd@cua.edu","phone":"","goal":""}'); }
