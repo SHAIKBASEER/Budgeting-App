@@ -210,15 +210,37 @@ function App() {
     setVM(mode==='voice');
   };
 
+  const updateTransaction = (id, updates) => {
+    setTx(prev=>prev.map(t=>t.id===id?{...t,...updates}:t));
+  };
+
+  const resetAllData = () => {
+    localStorage.removeItem('budget_txns');
+    localStorage.removeItem('budget_profile');
+    localStorage.removeItem('notif_en');
+    localStorage.removeItem('notif_times');
+    localStorage.removeItem('budget_theme');
+    localStorage.removeItem('budget_tab');
+    setTx(SEED);
+    setProfile({name:'',email:'shaikabd@cua.edu',phone:'',goal:''});
+    setTheme(THEMES[0]);
+    setTab(0);
+  };
+
   const screens = [
     <HomeScreen transactions={transactions} onNav={navTo} userName={profile.name}/>,
     <AddScreen onSave={t=>{setTx(p=>[t,...p]);setTab(0);}} startVoice={voiceMode}/>,
     <PortfolioScreen transactions={transactions}/>,
-    <HistoryScreen transactions={transactions} onDelete={id=>setTx(p=>p.filter(t=>t.id!==id))}/>,
+    <HistoryScreen
+      transactions={transactions}
+      onDelete={id=>setTx(p=>p.filter(t=>t.id!==id))}
+      onEdit={updateTransaction}
+    />,
     <SettingsScreen
       profile={profile} onProfileChange={p=>{setProfile(p);}}
       onThemeChange={handleThemeChange} currentTheme={theme}
       transactions={transactions}
+      onResetData={resetAllData}
     />,
   ];
 
