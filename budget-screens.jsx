@@ -589,7 +589,6 @@ function HistoryScreen({transactions, onDelete, onEdit}) {
                       <div style={{fontSize:11,color:T.muted,marginTop:1}}>{cat.label} · {dayStr(t.date)}</div>
                     </div>
                     <div style={{fontSize:15,fontWeight:700,color:t.type==='income'?'var(--green)':'var(--red)'}}>{t.type==='income'?'+':'-'}{fmt(t.amount)}</div>
-                    <button onClick={()=>startEdit(t)} style={{marginLeft:8,border:'none',background:'transparent',color:'var(--accent)',fontSize:12,fontWeight:700,cursor:'pointer'}}>Edit</button>
                   </div>
                 </div>
               );
@@ -610,14 +609,6 @@ function HistoryScreen({transactions, onDelete, onEdit}) {
               <select value={editing.category} onChange={e=>setEditing(p=>({...p,category:e.target.value}))} style={{background:T.card2,border:`1px solid ${T.border}`,borderRadius:10,padding:'10px',color:T.text}}>
                 {(editing.type==='income'?INCOME_CATS:EXPENSE_CATS).map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
               </select>
-            </div>
-            <div style={{marginTop:10}}>
-              <div style={{fontSize:11,color:T.muted,marginBottom:6}}>Type</div>
-              <div style={{display:'flex',gap:8}}>
-                {['expense','income'].map(tp=>(
-                  <button key={tp} onClick={()=>setEditing(p=>({...p,type:tp,category:''}))} style={{flex:1,padding:'9px',borderRadius:10,border:`1px solid ${editing.type===tp?(tp==='income'?'#30d158':'#ff453a'):T.border}`,background:editing.type===tp?(tp==='income'?'rgba(48,209,88,.16)':'rgba(255,69,58,.16)'):T.card2,color:editing.type===tp?(tp==='income'?'#30d158':'#ff6b6b'):T.muted,cursor:'pointer',textTransform:'capitalize',fontWeight:600}}>{tp}</button>
-                ))}
-              </div>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:12}}>
               <button onClick={()=>setEditing(null)} style={{padding:'11px',borderRadius:12,border:`1px solid ${T.border}`,background:T.card2,color:T.text,cursor:'pointer'}}>Cancel</button>

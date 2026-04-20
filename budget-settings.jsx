@@ -19,7 +19,6 @@ function SettingsScreen({profile, onProfileChange, onThemeChange, currentTheme, 
   const [testSent, setTS] = React.useState('');
   const [shareMsg, setShareMsg] = React.useState('');
   const [notifMsg, setNotifMsg] = React.useState('');
-  const [lastTest, setLastTest] = React.useState('');
 
   const saveNE = (v) => { setNE(v); localStorage.setItem('notif_en',JSON.stringify(v)); };
   const toggleTime = (t) => {
@@ -39,12 +38,9 @@ function SettingsScreen({profile, onProfileChange, onThemeChange, currentTheme, 
   };
 
   const sendTestNotification = async (channel) => {
-    const stamp = new Date().toLocaleTimeString();
     if(channel==='push'){
       if(!('Notification' in window)){
-        alert('Push notifications are not supported in this browser. Simulated test sent.');
-        showToast('Simulated push test sent.');
-        setLastTest(`Push test simulated at ${stamp}`);
+        alert('Push notifications are not supported in this browser.');
         return;
       }
       let permission = Notification.permission;
@@ -52,9 +48,7 @@ function SettingsScreen({profile, onProfileChange, onThemeChange, currentTheme, 
         permission = await Notification.requestPermission();
       }
       if(permission!=='granted'){
-        alert('Push permission is blocked. Simulated push test sent instead.');
-        showToast('Push permission blocked — simulated test sent.');
-        setLastTest(`Push test simulated at ${stamp}`);
+        alert('Push permission is blocked. Allow notifications in browser settings.');
         return;
       }
       new Notification('Budget App Reminder', {
@@ -62,7 +56,6 @@ function SettingsScreen({profile, onProfileChange, onThemeChange, currentTheme, 
         tag: 'budget-test-reminder',
       });
       showToast('Push test sent.');
-      setLastTest(`Push test sent at ${stamp}`);
       return;
     }
 
@@ -75,7 +68,6 @@ function SettingsScreen({profile, onProfileChange, onThemeChange, currentTheme, 
       const body = encodeURIComponent('This is a test reminder from your Budget app.');
       window.location.href = `mailto:${profile.email}?subject=${subject}&body=${body}`;
       showToast('Opened your mail app for test email.');
-      setLastTest(`Email draft opened at ${stamp}`);
       return;
     }
 
@@ -87,7 +79,6 @@ function SettingsScreen({profile, onProfileChange, onThemeChange, currentTheme, 
       const body = encodeURIComponent('Budget App test reminder');
       window.location.href = `sms:${profile.phone}?body=${body}`;
       showToast('Opened messaging app for test SMS.');
-      setLastTest(`SMS draft opened at ${stamp}`);
     }
   };
 
@@ -265,7 +256,14 @@ function SettingsScreen({profile, onProfileChange, onThemeChange, currentTheme, 
             </div>
             {testSent&&<div style={{marginTop:8,fontSize:12,color:'var(--accent)',textAlign:'center'}}>Test reminder triggered.</div>}
             {notifMsg&&<div style={{marginTop:6,fontSize:12,color:'var(--muted)',textAlign:'center'}}>{notifMsg}</div>}
-            {lastTest&&<div style={{marginTop:6,fontSize:11,color:'var(--muted2)',textAlign:'center'}}>Last test: {lastTest}</div>}
+          </div>
+
+          <div style={{background:'var(--card)',borderRadius:20,padding:'14px 16px',border:'1px solid var(--border)',marginTop:12}}>
+            <div style={{fontSize:13,fontWeight:600,marginBottom:8}}>Upcoming transaction alerts</div>
+            <div style={{fontSize:12,color:'var(--muted)',lineHeight:1.5}}>
+              Any future transaction created in Add screen can include Push / Email / SMS flags.
+              Use those per-transaction toggles to control reminder channels.
+            </div>
           </div>
 
           <div style={{background:'var(--card)',borderRadius:20,padding:'14px 16px',border:'1px solid var(--border)',marginTop:12}}>
@@ -359,6 +357,15 @@ function SettingsScreen({profile, onProfileChange, onThemeChange, currentTheme, 
                 <span style={{fontSize:13,fontWeight:700}}>{s.val}</span>
               </div>
             ))}
+
+            <button
+              onClick={()=>{
+                if(window.confirm('Reset all app data? This cannot be undone.')) onResetData?.();
+              }}
+              style={{marginTop:14,width:'100%',padding:'11px',borderRadius:12,border:'1px solid rgba(255,69,58,.45)',background:'rgba(255,69,58,.12)',color:'#ff453a',fontSize:13,fontWeight:700,cursor:'pointer'}}
+            >
+              Reset App Data
+            </button>
           </div>
         </div>
       )}
