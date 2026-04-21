@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"/>
+<title>Budget App</title>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Budget"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="theme-color" content="#0a0a10"/>
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230a0a10'/><text y='.9em' font-size='72' x='14'>💰</text></svg>"/>
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{height:100%;height:-webkit-fill-available}
+body{
+  height:100%;height:-webkit-fill-available;
+  overflow:hidden;
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  background:#0a0a10;color:#f0f0f8;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-left:env(safe-area-inset-left,0px);
+  padding-right:env(safe-area-inset-right,0px);
+}
+#root{
+  height:100%;height:-webkit-fill-available;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+:root{
+  --accent:#f5a623;--a10:rgba(245,166,35,.10);--a20:rgba(245,166,35,.20);
+  --bg:#0a0a10;--card:#16161f;--card2:#1e1e2a;--card3:#252533;
+  --text:#f0f0f8;--muted:#6e6e90;--muted2:#3a3a52;
+  --border:rgba(255,255,255,.07);--border2:rgba(255,255,255,.12);
+  --green:#30d158;--red:#ff453a;--blue:#4e9af1;
+  --hero-a:#1a1630;--hero-b:#131220;
+  --tabbar-h:60px;
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+  --safe-top:env(safe-area-inset-top,0px);
+  --screen-top:calc(env(safe-area-inset-top,0px) + 56px);
+}
+::-webkit-scrollbar{display:none}
+input,select,textarea{-webkit-appearance:none;appearance:none}
+input[type=date]{color-scheme:dark}
+input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.6) brightness(1.5);cursor:pointer}
+input[type=time]::-webkit-calendar-picker-indicator{filter:invert(.6) brightness(1.5);cursor:pointer}
+button{font-family:inherit;cursor:pointer;-webkit-appearance:none}
+/* Splash */
+#splash{position:fixed;inset:0;z-index:9999;background:#0a0a10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;transition:opacity .5s ease}
+#splash.hide{opacity:0;pointer-events:none}
+.sp-icon{font-size:64px;animation:sp-bounce .6s ease}
+.sp-title{font-size:26px;font-weight:800;letter-spacing:-.5px}
+.sp-sub{font-size:13px;color:#6e6e90}
+.spinner{width:28px;height:28px;border-radius:50%;border:2.5px solid rgba(245,166,35,.2);border-top-color:#f5a623;animation:spin .7s linear infinite;margin-top:4px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes sp-bounce{0%{transform:scale(.5);opacity:0}70%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes slideDown{from{transform:translateY(-20px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes popIn{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+/* Tablet layout */
+@media(min-width:768px){
+  :root{--tabbar-h:0px}
+  #root{flex-direction:row}
+  #sidebar{display:flex!important}
+  #tabbar{display:none!important}
+  .screen-wrap{padding-left:0!important}
+}
+</style>
+</head>
+<body>
+<div id="splash">
+  <div class="sp-icon">💰</div>
+  <div class="sp-title">Budget</div>
+  <div class="sp-sub">Your personal finance tracker</div>
+  <div class="spinner"></div>
+</div>
+<div id="root"></div>
+
+<script type="text/babel">
+const {useState,useEffect,useRef,useCallback,useMemo}=React;
+
+// ─── THEMES ─────────────────────────────────────────────────
+const THEMES=[
+  {id:'dark',  name:'Midnight', isDark:true, bg:'#0a0a10',card:'#16161f',card2:'#1e1e2a',card3:'#252533',text:'#f0f0f8',muted:'#6e6e90',muted2:'#3a3a52',accent:'#f5a623',heroA:'#1a1630',heroB:'#131220'},
+  {id:'navy',  name:'Deep Navy',isDark:true, bg:'#040d1a',card:'#0a1928',card2:'#0f2235',card3:'#142d44',text:'#e8f2ff',muted:'#5070a0',muted2:'#284060',accent:'#4e9af1',heroA:'#0a1928',heroB:'#060f1e'},
+  {id:'forest',name:'Forest',   isDark:true, bg:'#060e08',card:'#0d1e10',card2:'#132618',card3:'#192f1e',text:'#dff0e8',muted:'#508060',muted2:'#2a4832',accent:'#30d158',heroA:'#0d1e10',heroB:'#08140b'},
+  {id:'cosmos',name:'Cosmos',   isDark:true, bg:'#0c0710',card:'#170e24',card2:'#1e1430',card3:'#261a3c',text:'#ede8ff',muted:'#806090',muted2:'#483060',accent:'#bf5af2',heroA:'#170e24',heroB:'#0e091a'},
+  {id:'ember', name:'Ember',    isDark:true, bg:'#100804',card:'#1e1008',card2:'#2a160c',card3:'#361c10',text:'#fff0e5',muted:'#906040',muted2:'#602810',accent:'#ff6b35',heroA:'#1e1008',heroB:'#140a05'},
+  {id:'light', name:'Daylight', isDark:false,bg:'#f0f0f8',card:'#ffffff',card2:'#f0f0f8',card3:'#e8e8f4',text:'#0c0c1e',muted:'#707090',muted2:'#c0c0d8',accent:'#5856d6',heroA:'#ffffff',heroB:'#f4f4fc'},
+];
+
+function applyTheme(th){
+  const s=document.documentElement.style;
+  const pairs=[['--accent',th.accent],['--bg',th.bg],['--card',th.card],['--card2',th.card2],['--card3',th.card3||th.card2],['--text',th.text],['--muted',th.muted],['--muted2',th.muted2],['--hero-a',th.heroA],['--hero-b',th.heroB],['--border',th.isDark?'rgba(255,255,255,.07)':'rgba(0,0,0,.08)'],['--border2',th.isDark?'rgba(255,255,255,.12)':'rgba(0,0,0,.14)'],['--green',th.isDark?'#30d158':'#248a3d'],['--red',th.isDark?'#ff453a':'#d70015']];
+  pairs.forEach(([k,v])=>s.setProperty(k,v));
+  const hex=th.accent.replace('#','');
+  const [r,g,b]=[0,2,4].map(i=>parseInt(hex.slice(i,i+2),16));
+  s.setProperty('--a10',`rgba(${r},${g},${b},.10)`);
+  s.setProperty('--a20',`rgba(${r},${g},${b},.20)`);
+  document.body.style.background=th.bg;
+  document.querySelector('meta[name=theme-color]').content=th.bg;
+}
+
+// ─── CATEGORIES ──────────────────────────────────────────────
+const EXP_CATS=[
+  {id:'food',        label:'Food',       icon:'🍔',color:'#ff6b35'},
+  {id:'transport',   label:'Transport',  icon:'🚗',color:'#4e9af1'},
+  {id:'bills',       label:'Bills',      icon:'⚡',color:'#f5a623'},
+  {id:'shopping',    label:'Shopping',   icon:'🛍️',color:'#af52de'},
+  {id:'health',      label:'Health',     icon:'❤️',color:'#ff2d55'},
+  {id:'entertainment',label:'Fun',       icon:'🎮',color:'#30d158'},
+  {id:'education',   label:'Education',  icon:'📚',color:'#5ac8fa'},
+  {id:'travel',      label:'Travel',     icon:'✈️',color:'#34aadc'},
+  {id:'other',       label:'Other',      icon:'📦',color:'#888'},
+];
+const INC_CATS=[
+  {id:'salary',    label:'Salary',    icon:'💼',color:'#30d158'},
+  {id:'freelance', label:'Freelance', icon:'💻',color:'#4e9af1'},
+  {id:'investment',label:'Invest',    icon:'📈',color:'#f5a623'},
+  {id:'gift',      label:'Gift',      icon:'🎁',color:'#af52de'},
+  {id:'other',     label:'Other',     icon:'💰',color:'#888'},
+];
+const getCat=(type,id)=>{const list=type==='income'?INC_CATS:EXP_CATS;return list.find(c=>c.id===id)||list[list.length-1];};
+
+// ─── HELPERS ─────────────────────────────────────────────────
+const fmt=n=>'$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtK=n=>Math.abs(n)>=1000?'$'+(Math.abs(n)/1000).toFixed(1)+'k':fmt(n);
+const dayStr=d=>{try{const dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});}catch{return d;}};
+const monthLabel=(y,m)=>new Date(y,m,1).toLocaleString('default',{month:'long',year:'numeric'});
+const todayStr=()=>new Date().toISOString().split('T')[0];
+const parseTimeStr=t=>{try{const[h,rest]=t.split(':');const[min,ap]=rest.split(' ');let hr=parseInt(h);if(ap==='PM'&&hr!==12)hr+=12;if(ap==='AM'&&hr===12)hr=0;return{h:hr,m:parseInt(min)||0};}catch{return{h:9,m:0};}};
+
+// ─── RICH SEED DATA ───────────────────────────────────────────
+function buildSeed(){
+  const now=new Date();const y=now.getFullYear();const mo=now.getMonth();
+  const D=(month,day)=>new Date(y,month,Math.min(day,new Date(y,month+1,0).getDate())).toISOString().split('T')[0];
+  const F=(days)=>new Date(y,mo,now.getDate()+days).toISOString().split('T')[0];
+  let id=1;
+  return[
+    // This month
+    {id:id++,type:'income', amount:4800, category:'salary',      note:'Monthly salary',         date:D(mo,1)},
+    {id:id++,type:'income', amount:750,  category:'freelance',   note:'UI design project',      date:D(mo,4)},
+    {id:id++,type:'expense',amount:1300, category:'bills',       note:'Rent payment',            date:D(mo,2)},
+    {id:id++,type:'expense',amount:94,   category:'food',        note:'Whole Foods groceries',  date:D(mo,3)},
+    {id:id++,type:'expense',amount:62,   category:'transport',   note:'Shell gas station',      date:D(mo,5)},
+    {id:id++,type:'expense',amount:16,   category:'bills',       note:'Netflix subscription',   date:D(mo,6)},
+    {id:id++,type:'expense',amount:248,  category:'shopping',    note:'Nike shoes — online',    date:D(mo,7)},
+    {id:id++,type:'income', amount:220,  category:'investment',  note:'ETF dividend payout',    date:D(mo,8)},
+    {id:id++,type:'expense',amount:48,   category:'food',        note:'Chipotle × 3 visits',    date:D(mo,9)},
+    {id:id++,type:'expense',amount:88,   category:'health',      note:'Pharmacy — vitamins',    date:D(mo,10)},
+    {id:id++,type:'expense',amount:128,  category:'bills',       note:'Electric & water',       date:D(mo,11)},
+    {id:id++,type:'expense',amount:36,   category:'entertainment',note:'Spotify + Hulu bundle', date:D(mo,12)},
+    {id:id++,type:'expense',amount:312,  category:'shopping',    note:'Amazon — home items',    date:D(mo,13)},
+    {id:id++,type:'expense',amount:78,   category:'food',        note:'Date night dinner',      date:D(mo,14)},
+    {id:id++,type:'income', amount:480,  category:'freelance',   note:'Logo + brand kit',       date:D(mo,15)},
+    {id:id++,type:'expense',amount:34,   category:'transport',   note:'Uber — this week',       date:D(mo,16)},
+    {id:id++,type:'expense',amount:145,  category:'health',      note:'Gym membership',         date:D(mo,17)},
+    {id:id++,type:'expense',amount:80,   category:'education',   note:'Udemy course bundle',    date:D(mo,18)},
+    {id:id++,type:'expense',amount:26,   category:'food',        note:'Starbucks runs',         date:D(mo,19)},
+    {id:id++,type:'expense',amount:185,  category:'bills',       note:'Phone bill',             date:D(mo,20)},
+    // Last month
+    {id:id++,type:'income', amount:4800, category:'salary',      note:'Monthly salary',         date:D(mo-1,1)},
+    {id:id++,type:'income', amount:420,  category:'freelance',   note:'Web dev contract',       date:D(mo-1,6)},
+    {id:id++,type:'expense',amount:1300, category:'bills',       note:'Rent payment',            date:D(mo-1,2)},
+    {id:id++,type:'expense',amount:112,  category:'food',        note:'Trader Joe\'s weekly',   date:D(mo-1,4)},
+    {id:id++,type:'expense',amount:50,   category:'transport',   note:'Metro monthly pass',     date:D(mo-1,5)},
+    {id:id++,type:'expense',amount:295,  category:'shopping',    note:'IKEA — desk setup',      date:D(mo-1,9)},
+    {id:id++,type:'income', amount:175,  category:'investment',  note:'Stock dividends',        date:D(mo-1,12)},
+    {id:id++,type:'expense',amount:96,   category:'entertainment',note:'Concert tickets x2',    date:D(mo-1,14)},
+    {id:id++,type:'expense',amount:58,   category:'health',      note:'Doctor co-pay visit',    date:D(mo-1,15)},
+    {id:id++,type:'expense',amount:42,   category:'food',        note:'Pizza + beer delivery',  date:D(mo-1,17)},
+    {id:id++,type:'expense',amount:155,  category:'bills',       note:'Electric + internet',    date:D(mo-1,18)},
+    {id:id++,type:'expense',amount:65,   category:'education',   note:'Coursera monthly',       date:D(mo-1,22)},
+    {id:id++,type:'expense',amount:215,  category:'shopping',    note:'H&M — seasonal clothes', date:D(mo-1,25)},
+    {id:id++,type:'expense',amount:44,   category:'food',        note:'Meal kit subscription',  date:D(mo-1,28)},
+    // 2 months ago
+    {id:id++,type:'income', amount:4800, category:'salary',      note:'Monthly salary',         date:D(mo-2,1)},
+    {id:id++,type:'income', amount:900,  category:'freelance',   note:'App design project',     date:D(mo-2,10)},
+    {id:id++,type:'income', amount:300,  category:'gift',        note:'Birthday gift money',    date:D(mo-2,15)},
+    {id:id++,type:'expense',amount:1300, category:'bills',       note:'Rent payment',            date:D(mo-2,2)},
+    {id:id++,type:'expense',amount:98,   category:'food',        note:'Costco groceries run',   date:D(mo-2,5)},
+    {id:id++,type:'expense',amount:420,  category:'shopping',    note:'Best Buy — monitor',     date:D(mo-2,8)},
+    {id:id++,type:'expense',amount:134,  category:'bills',       note:'All utilities',          date:D(mo-2,11)},
+    {id:id++,type:'expense',amount:72,   category:'health',      note:'Dental cleaning',        date:D(mo-2,13)},
+    {id:id++,type:'expense',amount:55,   category:'entertainment',note:'Weekend movie outing',  date:D(mo-2,16)},
+    {id:id++,type:'expense',amount:188,  category:'transport',   note:'Car service + gas',      date:D(mo-2,20)},
+    {id:id++,type:'expense',amount:90,   category:'food',        note:'Birthday dinner out',    date:D(mo-2,23)},
+    {id:id++,type:'expense',amount:65,   category:'travel',      note:'Weekend road trip gas',  date:D(mo-2,26)},
+    // Scheduled/future
+    {id:id++,type:'expense',amount:1300, category:'bills',       note:'Rent — next month',      date:F(12), scheduled:true,notifyWhenDue:true},
+    {id:id++,type:'income', amount:4800, category:'salary',      note:'Salary — next month',    date:F(13), scheduled:true,notifyWhenDue:true},
+    {id:id++,type:'expense',amount:185,  category:'bills',       note:'Phone bill due',         date:F(6),  scheduled:true,notifyWhenDue:true},
+    {id:id++,type:'expense',amount:350,  category:'shopping',    note:'Anniversary gift',       date:F(9),  scheduled:true,notifyWhenDue:false},
+    {id:id++,type:'expense',amount:220,  category:'travel',      note:'Flight booking deposit', date:F(18), scheduled:true,notifyWhenDue:true},
+  ];
+}
+const SEED=buildSeed();
+
+// ─── STORAGE ─────────────────────────────────────────────────
+const S={
+  get:(k,fb)=>{try{const v=localStorage.getItem(k);return v!==null?JSON.parse(v):fb;}catch{return fb;}},
+  set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}},
+  del:(k)=>{try{localStorage.removeItem(k);}catch{}},
+};
+
+// ─── SHARED UI COMPONENTS ────────────────────────────────────
+const Card=({children,style={}})=><div style={{background:'var(--card)',borderRadius:20,padding:16,border:'1px solid var(--border)',...style}}>{children}</div>;
+const Toggle=({on,onToggle,color='var(--accent)'})=>(
+  <div onClick={onToggle} style={{width:46,height:28,borderRadius:14,background:on?color:'var(--muted2)',position:'relative',cursor:'pointer',transition:'background .25s',flexShrink:0,boxShadow:on?`0 0 12px ${color}44`:'none'}}>
+    <div style={{position:'absolute',top:3,left:on?20:3,width:22,height:22,borderRadius:11,background:'#fff',transition:'left .25s',boxShadow:'0 2px 6px rgba(0,0,0,.3)'}}/>
+  </div>
+);
+const Pill=({children,active,color,onPress})=>{
+  const c=color||'var(--accent)';
+  return <button onClick={onPress} style={{padding:'7px 16px',borderRadius:99,border:'none',cursor:'pointer',background:active?c:'var(--card2)',color:active?'#000':'var(--muted)',fontSize:13,fontWeight:600,transition:'all .18s',flexShrink:0}}>{children}</button>;
+};
+
+// Donut chart
+function Donut({data,size=110}){
+  const total=data.reduce((s,d)=>s+d.value,0);
+  if(!total)return<div style={{width:size,height:size,borderRadius:'50%',background:'var(--card2)',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{color:'var(--muted)',fontSize:10}}>No data</span></div>;
+  const r=44,cx=60,cy=60,sw=14,circ=2*Math.PI*r;let off=0;
+  const slices=data.map((d,i)=>{const pct=d.value/total,dash=Math.max(circ*pct-1.5,0),gap=circ-dash;const sl=<circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={d.color} strokeWidth={sw} strokeDasharray={`${dash} ${gap}`} strokeDashoffset={-off+circ/4} strokeLinecap="butt"/>;off+=circ*pct;return sl;});
+  return<svg width={size} height={size} viewBox="0 0 120 120"><circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--card2)" strokeWidth={sw}/>{slices}</svg>;
+}
+
+// Mini bar chart
+function BarChart({weeks,height=100}){
+  const maxV=Math.max(...weeks.flatMap(w=>[w.income,w.expense]),1);
+  const bw=18,gap=10,left=4;
+  const svgW=weeks.length*(bw*2+gap+8)+left;
+  return<svg width="100%" height={height} viewBox={`0 0 ${svgW} ${height}`} preserveAspectRatio="xMidYMid meet">
+    {weeks.map((w,i)=>{
+      const x=left+i*(bw*2+gap+8);
+      const ih=(w.income/maxV)*(height-22),eh=(w.expense/maxV)*(height-22);
+      return<g key={i}>
+        <rect x={x} y={height-22-ih} width={bw} height={Math.max(ih,2)} rx={4} fill="var(--green)" opacity={.85}/>
+        <rect x={x+bw+3} y={height-22-eh} width={bw} height={Math.max(eh,2)} rx={4} fill="var(--red)" opacity={.85}/>
+        <text x={x+bw} y={height-5} textAnchor="middle" fill="var(--muted)" fontSize={9} fontFamily="-apple-system">{w.label}</text>
+      </g>;
+    })}
+  </svg>;
+}
+
+// Line chart
+function LineChart({points,height=70}){
+  if(points.length<2)return null;
+  const vals=points.map(p=>p.y),mn=Math.min(...vals),mx=Math.max(...vals),rng=mx-mn||1,pad=8;
+  const W=300;
+  const pts=points.map((p,i)=>({x:pad+i*(W-pad*2)/(points.length-1),y:pad+(1-(p.y-mn)/rng)*(height-pad*2)}));
+  const d=pts.map((p,i)=>`${i===0?'M':'L'}${p.x},${p.y}`).join(' ');
+  const area=`${d} L${pts[pts.length-1].x},${height} L${pts[0].x},${height} Z`;
+  return<svg width="100%" height={height} viewBox={`0 0 ${W} ${height}`} preserveAspectRatio="none">
+    <defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--accent)" stopOpacity=".3"/><stop offset="100%" stopColor="var(--accent)" stopOpacity="0"/></linearGradient></defs>
+    <path d={area} fill="url(#lg)"/>
+    <path d={d} fill="none" stroke="var(--accent)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
+    {pts.map((p,i)=><circle key={i} cx={p.x} cy={p.y} r={2.5} fill="var(--accent)"/>)}
+  </svg>;
+}
+
+// Tab icons
+const Icons={
+  Home:(a)=><svg width={22} height={22} viewBox="0 0 24 24" fill="none"><path d="M3 12L12 3l9 9" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/><path d="M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth={2} strokeLinecap="round"/></svg>,
+  Add:(a)=><svg width={22} height={22} viewBox="0 0 24 24" fill="none"><circle cx={12} cy={12} r={9} stroke={a?'var(--accent)':'var(--muted)'} strokeWidth={2}/><path d="M12 8v8M8 12h8" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth={2.5} strokeLinecap="round"/></svg>,
+  Charts:(a)=><svg width={22} height={22} viewBox="0 0 24 24" fill="none"><rect x={2} y={3} width={20} height={18} rx={3} stroke={a?'var(--accent)':'var(--muted)'} strokeWidth={2}/><path d="M7 14v3M11 10v7M15 7v10M19 12v5" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth={2} strokeLinecap="round"/></svg>,
+  History:(a)=><svg width={22} height={22} viewBox="0 0 24 24" fill="none"><circle cx={12} cy={12} r={9} stroke={a?'var(--accent)':'var(--muted)'} strokeWidth={2}/><path d="M12 7v5l3 3" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth={2} strokeLinecap="round"/></svg>,
+  Settings:(a)=><svg width={22} height={22} viewBox="0 0 24 24" fill="none"><circle cx={12} cy={12} r={3} stroke={a?'var(--accent)':'var(--muted)'} strokeWidth={2}/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth={2} strokeLinecap="round"/></svg>,
+};
+const TABS=['Home','Add','Charts','History','Settings'];
+
+// ─── TOAST SYSTEM ────────────────────────────────────────────
+function ToastBar({toasts}){
+  if(!toasts.length)return null;
+  return<div style={{position:'fixed',top:'calc(var(--safe-top) + 8px)',left:'50%',transform:'translateX(-50%)',zIndex:9000,display:'flex',flexDirection:'column',gap:8,width:'min(calc(100% - 32px), 380px)',pointerEvents:'none'}}>
+    {toasts.map(t=>(
+      <div key={t.id} style={{background:t.type==='error'?'#2a1010':t.type==='warn'?'#1e1800':'var(--card)',border:`1px solid ${t.type==='error'?'rgba(255,68,58,.4)':t.type==='warn'?'rgba(245,166,35,.4)':'var(--border2)'}`,borderRadius:16,padding:'12px 16px',display:'flex',alignItems:'flex-start',gap:10,boxShadow:'0 8px 32px rgba(0,0,0,.5)',animation:'slideDown .3s ease'}}>
+        <span style={{fontSize:20,flexShrink:0}}>{t.icon||'🔔'}</span>
+        <div style={{flex:1,minWidth:0}}>
+          {t.title&&<div style={{fontSize:13,fontWeight:700,color:t.type==='error'?'var(--red)':t.type==='warn'?'var(--accent)':'var(--text)',marginBottom:2}}>{t.title}</div>}
+          <div style={{fontSize:12,color:'var(--muted)',lineHeight:1.4,wordBreak:'break-word'}}>{t.body}</div>
+        </div>
+      </div>
+    ))}
+  </div>;
+}
+
+// ─── CONFIRM DIALOG ───────────────────────────────────────────
+function Confirm({title,body,confirmLabel='Confirm',danger,onOk,onCancel}){
+  return<div onClick={e=>{if(e.target===e.currentTarget)onCancel();}} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.75)',zIndex:9500,display:'flex',alignItems:'center',justifyContent:'center',padding:24,animation:'fadeIn .2s'}}>
+    <div style={{background:'var(--card)',borderRadius:24,padding:'24px 20px',width:'100%',maxWidth:340,animation:'popIn .2s'}}>
+      <div style={{fontSize:18,fontWeight:800,color:'var(--text)',textAlign:'center',marginBottom:8}}>{title}</div>
+      <div style={{fontSize:14,color:'var(--muted)',textAlign:'center',lineHeight:1.6,marginBottom:22}}>{body}</div>
+      <div style={{display:'flex',gap:10}}>
+        <button onClick={onCancel} style={{flex:1,padding:'13px',borderRadius:14,border:'1px solid var(--border2)',background:'transparent',color:'var(--muted)',fontSize:14,fontWeight:700}}>Cancel</button>
+        <button onClick={onOk} style={{flex:1,padding:'13px',borderRadius:14,border:'none',background:danger?'var(--red)':'var(--accent)',color:danger?'#fff':'#000',fontSize:14,fontWeight:700}}>{confirmLabel}</button>
+      </div>
+    </div>
+  </div>;
+}
+
+// ─── BOTTOM SHEET (Add/Edit Transaction) ─────────────────────
+function TxSheet({tx,onSave,onClose,defaultScheduled=false,toast}){
+  const editing=!!tx;
+  const [type,setType]=useState(tx?.type||'expense');
+  const [amount,setAmt]=useState(tx?String(tx.amount):'');
+  const [cat,setCat]=useState(tx?.category||'');
+  const [note,setNote]=useState(tx?.note||'');
+  const [date,setDate]=useState(tx?.date||todayStr());
+  const [sched,setSched]=useState(tx?.scheduled||defaultScheduled);
+  const [notify,setNotify]=useState(tx?.notifyWhenDue!==false);
+  const cats=type==='income'?INC_CATS:EXP_CATS;
+  const numKeys=[['7','8','9'],['4','5','6'],['1','2','3'],['.',  '0','⌫']];
+  const tap=v=>{if(v==='⌫'){setAmt(a=>a.slice(0,-1));return;}if(v==='.'&&amount.includes('.'))return;if(amount.replace('.','').length>=9)return;setAmt(a=>a===''&&v==='.'?'0.':a+v);};
+  const save=()=>{
+    const n=parseFloat(amount);if(!n||n<=0){toast({icon:'⚠️',title:'Enter amount',body:'Please enter a valid amount.',type:'warn'});return;}
+    if(!cat){toast({icon:'⚠️',title:'Pick category',body:'Please select a category.',type:'warn'});return;}
+    onSave({...(tx||{}),id:tx?.id||Date.now(),type,amount:n,category:cat,note:note.trim(),date,scheduled:sched,notifyWhenDue:sched&&notify});
+    onClose();
+  };
+  const dispAmt=amount?`$${parseFloat(amount||0).toLocaleString('en-US',{minimumFractionDigits:amount.includes('.')&&amount.split('.')[1]?.length>0?Math.min(amount.split('.')[1].length,2):0})}`:'$0.00';
+
+  return<div onClick={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.65)',zIndex:8000,display:'flex',alignItems:'flex-end',animation:'fadeIn .2s'}}>
+    <div style={{background:'var(--card)',borderRadius:'24px 24px 0 0',width:'100%',maxHeight:'95dvh',maxHeight:'95vh',overflowY:'auto',animation:'slideUp .3s ease',paddingBottom:`calc(env(safe-area-inset-bottom,0px) + 8px)`}}>
+      {/* Handle */}
+      <div style={{display:'flex',justifyContent:'center',padding:'10px 0 4px'}}><div style={{width:36,height:4,borderRadius:2,background:'var(--muted2)'}}/></div>
+      {/* Header */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'4px 20px 12px'}}>
+        <div style={{fontSize:20,fontWeight:800,color:'var(--text)'}}>{editing?'Edit Transaction':sched?'Schedule Transaction':'Add Transaction'}</div>
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          <button onClick={()=>setSched(!sched)} style={{padding:'6px 12px',borderRadius:10,border:`1px solid ${sched?'var(--accent)':'var(--border2)'}`,background:sched?'var(--a10)':'transparent',color:sched?'var(--accent)':'var(--muted)',fontSize:12,fontWeight:700}}>📅 {sched?'Scheduled':'Future'}</button>
+          <button onClick={onClose} style={{background:'var(--card2)',border:'none',color:'var(--muted)',width:30,height:30,borderRadius:15,fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
+        </div>
+      </div>
+      {/* Type toggle */}
+      <div style={{display:'flex',background:'var(--card2)',borderRadius:14,padding:4,gap:4,margin:'0 16px 12px'}}>
+        {['expense','income'].map(tp=><button key={tp} onClick={()=>{setType(tp);setCat('');}} style={{flex:1,padding:'11px',borderRadius:10,border:'none',background:type===tp?(tp==='income'?'var(--green)':'var(--red)'):'transparent',color:type===tp?'#fff':'var(--muted)',fontSize:15,fontWeight:800,textTransform:'capitalize',transition:'all .18s'}}>{tp==='income'?'💚 Income':'❤️ Expense'}</button>)}
+      </div>
+      {/* Amount */}
+      <div style={{textAlign:'center',padding:'4px 16px 8px'}}>
+        <div style={{fontSize:amount.length>8?36:52,fontWeight:900,letterSpacing:-2,color:amount?(type==='income'?'var(--green)':'var(--red)'):'var(--muted2)',minHeight:64,display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>{dispAmt}</div>
+      </div>
+      {/* Numpad */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,padding:'0 16px 12px'}}>
+        {numKeys.flat().map(k=><button key={k} onClick={()=>tap(k)} style={{height:52,borderRadius:14,border:`1px solid var(--border)`,background:k==='⌫'?'var(--card2)':'var(--card)',color:'var(--text)',fontSize:k==='⌫'?16:22,fontWeight:700,transition:'transform .08s',display:'flex',alignItems:'center',justifyContent:'center'}}>{k}</button>)}
+      </div>
+      {/* Category */}
+      <div style={{padding:'0 16px 12px'}}>
+        <div style={{fontSize:11,color:'var(--muted)',marginBottom:8,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>Category</div>
+        <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(cats.length,5)},1fr)`,gap:6}}>
+          {cats.map(c=><button key={c.id} onClick={()=>setCat(c.id)} style={{padding:'8px 4px',borderRadius:12,border:`1.5px solid ${cat===c.id?c.color:'var(--border)'}`,background:cat===c.id?c.color+'22':'var(--card2)',display:'flex',flexDirection:'column',alignItems:'center',gap:3,transition:'all .15s'}}>
+            <span style={{fontSize:20}}>{c.icon}</span>
+            <span style={{fontSize:9,color:cat===c.id?c.color:'var(--muted)',fontWeight:700,letterSpacing:.3}}>{c.label}</span>
+          </button>)}
+        </div>
+      </div>
+      {/* Note + Date */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,padding:'0 16px 12px'}}>
+        <div style={{background:'var(--card2)',borderRadius:12,padding:'10px 14px',border:'1px solid var(--border)'}}>
+          <div style={{fontSize:10,color:'var(--muted)',marginBottom:5,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>Note</div>
+          <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Optional…" style={{background:'none',border:'none',color:'var(--text)',fontSize:14,width:'100%',outline:'none'}}/>
+        </div>
+        <div style={{background:'var(--card2)',borderRadius:12,padding:'10px 14px',border:'1px solid var(--border)'}}>
+          <div style={{fontSize:10,color:'var(--muted)',marginBottom:5,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>{sched?'Due Date':'Date'}</div>
+          <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{background:'none',border:'none',color:'var(--text)',fontSize:13,width:'100%',outline:'none'}}/>
+        </div>
+      </div>
+      {/* Notify toggle for scheduled */}
+      {sched&&<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px 12px'}}>
+        <div><div style={{fontSize:14,fontWeight:700,color:'var(--text)'}}>🔔 Notify when due</div><div style={{fontSize:12,color:'var(--muted)',marginTop:2}}>Get reminded on the due date</div></div>
+        <Toggle on={notify} onToggle={()=>setNotify(!notify)}/>
+      </div>}
+      {/* Save button */}
+      <div style={{padding:'4px 16px 16px'}}>
+        <button onClick={save} style={{width:'100%',padding:'16px',borderRadius:16,border:'none',background:!amount||!cat?'var(--card2)':'var(--accent)',color:!amount||!cat?'var(--muted)':'#000',fontSize:16,fontWeight:800,transition:'all .2s'}}>
+          {editing?'Update Transaction':sched?'📅 Schedule':'✓ Save Transaction'}
+        </button>
+      </div>
+    </div>
+  </div>;
+}
+
+// ─── HOME SCREEN ─────────────────────────────────────────────
+function HomeScreen({txns,onNav,onAdd,onSchedule,userName,budgetGoal,incomeGoal}){
+  const now=new Date();
+  const live=txns.filter(t=>!t.scheduled);
+  const monthLive=live.filter(t=>{const d=new Date(t.date+'T12:00:00');return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
+  const income=monthLive.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const expense=monthLive.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const balance=live.reduce((s,t)=>t.type==='income'?s+t.amount:s-t.amount,0);
+  const recent=[...live].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,6);
+  const upcoming=txns.filter(t=>t.scheduled).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,3);
+  const hr=now.getHours();
+  const greet=hr<12?'Good morning':hr<17?'Good afternoon':'Good evening';
+  const isDemo=txns.length>=40;
+
+  return<div style={{color:'var(--text)',padding:'0 16px',paddingBottom:`calc(var(--tabbar-h) + env(safe-area-inset-bottom,0px) + 20px)`}}>
+    {/* Header */}
+    <div style={{paddingTop:'var(--screen-top)',paddingBottom:6}}>
+      <div style={{fontSize:13,color:'var(--muted)',marginBottom:2}}>{greet}{userName?`, ${userName}`:''} 👋</div>
+      <div style={{fontSize:28,fontWeight:800,letterSpacing:-.5}}>Your Finances</div>
+    </div>
+    {/* Demo banner */}
+    {isDemo&&<div style={{background:'linear-gradient(90deg,rgba(245,166,35,.12),rgba(245,166,35,.04))',border:'1px solid rgba(245,166,35,.25)',borderRadius:14,padding:'10px 14px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
+      <span style={{fontSize:18}}>✨</span>
+      <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:'var(--accent)'}}>Demo data loaded</div><div style={{fontSize:11,color:'var(--muted)',marginTop:1}}>Explore freely · Settings → Reset when ready</div></div>
+    </div>}
+    {/* Balance hero */}
+    <div style={{background:'linear-gradient(135deg,var(--hero-a),var(--hero-b))',borderRadius:24,padding:'22px 20px',marginBottom:12,position:'relative',overflow:'hidden',border:'1px solid var(--border)'}}>
+      <div style={{position:'absolute',top:-40,right:-40,width:140,height:140,borderRadius:'50%',background:'var(--a10)'}}/>
+      <div style={{position:'absolute',bottom:-60,left:-20,width:120,height:120,borderRadius:'50%',background:'var(--a10)',opacity:.5}}/>
+      <div style={{fontSize:12,color:'var(--muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>Total Balance</div>
+      <div style={{fontSize:42,fontWeight:900,letterSpacing:-2,color:balance>=0?'var(--text)':'var(--red)',lineHeight:1}}>{balance<0?'-':''}{fmt(Math.abs(balance))}</div>
+      <div style={{fontSize:12,color:'var(--muted)',marginTop:6}}>{now.toLocaleString('default',{month:'long',year:'numeric'})}</div>
+    </div>
+    {/* Income / Expense cards */}
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+      {[{label:'Income',val:income,color:'var(--green)',goal:incomeGoal},{label:'Expenses',val:expense,color:'var(--red)',goal:budgetGoal}].map(s=>(
+        <div key={s.label} style={{background:'var(--card)',borderRadius:18,padding:'14px 16px',border:'1px solid var(--border)'}}>
+          <div style={{fontSize:10,color:'var(--muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>{s.label}</div>
+          <div style={{fontSize:22,fontWeight:800,color:s.color}}>{fmtK(s.val)}</div>
+          {s.goal>0&&<div style={{marginTop:8}}>
+            <div style={{height:4,borderRadius:2,background:'var(--card2)',overflow:'hidden'}}><div style={{height:'100%',width:`${Math.min(100,s.val/s.goal*100)}%`,background:s.label==='Expenses'&&s.val/s.goal>0.85?'var(--red)':s.color,borderRadius:2,transition:'width .5s'}}/></div>
+            <div style={{fontSize:10,color:'var(--muted)',marginTop:3}}>{Math.round(s.val/s.goal*100)}% of ${s.goal.toLocaleString()} goal</div>
+          </div>}
+        </div>
+      ))}
+    </div>
+    {/* Quick actions */}
+    <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:10,marginBottom:20}}>
+      <button onClick={onAdd} style={{padding:'14px 16px',borderRadius:16,background:'var(--accent)',border:'none',display:'flex',alignItems:'center',justifyContent:'center',gap:8,fontSize:15,fontWeight:800,color:'#000'}}>
+        <span style={{fontSize:20,lineHeight:1}}>+</span> Add Transaction
+      </button>
+      <button onClick={onSchedule} style={{padding:'14px',borderRadius:16,background:'var(--card)',border:'1px solid var(--accent)',display:'flex',alignItems:'center',justifyContent:'center',gap:6,fontSize:13,fontWeight:700,color:'var(--accent)'}}>📅 Plan</button>
+    </div>
+    {/* Upcoming scheduled */}
+    {upcoming.length>0&&<div style={{marginBottom:20}}>
+      <div style={{fontSize:15,fontWeight:800,marginBottom:10,display:'flex',alignItems:'center',gap:8}}>📅 Upcoming <span style={{fontSize:12,color:'var(--muted)',fontWeight:400}}>scheduled</span></div>
+      <Card style={{padding:'4px 0'}}>
+        {upcoming.map((t,i)=>{
+          const cat=getCat(t.type,t.category);
+          const days=Math.ceil((new Date(t.date)-new Date())/(864e5));
+          return<div key={t.id} style={{display:'flex',alignItems:'center',padding:'12px 16px',borderBottom:i<upcoming.length-1?'1px solid var(--border)':'none'}}>
+            <div style={{width:38,height:38,borderRadius:12,background:cat.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,marginRight:12,flexShrink:0}}>{cat.icon}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:14,fontWeight:700,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.note||cat.label}</div>
+              <div style={{fontSize:11,color:'var(--muted)',marginTop:1}}>in {days} day{days!==1?'s':''} · {dayStr(t.date)}</div>
+            </div>
+            <div style={{textAlign:'right',flexShrink:0}}>
+              <div style={{fontSize:14,fontWeight:800,color:t.type==='income'?'var(--green)':'var(--red)'}}>{t.type==='income'?'+':'-'}{fmt(t.amount)}</div>
+              {t.notifyWhenDue&&<div style={{fontSize:10,color:'var(--accent)',marginTop:2}}>🔔 reminder on</div>}
+            </div>
+          </div>;
+        })}
+      </Card>
+    </div>}
+    {/* Recent */}
+    {recent.length>0&&<div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+        <div style={{fontSize:15,fontWeight:800}}>Recent</div>
+        <button onClick={()=>onNav(3)} style={{background:'none',border:'none',color:'var(--accent)',fontSize:13,fontWeight:700}}>See all →</button>
+      </div>
+      <Card style={{padding:'4px 0'}}>
+        {recent.map((t,i)=>{const cat=getCat(t.type,t.category);return(
+          <div key={t.id} style={{display:'flex',alignItems:'center',padding:'12px 16px',borderBottom:i<recent.length-1?'1px solid var(--border)':'none'}}>
+            <div style={{width:38,height:38,borderRadius:12,background:cat.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,marginRight:12,flexShrink:0}}>{cat.icon}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:14,fontWeight:700,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.note||cat.label}</div>
+              <div style={{fontSize:11,color:'var(--muted)',marginTop:1}}>{dayStr(t.date)}</div>
+            </div>
+            <div style={{fontSize:15,fontWeight:800,color:t.type==='income'?'var(--green)':'var(--red)',flexShrink:0,marginLeft:8}}>{t.type==='income'?'+':'-'}{fmt(t.amount)}</div>
+          </div>
+        );})}
+      </Card>
+    </div>}
+  </div>;
+}
+
+// ─── CHARTS SCREEN ────────────────────────────────────────────
+function ChartsScreen({txns}){
+  const now=new Date();
+  const [vm,setVm]=useState(now.getMonth());
+  const [vy,setVy]=useState(now.getFullYear());
+  const navM=d=>{let m=vm+d,y=vy;if(m<0){m=11;y--;}if(m>11){m=0;y++;}setVm(m);setVy(y);};
+  const live=txns.filter(t=>!t.scheduled);
+  const mTxns=live.filter(t=>{const d=new Date(t.date+'T12:00:00');return d.getMonth()===vm&&d.getFullYear()===vy;});
+  const income=mTxns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const expense=mTxns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const weeks=['W1','W2','W3','W4'].map((label,wi)=>{const w=mTxns.filter(t=>Math.floor((new Date(t.date+'T12:00:00').getDate()-1)/7)===wi);return{label,income:w.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0),expense:w.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0)};});
+  const catBreak=EXP_CATS.map(c=>({label:c.label,color:c.color,icon:c.icon,value:mTxns.filter(t=>t.type==='expense'&&t.category===c.id).reduce((s,t)=>s+t.amount,0)})).filter(c=>c.value>0).sort((a,b)=>b.value-a.value);
+  const dim=new Date(vy,vm+1,0).getDate(),fd=new Date(vy,vm,1).getDay();
+  const dayData=Array.from({length:dim},(_,i)=>{const day=i+1,dt=mTxns.filter(t=>new Date(t.date+'T12:00:00').getDate()===day);const inc=dt.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);const exp=dt.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);return{day,inc,exp,net:inc-exp,has:dt.length>0};});
+  const sorted=[...mTxns].sort((a,b)=>new Date(a.date)-new Date(b.date));let run=0;
+  const runPts=[{y:0},...sorted.map(t=>{run+=t.type==='income'?t.amount:-t.amount;return{y:run};})];
+
+  return<div style={{color:'var(--text)',padding:'0 16px',paddingBottom:`calc(var(--tabbar-h) + env(safe-area-inset-bottom,0px) + 20px)`}}>
+    <div style={{paddingTop:'var(--screen-top)',marginBottom:14,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+      <div style={{fontSize:26,fontWeight:800,letterSpacing:-.5}}>Charts</div>
+      <div style={{display:'flex',alignItems:'center',gap:8}}>
+        <button onClick={()=>navM(-1)} style={{background:'var(--card)',border:'1px solid var(--border)',color:'var(--text)',width:32,height:32,borderRadius:10,fontSize:16}}>‹</button>
+        <div style={{fontSize:12,color:'var(--muted)',minWidth:96,textAlign:'center',fontWeight:700}}>{monthLabel(vy,vm)}</div>
+        <button onClick={()=>navM(1)} style={{background:'var(--card)',border:'1px solid var(--border)',color:'var(--text)',width:32,height:32,borderRadius:10,fontSize:16}}>›</button>
+      </div>
+    </div>
+    {/* Summary row */}
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+      {[{label:'Income',val:income,color:'var(--green)'},{label:'Expense',val:expense,color:'var(--red)'},{label:'Net',val:income-expense,color:(income-expense)>=0?'var(--green)':'var(--red)'}].map(s=>(
+        <Card key={s.label} style={{padding:'10px 12px',textAlign:'center'}}>
+          <div style={{fontSize:9,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.5,fontWeight:700,marginBottom:4}}>{s.label}</div>
+          <div style={{fontSize:14,fontWeight:800,color:s.color}}>{fmtK(s.val)}</div>
+        </Card>
+      ))}
+    </div>
+    {/* Weekly bar */}
+    <Card style={{marginBottom:12}}>
+      <div style={{fontSize:13,fontWeight:700,marginBottom:10,display:'flex',gap:14,alignItems:'center'}}>Weekly Overview <span style={{color:'var(--green)',fontSize:11}}>● Inc</span><span style={{color:'var(--red)',fontSize:11}}>● Exp</span></div>
+      <BarChart weeks={weeks} height={100}/>
+    </Card>
+    {/* Category breakdown */}
+    {catBreak.length>0&&<Card style={{marginBottom:12}}>
+      <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>Expense Breakdown</div>
+      <div style={{display:'flex',gap:14,alignItems:'center'}}>
+        <Donut data={catBreak} size={100}/>
+        <div style={{flex:1,display:'flex',flexDirection:'column',gap:7}}>
+          {catBreak.slice(0,5).map(c=>(
+            <div key={c.label} style={{display:'flex',alignItems:'center',gap:8}}>
+              <span style={{fontSize:14}}>{c.icon}</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,color:'var(--muted)',fontWeight:600}}>{c.label}</div>
+                <div style={{height:3,borderRadius:2,background:'var(--card2)',marginTop:2,overflow:'hidden'}}><div style={{height:'100%',width:`${Math.round(c.value/expense*100)}%`,background:c.color}}/></div>
+              </div>
+              <div style={{fontSize:12,fontWeight:700,color:'var(--red)',flexShrink:0}}>{fmtK(c.value)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>}
+    {/* Running balance */}
+    {runPts.length>2&&<Card style={{marginBottom:12}}>
+      <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>Running Balance</div>
+      <LineChart points={runPts} height={70}/>
+    </Card>}
+    {/* Calendar heatmap */}
+    <Card>
+      <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>Day-by-Day</div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,textAlign:'center'}}>
+        {['Su','Mo','Tu','We','Th','Fr','Sa'].map((d,i)=><div key={i} style={{fontSize:9,color:'var(--muted)',padding:'2px 0',fontWeight:700}}>{d}</div>)}
+        {Array.from({length:fd}).map((_,i)=><div key={'e'+i}/>)}
+        {dayData.map(d=><div key={d.day} title={d.has?`${d.day}: ${d.net>=0?'+':''}${fmtK(d.net)}`:'No activity'} style={{aspectRatio:'1',borderRadius:7,fontSize:10,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',background:!d.has?'transparent':d.net>=0?'rgba(48,209,88,.2)':'rgba(255,68,58,.2)',color:!d.has?'var(--muted2)':d.net>=0?'var(--green)':'var(--red)',border:d.day===now.getDate()&&vm===now.getMonth()&&vy===now.getFullYear()?'1.5px solid var(--accent)':'1px solid transparent',cursor:d.has?'pointer':'default'}}>{d.day}</div>)}
+      </div>
+      <div style={{display:'flex',gap:16,marginTop:10,justifyContent:'center'}}>
+        <div style={{display:'flex',alignItems:'center',gap:5,fontSize:10,color:'var(--muted)'}}><div style={{width:10,height:10,borderRadius:3,background:'rgba(48,209,88,.3)'}}/>Income day</div>
+        <div style={{display:'flex',alignItems:'center',gap:5,fontSize:10,color:'var(--muted)'}}><div style={{width:10,height:10,borderRadius:3,background:'rgba(255,68,58,.3)'}}/>Expense day</div>
+      </div>
+    </Card>
+  </div>;
+}
+
+// ─── HISTORY SCREEN ───────────────────────────────────────────
+function HistoryScreen({txns,onEdit,onDelete,onAddScheduled,toast}){
+  const now=new Date();
+  const [view,setView]=useState('history'); // history | scheduled
+  const [filter,setFilter]=useState('all'); // all | income | expense
+  const [search,setSearch]=useState('');
+  // Date range picker
+  const [startDate,setStart]=useState('');
+  const [endDate,setEnd]=useState('');
+  const [editTx,setEditTx]=useState(null);
+  const [delTx,setDelTx]=useState(null);
+  const [showAddSched,setShowAddSched]=useState(false);
+
+  const live=txns.filter(t=>!t.scheduled);
+  const scheduled=txns.filter(t=>t.scheduled).sort((a,b)=>new Date(a.date)-new Date(b.date));
+
+  // Filter logic
+  const filtered=useMemo(()=>{
+    let list=live;
+    if(filter!=='all')list=list.filter(t=>t.type===filter);
+    if(search.trim())list=list.filter(t=>(t.note||'').toLowerCase().includes(search.toLowerCase())||(t.category||'').toLowerCase().includes(search.toLowerCase()));
+    if(startDate)list=list.filter(t=>t.date>=startDate);
+    if(endDate)list=list.filter(t=>t.date<=endDate);
+    return [...list].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  },[live,filter,search,startDate,endDate]);
+
+  // Group by date
+  const groups=useMemo(()=>{
+    const g=[];
+    filtered.forEach(t=>{const last=g[g.length-1];if(last&&last.date===t.date)last.items.push(t);else g.push({date:t.date,items:[t]});});
+    return g;
+  },[filtered]);
+
+  const totalFiltered=filtered.reduce((s,t)=>t.type==='income'?s+t.amount:s-t.amount,0);
+  const hasFilters=filter!=='all'||search||startDate||endDate;
+
+  return<div style={{color:'var(--text)',padding:'0 16px',paddingBottom:`calc(var(--tabbar-h) + env(safe-area-inset-bottom,0px) + 20px)`}}>
+    {editTx&&<TxSheet tx={editTx} onSave={t=>{onEdit(t);setEditTx(null);}} onClose={()=>setEditTx(null)} toast={toast}/>}
+    {delTx&&<Confirm title="Delete Transaction" body={`Delete "${delTx.note||delTx.category}" (${fmt(delTx.amount)})? This can't be undone.`} confirmLabel="Delete" danger onOk={()=>{onDelete(delTx.id);setDelTx(null);}} onCancel={()=>setDelTx(null)}/>}
+    {showAddSched&&<TxSheet onSave={t=>{onAddScheduled(t);setShowAddSched(false);}} onClose={()=>setShowAddSched(false)} defaultScheduled toast={toast}/>}
+
+    <div style={{paddingTop:'var(--screen-top)',marginBottom:12}}>
+      <div style={{fontSize:26,fontWeight:800,letterSpacing:-.5,marginBottom:12}}>History</div>
+      {/* View tabs */}
+      <div style={{display:'flex',background:'var(--card2)',borderRadius:14,padding:4,gap:4,marginBottom:12}}>
+        <button onClick={()=>setView('history')} style={{flex:1,padding:'9px',borderRadius:10,border:'none',background:view==='history'?'var(--card)':'transparent',color:view==='history'?'var(--text)':'var(--muted)',fontSize:13,fontWeight:700,transition:'all .18s'}}>📋 Transactions</button>
+        <button onClick={()=>setView('scheduled')} style={{flex:1,padding:'9px',borderRadius:10,border:'none',background:view==='scheduled'?'var(--card)':'transparent',color:view==='scheduled'?'var(--text)':'var(--muted)',fontSize:13,fontWeight:700,transition:'all .18s',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+          📅 Scheduled {scheduled.length>0&&<span style={{background:'var(--accent)',color:'#000',borderRadius:8,padding:'1px 7px',fontSize:10,fontWeight:800}}>{scheduled.length}</span>}
+        </button>
+      </div>
+    </div>
+
+    {/* ── HISTORY VIEW ── */}
+    {view==='history'&&<div>
+      {/* Search */}
+      <div style={{background:'var(--card)',borderRadius:14,padding:'10px 14px',border:'1px solid var(--border)',marginBottom:10,display:'flex',alignItems:'center',gap:10}}>
+        <span style={{fontSize:16,color:'var(--muted)'}}>🔍</span>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search transactions…" style={{background:'none',border:'none',color:'var(--text)',fontSize:14,flex:1,outline:'none'}}/>
+        {search&&<button onClick={()=>setSearch('')} style={{background:'none',border:'none',color:'var(--muted)',fontSize:18,lineHeight:1,cursor:'pointer'}}>×</button>}
+      </div>
+      {/* Date range picker */}
+      <div style={{background:'var(--card)',borderRadius:14,padding:'12px 14px',border:'1px solid var(--border)',marginBottom:10}}>
+        <div style={{fontSize:11,color:'var(--muted)',marginBottom:8,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>📅 Filter by date range</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+          <div>
+            <div style={{fontSize:10,color:'var(--muted)',marginBottom:4}}>From</div>
+            <input type="date" value={startDate} onChange={e=>setStart(e.target.value)} style={{width:'100%',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:10,color:'var(--text)',fontSize:13,padding:'8px 10px',outline:'none'}}/>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:'var(--muted)',marginBottom:4}}>To</div>
+            <input type="date" value={endDate} onChange={e=>setEnd(e.target.value)} style={{width:'100%',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:10,color:'var(--text)',fontSize:13,padding:'8px 10px',outline:'none'}}/>
+          </div>
+        </div>
+        {(startDate||endDate)&&<button onClick={()=>{setStart('');setEnd('');}} style={{marginTop:8,background:'none',border:'none',color:'var(--accent)',fontSize:12,fontWeight:700,cursor:'pointer'}}>✕ Clear dates</button>}
+      </div>
+      {/* Type filters */}
+      <div style={{display:'flex',gap:8,marginBottom:12}}>
+        {['all','income','expense'].map(f=><Pill key={f} active={filter===f} onPress={()=>setFilter(f)} color={f==='income'?'var(--green)':f==='expense'?'var(--red)':undefined}>{f==='all'?'All':f.charAt(0).toUpperCase()+f.slice(1)}</Pill>)}
+      </div>
+      {/* Stats bar */}
+      {filtered.length>0&&<div style={{background:'var(--card)',borderRadius:12,padding:'10px 14px',border:'1px solid var(--border)',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <span style={{fontSize:12,color:'var(--muted)'}}>{filtered.length} transaction{filtered.length!==1?'s':''}{hasFilters?' found':''}</span>
+        <span style={{fontSize:13,fontWeight:700,color:totalFiltered>=0?'var(--green)':'var(--red)'}}>{totalFiltered>=0?'+':''}{fmt(totalFiltered)}</span>
+      </div>}
+      {/* Groups */}
+      {groups.length===0&&<div style={{textAlign:'center',marginTop:60,color:'var(--muted)'}}><div style={{fontSize:44,marginBottom:12}}>🔍</div><div style={{fontSize:16,fontWeight:700,marginBottom:4}}>No transactions found</div><div style={{fontSize:13}}>Try adjusting your filters or date range</div></div>}
+      {groups.map(g=>(
+        <div key={g.date} style={{marginBottom:16}}>
+          <div style={{fontSize:11,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.8,fontWeight:700,marginBottom:6}}>{dayStr(g.date)}</div>
+          <Card style={{padding:'4px 0'}}>
+            {g.items.map((t,i)=>{
+              const cat=getCat(t.type,t.category);
+              return<div key={t.id} style={{display:'flex',alignItems:'center',padding:'12px 14px',borderBottom:i<g.items.length-1?'1px solid var(--border)':'none'}}>
+                <div style={{width:38,height:38,borderRadius:12,background:cat.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,marginRight:12,flexShrink:0}}>{cat.icon}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:700,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.note||cat.label}</div>
+                  <div style={{fontSize:11,color:'var(--muted)',marginTop:1}}>{cat.label}</div>
+                </div>
+                <div style={{textAlign:'right',flexShrink:0}}>
+                  <div style={{fontSize:15,fontWeight:800,color:t.type==='income'?'var(--green)':'var(--red)'}}>{t.type==='income'?'+':'-'}{fmt(t.amount)}</div>
+                  <div style={{display:'flex',gap:10,marginTop:4,justifyContent:'flex-end'}}>
+                    <button onClick={()=>setEditTx(t)} style={{background:'none',border:'none',color:'var(--accent)',fontSize:11,fontWeight:700,cursor:'pointer',padding:0}}>edit</button>
+                    <button onClick={()=>setDelTx(t)} style={{background:'none',border:'none',color:'var(--muted2)',fontSize:11,fontWeight:700,cursor:'pointer',padding:0}}>delete</button>
+                  </div>
+                </div>
+              </div>;
+            })}
+          </Card>
+        </div>
+      ))}
+    </div>}
+
+    {/* ── SCHEDULED VIEW ── */}
+    {view==='scheduled'&&<div>
+      <button onClick={()=>setShowAddSched(true)} style={{width:'100%',padding:'14px',borderRadius:14,border:'1.5px dashed var(--accent)',background:'var(--a10)',color:'var(--accent)',fontSize:14,fontWeight:800,marginBottom:14,cursor:'pointer'}}>+ Add Scheduled Transaction</button>
+      {scheduled.length===0&&<div style={{textAlign:'center',marginTop:40,color:'var(--muted)'}}><div style={{fontSize:44,marginBottom:12}}>📅</div><div style={{fontSize:16,fontWeight:700}}>No scheduled transactions</div></div>}
+      {scheduled.map(t=>{
+        const cat=getCat(t.type,t.category);
+        const days=Math.ceil((new Date(t.date)-new Date())/(864e5));
+        const isPast=days<0;const isUrgent=days>=0&&days<=3;
+        return<Card key={t.id} style={{marginBottom:10,padding:'14px 16px',border:`1px solid ${isPast?'rgba(255,68,58,.3)':isUrgent?'rgba(245,166,35,.3)':'var(--border)'}`}}>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <div style={{width:42,height:42,borderRadius:12,background:cat.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,flexShrink:0}}>{cat.icon}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:14,fontWeight:700,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.note||cat.label}</div>
+              <div style={{fontSize:12,color:isPast?'var(--red)':isUrgent?'var(--accent)':'var(--muted)',marginTop:2,fontWeight:isPast||isUrgent?700:400}}>{dayStr(t.date)} · {isPast?'⚠️ Overdue':days===0?'Due today':days===1?'Due tomorrow':`in ${days} days`}</div>
+              {t.notifyWhenDue&&<div style={{fontSize:11,color:'var(--accent)',marginTop:2}}>🔔 Notify on due date</div>}
+            </div>
+            <div style={{textAlign:'right',flexShrink:0}}>
+              <div style={{fontSize:16,fontWeight:800,color:t.type==='income'?'var(--green)':'var(--red)'}}>{t.type==='income'?'+':'-'}{fmt(t.amount)}</div>
+              <div style={{display:'flex',gap:10,marginTop:6,justifyContent:'flex-end'}}>
+                <button onClick={()=>setEditTx(t)} style={{background:'none',border:'none',color:'var(--accent)',fontSize:12,fontWeight:700,cursor:'pointer',padding:0}}>edit</button>
+                <button onClick={()=>setDelTx(t)} style={{background:'none',border:'none',color:'var(--red)',fontSize:12,fontWeight:700,cursor:'pointer',padding:0}}>delete</button>
+              </div>
+            </div>
+          </div>
+        </Card>;
+      })}
+    </div>}
+  </div>;
+}
+
+// ─── SETTINGS SCREEN ─────────────────────────────────────────
+function SettingsScreen({profile,onProfile,theme,onTheme,txns,onReset,toast,budgetGoal,incomeGoal,onBudget,onIncome}){
+  const [sec,setSec]=useState('profile');
+  const [notifEn,setNE]=useState(()=>S.get('notif_en',{push:true,email:false,sms:false}));
+  const [activeTimes,setAT]=useState(()=>S.get('notif_times',['9:00 AM','6:00 PM']));
+  const [customTime,setCustom]=useState('');
+  const [emailAddr,setEmail]=useState(()=>S.get('notif_email','')||'');
+  const [phoneNum,setPhone]=useState(()=>S.get('notif_phone','')||'');
+  const [notifPerm,setNP]=useState(()=>'Notification' in window?Notification.permission:'denied');
+  const [testSent,setTS]=useState('');
+  const [showReset,setShowReset]=useState(false);
+  const [saving,setSaving]=useState(false);
+  const timersRef=useRef([]);
+
+  const saveNE=v=>{setNE(v);S.set('notif_en',v);};
+  const toggleTime=t=>{const next=activeTimes.includes(t)?activeTimes.filter(r=>r!==t):[...activeTimes,t].sort((a,b)=>{const pa=parseTimeStr(a),pb=parseTimeStr(b);return(pa.h*60+pa.m)-(pb.h*60+pb.m);});setAT(next);S.set('notif_times',next);};
+
+  const addCustomTime=()=>{
+    if(!customTime)return;
+    // Convert HH:MM to 12h format
+    const [h,m]=customTime.split(':').map(Number);
+    const ap=h>=12?'PM':'AM';const hr=h%12||12;
+    const label=`${hr}:${String(m).padStart(2,'0')} ${ap}`;
+    if(!activeTimes.includes(label)){const next=[...activeTimes,label].sort((a,b)=>{const pa=parseTimeStr(a),pb=parseTimeStr(b);return(pa.h*60+pa.m)-(pb.h*60+pb.m);});setAT(next);S.set('notif_times',next);}
+    setCustom('');
+  };
+
+  const requestPush=async()=>{
+    if(!('Notification' in window)){toast({icon:'❌',title:'Not supported',body:'Push notifications not supported here.',type:'error'});return;}
+    const p=await Notification.requestPermission();setNP(p);
+    if(p==='granted'){toast({icon:'🔔',title:'Push enabled!',body:'You will receive on-screen reminders.'});saveNE({...notifEn,push:true});}
+    else toast({icon:'❌',title:'Blocked',body:'Allow notifications in browser/device Settings.',type:'error'});
+  };
+
+  const fireNotif=(title,body)=>{
+    // On-screen toast always works
+    toast({icon:'🔔',title,body});
+    // Real push if granted
+    if('Notification' in window&&Notification.permission==='granted'){
+      try{new Notification(`💰 ${title}`,{body,tag:'budget-reminder',icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">💰</text></svg>'});}catch(e){}
+    }
+  };
+
+  const scheduleReminders=()=>{
+    // Clear existing
+    timersRef.current.forEach(clearTimeout);timersRef.current=[];
+    if(!activeTimes.length){toast({icon:'⚠️',title:'No times selected',body:'Pick at least one reminder time.',type:'warn'});return;}
+    let scheduled=0;
+    activeTimes.forEach(timeStr=>{
+      const {h,m}=parseTimeStr(timeStr);
+      const now=new Date();const next=new Date(now);
+      next.setHours(h,m,0,0);
+      if(next<=now)next.setDate(next.getDate()+1);
+      const delay=next-now;
+      const tid=setTimeout(()=>{
+        fireNotif('Budget Reminder',`It's ${timeStr} — time to log your transactions! 💰`);
+        // Re-schedule for next day
+        const dayMs=24*60*60*1000;
+        const recurring=()=>{fireNotif('Budget Reminder',`It's ${timeStr} — log your expenses!`);};
+        const interval=setInterval(recurring,dayMs);
+        timersRef.current.push(interval);
+      },delay);
+      timersRef.current.push(tid);
+      scheduled++;
+    });
+    S.set('notif_times',activeTimes);
+    setSaving(true);setTimeout(()=>setSaving(false),2000);
+    toast({icon:'✅',title:'Reminders activated!',body:`${scheduled} daily reminder${scheduled!==1?'s':''}: ${activeTimes.join(', ')}`});
+  };
+
+  const testPush=()=>{
+    fireNotif('Test Reminder',`Budget App is working! You have ${txns.filter(t=>!t.scheduled).length} transactions logged.`);
+    setTS('push');setTimeout(()=>setTS(''),3000);
+  };
+  const testEmail=()=>{
+    const addr=emailAddr||profile.email;
+    if(!addr){toast({icon:'❌',title:'No email set',body:'Enter email in Profile tab.',type:'error'});return;}
+    window.open(`mailto:${addr}?subject=${encodeURIComponent('Budget App Test Reminder')}&body=${encodeURIComponent(`Hi ${profile.name||'there'},\n\nThis is your Budget App reminder!\n\nScheduled times: ${activeTimes.join(', ')}\n\nStay on budget! 💰`)}`);
+    toast({icon:'📧',title:'Opening mail',body:`Sending test to ${addr}`});setTS('email');setTimeout(()=>setTS(''),3000);
+  };
+  const testSMS=()=>{
+    const ph=phoneNum||profile.phone;
+    if(!ph){toast({icon:'❌',title:'No phone set',body:'Enter phone in Profile tab.',type:'error'});return;}
+    window.open(`sms:${ph}?body=${encodeURIComponent('Budget App Reminder: Time to log your transactions! 💰')}`);
+    toast({icon:'💬',title:'Opening SMS',body:`Sending to ${ph}`});setTS('sms');setTimeout(()=>setTS(''),3000);
+  };
+
+  const PRESET_TIMES=['6:00 AM','7:00 AM','8:00 AM','9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM','6:00 PM','7:00 PM','8:00 PM','9:00 PM','10:00 PM'];
+
+  const navPills=[{id:'profile',icon:'👤',label:'Profile'},{id:'goals',icon:'🎯',label:'Goals'},{id:'notif',icon:'🔔',label:'Alerts'},{id:'theme',icon:'🎨',label:'Theme'},{id:'export',icon:'📤',label:'Export'},{id:'reset',icon:'⚠️',label:'Reset'}];
+
+  return<div style={{color:'var(--text)',padding:'0 16px',paddingBottom:`calc(var(--tabbar-h) + env(safe-area-inset-bottom,0px) + 20px)`}}>
+    {showReset&&<Confirm title="⚠️ Hard Reset" body="Delete ALL data — transactions (including demo), settings, goals, profile. You'll start completely fresh. This cannot be undone." confirmLabel="Reset Everything" danger onOk={()=>{onReset();setShowReset(false);toast({icon:'🗑️',title:'Reset complete',body:'All data wiped. Start adding your own!',type:'warn'});}} onCancel={()=>setShowReset(false)}/>}
+    <div style={{paddingTop:'var(--screen-top)',marginBottom:12}}>
+      <div style={{fontSize:26,fontWeight:800,letterSpacing:-.5}}>Settings</div>
+    </div>
+    {/* Section pills */}
+    <div style={{display:'flex',gap:8,marginBottom:16,overflowX:'auto',paddingBottom:4,msOverflowStyle:'none',scrollbarWidth:'none'}}>
+      {navPills.map(p=><button key={p.id} onClick={()=>setSec(p.id)} style={{padding:'8px 14px',borderRadius:99,border:`1px solid ${sec===p.id?'var(--accent)':'var(--border)'}`,background:sec===p.id?'var(--a10)':'transparent',color:sec===p.id?'var(--accent)':'var(--muted)',fontSize:13,fontWeight:700,whiteSpace:'nowrap',flexShrink:0,transition:'all .15s'}}>{p.icon} {p.label}</button>)}
+    </div>
+
+    {/* ── PROFILE ── */}
+    {sec==='profile'&&<div>
+      <div style={{textAlign:'center',marginBottom:20}}>
+        <div style={{width:76,height:76,borderRadius:'50%',background:'var(--a10)',border:'2px solid var(--accent)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:36,margin:'0 auto 10px'}}>{profile.name?profile.name[0].toUpperCase():'👤'}</div>
+        <div style={{fontSize:18,fontWeight:800}}>{profile.name||'Set your name'}</div>
+      </div>
+      {[{k:'name',label:'Full Name',icon:'👤',ph:'Your name',type:'text'},{k:'email',label:'Email',icon:'📧',ph:'your@email.com',type:'email'},{k:'phone',label:'Phone (SMS)',icon:'📱',ph:'+1 (555) 000-0000',type:'tel'}].map(f=>(
+        <div key={f.k} style={{background:'var(--card)',borderRadius:14,padding:'12px 16px',border:'1px solid var(--border)',marginBottom:10}}>
+          <div style={{fontSize:10,color:'var(--muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>{f.icon} {f.label}</div>
+          <input value={profile[f.k]||''} type={f.type} onChange={e=>onProfile({...profile,[f.k]:e.target.value})} placeholder={f.ph} style={{background:'none',border:'none',color:'var(--text)',fontSize:16,width:'100%',outline:'none'}}/>
+        </div>
+      ))}
+    </div>}
+
+    {/* ── GOALS ── */}
+    {sec==='goals'&&<div>
+      <div style={{fontSize:13,color:'var(--muted)',lineHeight:1.6,marginBottom:14}}>Set monthly targets. They appear as progress bars on Home.</div>
+      {[{label:'Monthly Expense Budget',icon:'💰',val:budgetGoal,set:onBudget,color:'var(--red)',note:'Caps your spending goal'},{label:'Monthly Income Goal',icon:'🎯',val:incomeGoal,set:onIncome,color:'var(--green)',note:'Your earning target'}].map((g,i)=>(
+        <Card key={i} style={{marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>{g.icon} {g.label}</div>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+            <span style={{fontSize:24,color:g.color,fontWeight:900}}>$</span>
+            <input value={g.val||''} type="number" min="0" onChange={e=>g.set(parseFloat(e.target.value)||0)} placeholder="e.g. 3000" style={{background:'none',border:'none',color:'var(--text)',fontSize:28,flex:1,outline:'none',fontWeight:800}}/>
+          </div>
+          <div style={{fontSize:12,color:'var(--muted)'}}>{g.note}</div>
+        </Card>
+      ))}
+      <button onClick={()=>{S.set('budget_goal',budgetGoal);S.set('income_goal',incomeGoal);toast({icon:'✅',title:'Goals saved',body:'Budget and income goals updated on Home screen.'});}} style={{width:'100%',padding:'14px',borderRadius:14,border:'none',background:'var(--accent)',color:'#000',fontSize:15,fontWeight:800}}>Save Goals</button>
+    </div>}
+
+    {/* ── NOTIFICATIONS ── */}
+    {sec==='notif'&&<div>
+      {/* Push permission */}
+      <Card style={{marginBottom:12}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:notifPerm!=='granted'?12:0}}>
+          <div><div style={{fontSize:14,fontWeight:700}}>📱 Push Notifications</div><div style={{fontSize:12,color:'var(--muted)',marginTop:2}}>{notifPerm==='granted'?'Active — browser banners enabled':'Not enabled yet'}</div></div>
+          <div style={{fontSize:12,padding:'4px 12px',borderRadius:20,background:notifPerm==='granted'?'rgba(48,209,88,.2)':'rgba(255,68,58,.15)',color:notifPerm==='granted'?'var(--green)':'var(--red)',fontWeight:700}}>{notifPerm==='granted'?'✓ ON':'OFF'}</div>
+        </div>
+        {notifPerm!=='granted'&&<button onClick={requestPush} style={{width:'100%',padding:'11px',borderRadius:12,border:'none',background:'var(--accent)',color:'#000',fontSize:14,fontWeight:800}}>Enable Push Notifications</button>}
+      </Card>
+      {/* Channels */}
+      <Card style={{marginBottom:12,padding:'4px 0'}}>
+        <div style={{padding:'12px 16px 4px',fontSize:10,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>Channels</div>
+        {[{k:'push',icon:'📱',label:'On-screen Push',sub:'Works in browser / home screen app'},{k:'email',icon:'📧',label:'Email',sub:emailAddr||profile.email||'Set in Profile'},{k:'sms',icon:'💬',label:'SMS',sub:phoneNum||profile.phone||'Set in Profile'}].map((ch,i)=>(
+          <div key={ch.k} style={{display:'flex',alignItems:'center',padding:'13px 16px',borderBottom:i<2?'1px solid var(--border)':'none'}}>
+            <div style={{width:38,height:38,borderRadius:10,background:'var(--card2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,marginRight:12,flexShrink:0}}>{ch.icon}</div>
+            <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700}}>{ch.label}</div><div style={{fontSize:12,color:'var(--muted)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:180}}>{ch.sub}</div></div>
+            <Toggle on={notifEn[ch.k]} onToggle={()=>saveNE({...notifEn,[ch.k]:!notifEn[ch.k]})}/>
+          </div>
+        ))}
+      </Card>
+      {/* Email / Phone */}
+      <Card style={{marginBottom:12}}>
+        <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>📬 Contact Details</div>
+        {[{label:'Email for reminders',val:emailAddr,set:v=>{setEmail(v);S.set('notif_email',v);},ph:'your@email.com',type:'email'},{label:'Phone for SMS',val:phoneNum,set:v=>{setPhone(v);S.set('notif_phone',v);},ph:'+1 (555) 000-0000',type:'tel'}].map((f,i)=>(
+          <div key={i} style={{marginBottom:i===0?10:0}}>
+            <div style={{fontSize:10,color:'var(--muted)',marginBottom:4,textTransform:'uppercase',letterSpacing:.6,fontWeight:700}}>{f.label}</div>
+            <input value={f.val} onChange={e=>f.set(e.target.value)} placeholder={f.ph} type={f.type} style={{width:'100%',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:10,color:'var(--text)',fontSize:14,padding:'10px 12px',outline:'none'}}/>
+          </div>
+        ))}
+      </Card>
+      {/* Reminder times */}
+      <Card style={{marginBottom:12}}>
+        <div style={{fontSize:13,fontWeight:700,marginBottom:4}}>⏰ Daily Reminder Times</div>
+        <div style={{fontSize:12,color:'var(--muted)',marginBottom:10,lineHeight:1.5}}>Choose preset times or add a custom time. Tap a time to toggle it on/off.</div>
+        {/* Custom time adder */}
+        <div style={{display:'flex',gap:8,marginBottom:12}}>
+          <input type="time" value={customTime} onChange={e=>setCustom(e.target.value)} style={{flex:1,background:'var(--card2)',border:'1px solid var(--border)',borderRadius:10,color:'var(--text)',fontSize:14,padding:'9px 12px',outline:'none'}}/>
+          <button onClick={addCustomTime} style={{padding:'9px 16px',borderRadius:10,border:'none',background:'var(--accent)',color:'#000',fontSize:13,fontWeight:800,whiteSpace:'nowrap'}}>+ Add</button>
+        </div>
+        {/* Active times */}
+        {activeTimes.length>0&&<div style={{marginBottom:10}}>
+          <div style={{fontSize:10,color:'var(--muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>Your reminder times</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+            {activeTimes.map(t=><div key={t} style={{display:'flex',alignItems:'center',gap:4,background:'var(--a10)',border:'1px solid var(--accent)',borderRadius:20,padding:'5px 12px 5px 10px'}}>
+              <span style={{fontSize:13,color:'var(--accent)',fontWeight:700}}>✓ {t}</span>
+              <button onClick={()=>toggleTime(t)} style={{background:'none',border:'none',color:'var(--muted)',fontSize:14,lineHeight:1,cursor:'pointer',padding:0,marginLeft:4}}>×</button>
+            </div>)}
+          </div>
+        </div>}
+        {/* Preset grid */}
+        <div style={{fontSize:10,color:'var(--muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>Quick presets</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:14}}>
+          {PRESET_TIMES.map(t=>{const on=activeTimes.includes(t);return(
+            <button key={t} onClick={()=>toggleTime(t)} style={{padding:'8px',borderRadius:10,border:`1px solid ${on?'var(--accent)':'var(--border)'}`,background:on?'var(--a10)':'transparent',color:on?'var(--accent)':'var(--muted)',fontSize:12,fontWeight:700,transition:'all .15s'}}>
+              {on&&<span style={{marginRight:3}}>✓</span>}{t}
+            </button>
+          );})}
+        </div>
+        <button onClick={scheduleReminders} style={{width:'100%',padding:'13px',borderRadius:12,border:'none',background:saving?'var(--green)':'var(--accent)',color:'#000',fontSize:14,fontWeight:800,transition:'all .2s'}}>{saving?'✓ Reminders Activated!':'⏰ Save & Activate All Reminders'}</button>
+      </Card>
+      {/* Test buttons */}
+      <Card>
+        <div style={{fontSize:13,fontWeight:700,marginBottom:4}}>🧪 Test Notifications</div>
+        <div style={{fontSize:12,color:'var(--muted)',marginBottom:12}}>Verify your channels work before relying on them</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+          {[{k:'push',label:'Push',icon:'📱',fn:testPush},{k:'email',label:'Email',icon:'📧',fn:testEmail},{k:'sms',label:'SMS',icon:'💬',fn:testSMS}].map(ch=>(
+            <button key={ch.k} onClick={ch.fn} style={{padding:'12px 6px',borderRadius:12,border:'1px solid var(--border)',background:testSent===ch.k?'var(--a10)':'var(--card2)',color:testSent===ch.k?'var(--accent)':'var(--muted)',fontSize:12,fontWeight:700,display:'flex',flexDirection:'column',alignItems:'center',gap:4,transition:'all .2s'}}>
+              <span style={{fontSize:22}}>{ch.icon}</span>
+              {testSent===ch.k?'✓ Sent':ch.label}
+            </button>
+          ))}
+        </div>
+      </Card>
+    </div>}
+
+    {/* ── THEME ── */}
+    {sec==='theme'&&<div>
+      <div style={{fontSize:13,color:'var(--muted)',marginBottom:14}}>Choose your app look</div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+        {THEMES.map(th=>{const active=theme.id===th.id;return(
+          <button key={th.id} onClick={()=>onTheme(th)} style={{borderRadius:20,overflow:'hidden',border:`2px solid ${active?'var(--accent)':'transparent'}`,cursor:'pointer',padding:0,boxShadow:active?'0 0 0 3px var(--a20)':'none',transition:'all .2s',background:'none'}}>
+            <div style={{background:th.bg,padding:'14px 14px 10px'}}>
+              <div style={{background:th.card,borderRadius:10,padding:'10px 12px',marginBottom:6}}><div style={{fontSize:10,color:th.muted,marginBottom:3}}>Balance</div><div style={{fontSize:16,fontWeight:800,color:th.text}}>$5,240</div></div>
+              <div style={{display:'flex',gap:4}}><div style={{flex:1,background:th.card2,borderRadius:7,padding:'5px 8px'}}><div style={{fontSize:9,color:th.accent,fontWeight:700}}>+$4,800</div></div><div style={{flex:1,background:th.card2,borderRadius:7,padding:'5px 8px'}}><div style={{fontSize:9,color:'#ff453a',fontWeight:700}}>-$2,160</div></div></div>
+            </div>
+            <div style={{background:th.card,padding:'8px 12px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <span style={{fontSize:13,fontWeight:700,color:th.text}}>{th.name}</span>
+              {active&&<span style={{fontSize:14,color:th.accent}}>✓</span>}
+            </div>
+          </button>
+        );})}
+      </div>
+    </div>}
+
+    {/* ── EXPORT ── */}
+    {sec==='export'&&<div>
+      <Card style={{marginBottom:12}}>
+        <div style={{fontSize:24,marginBottom:8}}>📄</div>
+        <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>Export as PDF</div>
+        <div style={{fontSize:13,color:'var(--muted)',marginBottom:14,lineHeight:1.5}}>Full transaction report — printable from your browser</div>
+        <button onClick={()=>{
+          const sorted=[...txns].filter(t=>!t.scheduled).sort((a,b)=>new Date(b.date)-new Date(a.date));
+          const bal=sorted.reduce((s,t)=>t.type==='income'?s+t.amount:s-t.amount,0);
+          const inc=sorted.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+          const exp=sorted.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+          const rows=sorted.slice(0,100).map(t=>`<tr><td>${new Date(t.date+'T12:00:00').toLocaleDateString()}</td><td>${t.note||t.category}</td><td style="color:${t.type==='income'?'#1a8a3d':'#c0392b'};font-weight:700">${t.type==='income'?'+':'-'}${fmt(t.amount)}</td><td style="text-transform:capitalize">${t.category}</td></tr>`).join('');
+          const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Budget Report</title><style>body{font-family:-apple-system,sans-serif;padding:40px;color:#1c1c1e}h1{font-size:28px;margin:0 0 4px}h2{font-size:15px;color:#888;font-weight:400;margin:0 0 28px}.row{display:flex;gap:20px;margin-bottom:28px}.box{background:#f5f5fa;border-radius:12px;padding:14px 18px}.box .l{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}.box .v{font-size:22px;font-weight:800}table{width:100%;border-collapse:collapse}th{background:#f5f5fa;text-align:left;padding:10px 12px;font-size:12px;color:#888}td{padding:10px 12px;border-bottom:1px solid #eee;font-size:13px}.foot{margin-top:30px;font-size:12px;color:#aaa;text-align:center}</style></head><body><h1>Budget Report</h1><h2>${profile.name||'Personal'} · ${new Date().toLocaleString('default',{month:'long',year:'numeric'})}</h2><div class="row"><div class="box"><div class="l">Net Balance</div><div class="v" style="color:${bal>=0?'#1a8a3d':'#c0392b'}">${bal<0?'-':''}${fmt(Math.abs(bal))}</div></div><div class="box"><div class="l">Total Income</div><div class="v" style="color:#1a8a3d">${fmt(inc)}</div></div><div class="box"><div class="l">Total Expenses</div><div class="v" style="color:#c0392b">${fmt(exp)}</div></div></div><table><thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Category</th></tr></thead><tbody>${rows}</tbody></table><div class="foot">Generated ${new Date().toLocaleString()} · Budget App</div><script>window.onload=()=>window.print()<\/script></body></html>`;
+          const w=window.open('','_blank');if(w){w.document.write(html);w.document.close();}
+        }} style={{width:'100%',padding:'12px',borderRadius:12,border:'none',background:'var(--accent)',color:'#000',fontSize:14,fontWeight:800}}>Generate PDF Report</button>
+      </Card>
+      <Card>
+        <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>📊 All-time Stats</div>
+        {[['Transactions logged',txns.filter(t=>!t.scheduled).length],['Scheduled upcoming',txns.filter(t=>t.scheduled).length],['Total income',fmt(txns.filter(t=>!t.scheduled&&t.type==='income').reduce((s,t)=>s+t.amount,0))],['Total expenses',fmt(txns.filter(t=>!t.scheduled&&t.type==='expense').reduce((s,t)=>s+t.amount,0))],['Net all-time',fmt(txns.filter(t=>!t.scheduled).reduce((s,t)=>t.type==='income'?s+t.amount:s-t.amount,0))]].map(([l,v])=>(
+          <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'9px 0',borderBottom:'1px solid var(--border)'}}>
+            <span style={{fontSize:13,color:'var(--muted)'}}>{l}</span>
+            <span style={{fontSize:13,fontWeight:800}}>{v}</span>
+          </div>
+        ))}
+      </Card>
+    </div>}
+
+    {/* ── RESET ── */}
+    {sec==='reset'&&<div>
+      <div style={{background:'rgba(255,68,58,.08)',borderRadius:20,padding:'20px',border:'1px solid rgba(255,68,58,.2)',marginBottom:14}}>
+        <div style={{fontSize:28,marginBottom:8}}>⚠️</div>
+        <div style={{fontSize:17,fontWeight:800,color:'var(--red)',marginBottom:8}}>Danger Zone</div>
+        <div style={{fontSize:13,color:'var(--muted)',lineHeight:1.6,marginBottom:16}}>The app currently contains <strong style={{color:'var(--text)'}}>demo data</strong> so you can explore all features. When you're ready to start with your own real data, use Hard Reset to wipe everything.</div>
+        <button onClick={()=>setShowReset(true)} style={{width:'100%',padding:'14px',borderRadius:14,border:'none',background:'var(--red)',color:'#fff',fontSize:15,fontWeight:800}}>🗑️ Hard Reset — Wipe All Data</button>
+      </div>
+      <Card>
+        <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>What gets deleted:</div>
+        {['All transactions (past, current & scheduled)','Your profile: name, email, phone','Budget & income goals','All notification settings & reminder times','App theme preference'].map((item,i,arr)=>(
+          <div key={i} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'7px 0',borderBottom:i<arr.length-1?'1px solid var(--border)':'none'}}>
+            <div style={{width:6,height:6,borderRadius:3,background:'var(--red)',flexShrink:0,marginTop:5}}/>
+            <div style={{fontSize:13,color:'var(--muted)'}}>{item}</div>
+          </div>
+        ))}
+      </Card>
+    </div>}
+  </div>;
+}
+
+// ─── ROOT APP ────────────────────────────────────────────────
+function App(){
+  const [tab,setTab]=useState(()=>S.get('budget_tab',0));
+  const [txns,setTxns]=useState(()=>{
+    const stored=S.get('budget_txns',null);
+    if(stored===null)return SEED; // First ever visit
+    return stored;
+  });
+  const [profile,setProfile]=useState(()=>S.get('budget_profile',{name:'',email:'',phone:''}));
+  const [theme,setTheme]=useState(()=>{const t=S.get('budget_theme',null);return t?t:THEMES[0];});
+  const [budgetGoal,setBudget]=useState(()=>S.get('budget_goal',3000));
+  const [incomeGoal,setIncome]=useState(()=>S.get('income_goal',5000));
+  const [toasts,setToasts]=useState([]);
+  const [showAdd,setShowAdd]=useState(false);
+  const [showSched,setShowSched]=useState(false);
+  const [notifBanner,setNotifBanner]=useState(()=>'Notification' in window&&Notification.permission==='default');
+
+  useEffect(()=>{applyTheme(theme);},[theme]);
+  useEffect(()=>{S.set('budget_tab',tab);},[tab]);
+  useEffect(()=>{S.set('budget_txns',txns);},[txns]);
+  useEffect(()=>{S.set('budget_profile',profile);},[profile]);
+
+  // Splash hide
+  useEffect(()=>{
+    setTimeout(()=>{const s=document.getElementById('splash');if(s){s.classList.add('hide');setTimeout(()=>s.remove(),500);}},1000);
+  },[]);
+
+  // SW
+  useEffect(()=>{'serviceWorker' in navigator&&navigator.serviceWorker.register('./sw.js').catch(()=>{});},[]);
+
+  // Check upcoming scheduled transactions
+  useEffect(()=>{
+    const check=()=>{
+      const now=new Date();now.setHours(0,0,0,0);
+      txns.filter(t=>t.scheduled&&t.notifyWhenDue).forEach(t=>{
+        const due=new Date(t.date+'T12:00:00');due.setHours(0,0,0,0);
+        const diff=Math.round((due-now)/864e5);
+        if(diff===0||diff===1){
+          const key=`shown_${t.id}_${todayStr()}`;
+          if(!sessionStorage.getItem(key)){
+            sessionStorage.setItem(key,'1');
+            const cat=getCat(t.type,t.category);
+            addToast({icon:cat.icon,title:diff===0?'Due Today!':'Due Tomorrow',body:`${t.note||cat.label}: ${t.type==='income'?'+':'-'}${fmt(t.amount)}`,type:diff===0?'warn':'info'});
+            if('Notification' in window&&Notification.permission==='granted'){
+              try{new Notification(`📅 ${diff===0?'Due Today':'Due Tomorrow'}`,{body:`${t.note||cat.label}: ${fmt(t.amount)}`,tag:`sched-${t.id}`});}catch(e){}
+            }
+          }
+        }
+      });
+    };
+    check();
+    const iv=setInterval(check,60000);
+    return()=>clearInterval(iv);
+  },[txns]);
+
+  const addToast=useCallback(t=>{
+    const id=Date.now()+Math.random();
+    setToasts(p=>[...p.slice(-2),{...t,id}]);
+    setTimeout(()=>setToasts(p=>p.filter(x=>x.id!==id)),5000);
+  },[]);
+
+  const handleTheme=th=>{setTheme(th);S.set('budget_theme',th);applyTheme(th);};
+  const handleBudget=v=>{setBudget(v);S.set('budget_goal',v);};
+  const handleIncome=v=>{setIncome(v);S.set('income_goal',v);};
+
+  const addTx=tx=>{setTxns(p=>[tx,...p]);addToast({icon:getCat(tx.type,tx.category).icon,title:'Transaction saved',body:`${tx.type==='income'?'+':'-'}${fmt(tx.amount)} · ${tx.note||tx.category}`});};
+  const editTx=tx=>{setTxns(p=>p.map(t=>t.id===tx.id?tx:t));addToast({icon:'✏️',title:'Updated',body:`${tx.note||tx.category} updated.`});};
+  const delTx=id=>{setTxns(p=>p.filter(t=>t.id!==id));addToast({icon:'🗑️',title:'Deleted',body:'Transaction removed.'});};
+
+  const hardReset=()=>{
+    ['budget_txns','budget_profile','budget_theme','budget_tab','notif_en','notif_times','notif_email','notif_phone','budget_goal','income_goal'].forEach(k=>S.del(k));
+    S.set('budget_txns',[]);S.set('budget_goal',0);S.set('income_goal',0);
+    setTxns([]);setProfile({name:'',email:'',phone:''});setTheme(THEMES[0]);applyTheme(THEMES[0]);setBudget(0);setIncome(0);setTab(0);
+  };
+
+  const isTablet=window.innerWidth>=768;
+
+  return<>
+    <ToastBar toasts={toasts}/>
+    {showAdd&&<TxSheet onSave={addTx} onClose={()=>setShowAdd(false)} toast={addToast}/>}
+    {showSched&&<TxSheet onSave={addTx} onClose={()=>setShowSched(false)} defaultScheduled toast={addToast}/>}
+
+    {/* Tablet sidebar */}
+    <div id="sidebar" style={{display:'none',width:220,flexShrink:0,background:'var(--card)',borderRight:'1px solid var(--border)',flexDirection:'column',paddingTop:`calc(var(--safe-top) + 20px)`,paddingBottom:20}}>
+      <div style={{padding:'0 20px 24px',borderBottom:'1px solid var(--border)'}}>
+        <div style={{fontSize:22,fontWeight:900,letterSpacing:-.5}}>💰 Budget</div>
+        <div style={{fontSize:12,color:'var(--muted)',marginTop:3}}>Personal Finance</div>
+      </div>
+      <div style={{flex:1,padding:'12px 8px'}}>
+        {TABS.map((name,i)=><button key={i} onClick={()=>setTab(i)} style={{width:'100%',display:'flex',alignItems:'center',gap:12,padding:'12px 14px',borderRadius:12,border:'none',background:tab===i?'var(--a10)':'transparent',color:tab===i?'var(--accent)':'var(--muted)',fontSize:14,fontWeight:700,marginBottom:4,transition:'all .15s',textAlign:'left'}}>
+          {Icons[name](tab===i)}<span>{name}</span>
+        </button>)}
+      </div>
+    </div>
+
+    {/* Main content */}
+    <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',minWidth:0}}>
+      {/* Notification banner */}
+      {notifBanner&&<div style={{background:'var(--card2)',borderBottom:'1px solid var(--border)',padding:'10px 16px',display:'flex',alignItems:'center',gap:10,flexShrink:0,zIndex:200}}>
+        <span style={{fontSize:20}}>🔔</span>
+        <div style={{flex:1,fontSize:12,color:'var(--muted)',lineHeight:1.4}}>Enable notifications to never miss a reminder</div>
+        <button onClick={async()=>{const p=await Notification.requestPermission();setNotifBanner(false);if(p==='granted')addToast({icon:'🔔',title:'Notifications on',body:'You\'ll receive daily reminders.'});}} style={{padding:'7px 14px',borderRadius:10,background:'var(--accent)',border:'none',color:'#000',fontWeight:800,fontSize:12,whiteSpace:'nowrap'}}>Allow</button>
+        <button onClick={()=>setNotifBanner(false)} style={{background:'none',border:'none',color:'var(--muted)',fontSize:22,lineHeight:1,cursor:'pointer'}}>×</button>
+      </div>}
+
+      {/* Screen */}
+      <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
+        {tab===0&&<HomeScreen txns={txns} onNav={setTab} onAdd={()=>setShowAdd(true)} onSchedule={()=>setShowSched(true)} userName={profile.name} budgetGoal={budgetGoal} incomeGoal={incomeGoal}/>}
+        {tab===1&&<div style={{color:'var(--text)',padding:`calc(var(--screen-top) + 0px) 16px`,paddingBottom:`calc(var(--tabbar-h) + env(safe-area-inset-bottom,0px) + 20px)`}}>
+          <div style={{fontSize:26,fontWeight:800,letterSpacing:-.5,marginBottom:20}}>Add</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
+            {[{icon:'➕',title:'Add Now',sub:'Record income or expense',accent:false,fn:()=>{setShowAdd(true);}},{icon:'📅',title:'Schedule',sub:'Plan a future transaction',accent:true,fn:()=>{setShowSched(true);}}].map((b,i)=>(
+              <button key={i} onClick={b.fn} style={{padding:'20px 16px',borderRadius:20,border:`1.5px solid ${b.accent?'var(--accent)':'var(--border)'}`,background:b.accent?'var(--a10)':'var(--card)',display:'flex',flexDirection:'column',alignItems:'center',gap:8,textAlign:'center'}}>
+                <span style={{fontSize:32}}>{b.icon}</span>
+                <div style={{fontSize:14,fontWeight:800,color:b.accent?'var(--accent)':'var(--text)'}}>{b.title}</div>
+                <div style={{fontSize:11,color:'var(--muted)'}}>{b.sub}</div>
+              </button>
+            ))}
+          </div>
+          {/* Recent quick reference */}
+          <Card style={{padding:'4px 0'}}>
+            <div style={{padding:'10px 16px 4px',fontSize:11,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>Recent</div>
+            {txns.filter(t=>!t.scheduled).slice(0,5).map((t,i,arr)=>{const cat=getCat(t.type,t.category);return(
+              <div key={t.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderBottom:i<arr.length-1?'1px solid var(--border)':'none'}}>
+                <div style={{width:34,height:34,borderRadius:10,background:cat.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16}}>{cat.icon}</div>
+                <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{t.note||cat.label}</div><div style={{fontSize:11,color:'var(--muted)'}}>{dayStr(t.date)}</div></div>
+                <div style={{fontSize:14,fontWeight:800,color:t.type==='income'?'var(--green)':'var(--red)'}}>{t.type==='income'?'+':'-'}{fmt(t.amount)}</div>
+              </div>
+            );})}
+          </Card>
+        </div>}
+        {tab===2&&<ChartsScreen txns={txns}/>}
+        {tab===3&&<HistoryScreen txns={txns} onEdit={editTx} onDelete={delTx} onAddScheduled={addTx} toast={addToast}/>}
+        {tab===4&&<SettingsScreen profile={profile} onProfile={setProfile} theme={theme} onTheme={handleTheme} txns={txns} onReset={hardReset} toast={addToast} budgetGoal={budgetGoal} incomeGoal={incomeGoal} onBudget={handleBudget} onIncome={handleIncome}/>}
+      </div>
+
+      {/* Tab bar */}
+      <div id="tabbar" style={{flexShrink:0,background:'var(--card)',borderTop:'0.5px solid var(--border)',backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',paddingTop:8,paddingBottom:`calc(8px + env(safe-area-inset-bottom,0px))`,display:'flex',justifyContent:'space-around',alignItems:'center',zIndex:100}}>
+        {TABS.map((name,i)=><button key={i} onClick={()=>setTab(i)} style={{background:'none',border:'none',display:'flex',flexDirection:'column',alignItems:'center',gap:3,padding:'4px 12px',borderRadius:12,opacity:tab===i?1:.45,transition:'opacity .18s',minWidth:52}}>
+          {Icons[name](tab===i)}
+          <span style={{fontSize:9,color:tab===i?'var(--accent)':'var(--muted)',fontWeight:700,letterSpacing:.3}}>{name.toUpperCase()}</span>
+        </button>)}
+      </div>
+    </div>
+  </>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
