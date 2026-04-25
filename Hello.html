@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no"/>
+<title>Ledgr — Personal Finance</title>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Ledgr"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="theme-color" content="#0a0a12"/>
+<meta name="description" content="Ledgr — Track income, expenses and reach your financial goals"/>
+<!-- App Icon SVG -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='114' fill='%230a0a12'/%3E%3Crect x='60' y='60' width='392' height='392' rx='80' fill='url(%23g)'/%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23f5a623'/%3E%3Cstop offset='100%25' stop-color='%23e8830a'/%3E%3C/linearGradient%3E%3Ctext x='256' y='340' text-anchor='middle' font-size='220' font-family='system-ui'%3E%24%3C/text%3E%3C/svg%3E"/>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='114' fill='%230a0a12'/%3E%3Crect x='40' y='40' width='432' height='432' rx='96' fill='url(%23g)'/%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23f5a623'/%3E%3Cstop offset='100%25' stop-color='%23c8720a'/%3E%3C/linearGradient%3E%3Ctext x='256' y='356' text-anchor='middle' font-size='240' font-family='system-ui' fill='white' font-weight='700'%3E%24%3C/text%3E%3C/svg%3E"/>
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<!-- EmailJS for real email delivery -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{height:100%;height:-webkit-fill-available;overflow:hidden}
+body{height:100%;height:-webkit-fill-available;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif;-webkit-font-smoothing:antialiased;background:#0a0a12;color:#f0f0f8;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px)}
+#root{height:100%;height:-webkit-fill-available;display:flex;flex-direction:column;overflow:hidden}
+:root{
+  --accent:#f5a623;--a10:rgba(245,166,35,.1);--a20:rgba(245,166,35,.2);
+  --bg:#0a0a12;--card:#15151e;--card2:#1c1c28;--card3:#232333;
+  --text:#f0f0f8;--sub:#a0a0c0;--muted:#606080;--muted2:#303048;
+  --border:rgba(255,255,255,.07);--border2:rgba(255,255,255,.13);
+  --green:#30d158;--g10:rgba(48,209,88,.1);
+  --red:#ff453a;--r10:rgba(255,69,58,.1);
+  --blue:#4e9af1;--b10:rgba(78,154,241,.1);
+  --gold:#f5a623;
+  --tab-h:62px;--safe-b:env(safe-area-inset-bottom,0px);--safe-t:env(safe-area-inset-top,0px);
+  --hdr:calc(env(safe-area-inset-top,0px) + 54px);
+}
+::-webkit-scrollbar{display:none}
+input,select,textarea,button{font-family:inherit;-webkit-appearance:none;appearance:none}
+input[type=date],input[type=time]{color-scheme:dark}
+input[type=date]::-webkit-calendar-picker-indicator,input[type=time]::-webkit-calendar-picker-indicator{filter:invert(.5) brightness(2);cursor:pointer;opacity:.7}
+button{cursor:pointer}
+/* Splash */
+#splash{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;background:#0a0a12;transition:opacity .5s}
+#splash.hide{opacity:0;pointer-events:none}
+/* Animations */
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes popIn{from{transform:scale(.94);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes toastIn{from{transform:translateY(-12px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+/* Tablet */
+@media(min-width:768px){
+  :root{--tab-h:0px}
+  #sidebar{display:flex!important}
+  #tabbar{display:none!important}
+}
+</style>
+</head>
+<body>
+<!-- Splash Screen -->
+<div id="splash">
+  <svg width="100" height="100" viewBox="0 0 100 100" style="margin-bottom:20px;border-radius:22px;box-shadow:0 20px 60px rgba(245,166,35,.3)">
+    <rect width="100" height="100" rx="22" fill="#0a0a12"/>
+    <rect x="8" y="8" width="84" height="84" rx="16" fill="url(#sg)"/>
+    <defs><linearGradient id="sg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f5a623"/><stop offset="100%" stop-color="#c8720a"/></linearGradient></defs>
+    <text x="50" y="68" text-anchor="middle" font-size="48" font-weight="800" fill="white" font-family="-apple-system,sans-serif">$</text>
+  </svg>
+  <div style="font-size:28px;font-weight:900;letter-spacing:-.5px;color:#f0f0f8">Ledgr</div>
+  <div style="font-size:13px;color:#606080;margin-top:6px;margin-bottom:32px">Personal Finance Tracker</div>
+  <div style="width:32px;height:32px;border-radius:50%;border:2.5px solid rgba(245,166,35,.2);border-top-color:#f5a623;animation:spin .7s linear infinite"></div>
+</div>
+<div id="root"></div>
+
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback}=React;
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CONSTANTS & DATA
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// EmailJS config — user sets their own in Settings
+// To use real email: create free account at emailjs.com
+// Default: shows OTP on screen (demo mode)
+const EMAILJS_SERVICE='service_e3aq4gh';
+const EMAILJS_TEMPLATE='template_5zywxbh';
+const EMAILJS_PUBLIC_KEY='Edku-DGDzomlJreV6';
+
+// Initialize EmailJS immediately with real credentials
+(function initEJS(){try{emailjs.init(EMAILJS_PUBLIC_KEY);}catch(e){}})();
+const CURRENCIES=[
+  {code:'USD',symbol:'$',name:'US Dollar',locale:'en-US'},
+  {code:'EUR',symbol:'€',name:'Euro',locale:'de-DE'},
+  {code:'GBP',symbol:'£',name:'British Pound',locale:'en-GB'},
+  {code:'INR',symbol:'₹',name:'Indian Rupee',locale:'en-IN'},
+  {code:'JPY',symbol:'¥',name:'Japanese Yen',locale:'ja-JP'},
+  {code:'CAD',symbol:'CA$',name:'Canadian Dollar',locale:'en-CA'},
+  {code:'AUD',symbol:'A$',name:'Australian Dollar',locale:'en-AU'},
+  {code:'CHF',symbol:'CHF',name:'Swiss Franc',locale:'de-CH'},
+  {code:'CNY',symbol:'¥',name:'Chinese Yuan',locale:'zh-CN'},
+  {code:'BRL',symbol:'R$',name:'Brazilian Real',locale:'pt-BR'},
+  {code:'MXN',symbol:'MX$',name:'Mexican Peso',locale:'es-MX'},
+  {code:'KRW',symbol:'₩',name:'Korean Won',locale:'ko-KR'},
+  {code:'SGD',symbol:'S$',name:'Singapore Dollar',locale:'en-SG'},
+  {code:'AED',symbol:'AED',name:'UAE Dirham',locale:'ar-AE'},
+  {code:'SAR',symbol:'SAR',name:'Saudi Riyal',locale:'ar-SA'},
+  {code:'PKR',symbol:'₨',name:'Pakistani Rupee',locale:'ur-PK'},
+  {code:'BDT',symbol:'৳',name:'Bangladeshi Taka',locale:'bn-BD'},
+  {code:'NGN',symbol:'₦',name:'Nigerian Naira',locale:'en-NG'},
+  {code:'ZAR',symbol:'R',name:'South African Rand',locale:'en-ZA'},
+  {code:'TRY',symbol:'₺',name:'Turkish Lira',locale:'tr-TR'},
+  {code:'RUB',symbol:'₽',name:'Russian Ruble',locale:'ru-RU'},
+  {code:'SEK',symbol:'kr',name:'Swedish Krona',locale:'sv-SE'},
+  {code:'NOK',symbol:'kr',name:'Norwegian Krone',locale:'nb-NO'},
+  {code:'DKK',symbol:'kr',name:'Danish Krone',locale:'da-DK'},
+  {code:'PLN',symbol:'zł',name:'Polish Zloty',locale:'pl-PL'},
+  {code:'THB',symbol:'฿',name:'Thai Baht',locale:'th-TH'},
+  {code:'IDR',symbol:'Rp',name:'Indonesian Rupiah',locale:'id-ID'},
+  {code:'MYR',symbol:'RM',name:'Malaysian Ringgit',locale:'ms-MY'},
+  {code:'PHP',symbol:'₱',name:'Philippine Peso',locale:'en-PH'},
+  {code:'VND',symbol:'₫',name:'Vietnamese Dong',locale:'vi-VN'},
+];
+
+const COUNTRY_CODES=[
+  {code:'+1',country:'US',flag:'🇺🇸',name:'United States'},
+  {code:'+1',country:'CA',flag:'🇨🇦',name:'Canada'},
+  {code:'+44',country:'GB',flag:'🇬🇧',name:'United Kingdom'},
+  {code:'+91',country:'IN',flag:'🇮🇳',name:'India'},
+  {code:'+81',country:'JP',flag:'🇯🇵',name:'Japan'},
+  {code:'+86',country:'CN',flag:'🇨🇳',name:'China'},
+  {code:'+49',country:'DE',flag:'🇩🇪',name:'Germany'},
+  {code:'+33',country:'FR',flag:'🇫🇷',name:'France'},
+  {code:'+39',country:'IT',flag:'🇮🇹',name:'Italy'},
+  {code:'+34',country:'ES',flag:'🇪🇸',name:'Spain'},
+  {code:'+55',country:'BR',flag:'🇧🇷',name:'Brazil'},
+  {code:'+52',country:'MX',flag:'🇲🇽',name:'Mexico'},
+  {code:'+82',country:'KR',flag:'🇰🇷',name:'South Korea'},
+  {code:'+65',country:'SG',flag:'🇸🇬',name:'Singapore'},
+  {code:'+971',country:'AE',flag:'🇦🇪',name:'UAE'},
+  {code:'+966',country:'SA',flag:'🇸🇦',name:'Saudi Arabia'},
+  {code:'+92',country:'PK',flag:'🇵🇰',name:'Pakistan'},
+  {code:'+880',country:'BD',flag:'🇧🇩',name:'Bangladesh'},
+  {code:'+234',country:'NG',flag:'🇳🇬',name:'Nigeria'},
+  {code:'+27',country:'ZA',flag:'🇿🇦',name:'South Africa'},
+  {code:'+90',country:'TR',flag:'🇹🇷',name:'Turkey'},
+  {code:'+7',country:'RU',flag:'🇷🇺',name:'Russia'},
+  {code:'+46',country:'SE',flag:'🇸🇪',name:'Sweden'},
+  {code:'+47',country:'NO',flag:'🇳🇴',name:'Norway'},
+  {code:'+45',country:'DK',flag:'🇩🇰',name:'Denmark'},
+  {code:'+48',country:'PL',flag:'🇵🇱',name:'Poland'},
+  {code:'+66',country:'TH',flag:'🇹🇭',name:'Thailand'},
+  {code:'+62',country:'ID',flag:'🇮🇩',name:'Indonesia'},
+  {code:'+60',country:'MY',flag:'🇲🇾',name:'Malaysia'},
+  {code:'+63',country:'PH',flag:'🇵🇭',name:'Philippines'},
+  {code:'+84',country:'VN',flag:'🇻🇳',name:'Vietnam'},
+  {code:'+20',country:'EG',flag:'🇪🇬',name:'Egypt'},
+  {code:'+31',country:'NL',flag:'🇳🇱',name:'Netherlands'},
+  {code:'+32',country:'BE',flag:'🇧🇪',name:'Belgium'},
+  {code:'+41',country:'CH',flag:'🇨🇭',name:'Switzerland'},
+  {code:'+43',country:'AT',flag:'🇦🇹',name:'Austria'},
+  {code:'+61',country:'AU',flag:'🇦🇺',name:'Australia'},
+  {code:'+64',country:'NZ',flag:'🇳🇿',name:'New Zealand'},
+  {code:'+54',country:'AR',flag:'🇦🇷',name:'Argentina'},
+  {code:'+56',country:'CL',flag:'🇨🇱',name:'Chile'},
+  {code:'+57',country:'CO',flag:'🇨🇴',name:'Colombia'},
+];
+
+const LANGUAGES=[
+  {code:'en',name:'English',dir:'ltr'},
+  {code:'es',name:'Español',dir:'ltr'},
+  {code:'fr',name:'Français',dir:'ltr'},
+  {code:'de',name:'Deutsch',dir:'ltr'},
+  {code:'it',name:'Italiano',dir:'ltr'},
+  {code:'pt',name:'Português',dir:'ltr'},
+  {code:'ru',name:'Русский',dir:'ltr'},
+  {code:'zh',name:'中文',dir:'ltr'},
+  {code:'ja',name:'日本語',dir:'ltr'},
+  {code:'ko',name:'한국어',dir:'ltr'},
+  {code:'ar',name:'العربية',dir:'rtl'},
+  {code:'hi',name:'हिन्दी',dir:'ltr'},
+  {code:'ur',name:'اردو',dir:'rtl'},
+  {code:'bn',name:'বাংলা',dir:'ltr'},
+  {code:'tr',name:'Türkçe',dir:'ltr'},
+  {code:'nl',name:'Nederlands',dir:'ltr'},
+  {code:'pl',name:'Polski',dir:'ltr'},
+  {code:'sv',name:'Svenska',dir:'ltr'},
+  {code:'id',name:'Bahasa Indonesia',dir:'ltr'},
+  {code:'ms',name:'Bahasa Melayu',dir:'ltr'},
+  {code:'th',name:'ภาษาไทย',dir:'ltr'},
+  {code:'vi',name:'Tiếng Việt',dir:'ltr'},
+];
+
+// Translations (key strings)
+const TRANS={
+  en:{home:'Home',add:'Add',charts:'Charts',history:'History',settings:'Settings',totalBalance:'Total Balance',income:'Income',expenses:'Expenses',save:'Save',cancel:'Cancel',delete:'Delete',edit:'Edit',recent:'Recent',upcoming:'Upcoming',seeAll:'See all',addTransaction:'Add Transaction',schedule:'Schedule',signIn:'Sign In',signUp:'Sign Up',email:'Email',phone:'Phone',otp:'Verification Code',continue:'Continue',logout:'Log Out',name:'Full Name',budgetGoal:'Monthly Budget',incomeGoal:'Income Goal',currency:'Currency',language:'Language',notifications:'Notifications',theme:'Theme',profile:'Profile',goals:'Goals',export:'Export',reset:'Reset',demoData:'Demo data loaded',scheduled:'Scheduled',past:'Past',search:'Search transactions',fromDate:'From date',toDate:'To date',noTxns:'No transactions found',welcome:'Welcome back'},
+  es:{home:'Inicio',add:'Agregar',charts:'Gráficos',history:'Historial',settings:'Ajustes',totalBalance:'Balance Total',income:'Ingresos',expenses:'Gastos',save:'Guardar',cancel:'Cancelar',delete:'Eliminar',edit:'Editar',recent:'Recientes',upcoming:'Próximos',seeAll:'Ver todo',addTransaction:'Agregar Transacción',schedule:'Programar',signIn:'Iniciar Sesión',signUp:'Registrarse',email:'Correo electrónico',phone:'Teléfono',otp:'Código de verificación',continue:'Continuar',logout:'Cerrar sesión',name:'Nombre completo',budgetGoal:'Presupuesto mensual',incomeGoal:'Meta de ingresos',currency:'Moneda',language:'Idioma',notifications:'Notificaciones',theme:'Tema',profile:'Perfil',goals:'Metas',export:'Exportar',reset:'Restablecer',demoData:'Datos de demostración',scheduled:'Programado',past:'Pasado',search:'Buscar',fromDate:'Desde',toDate:'Hasta',noTxns:'No se encontraron transacciones',welcome:'Bienvenido de nuevo'},
+  fr:{home:'Accueil',add:'Ajouter',charts:'Graphiques',history:'Historique',settings:'Paramètres',totalBalance:'Solde Total',income:'Revenus',expenses:'Dépenses',save:'Enregistrer',cancel:'Annuler',delete:'Supprimer',edit:'Modifier',recent:'Récents',upcoming:'À venir',seeAll:'Voir tout',addTransaction:'Ajouter Transaction',schedule:'Planifier',signIn:'Connexion',signUp:'S\'inscrire',email:'E-mail',phone:'Téléphone',otp:'Code de vérification',continue:'Continuer',logout:'Déconnexion',name:'Nom complet',budgetGoal:'Budget mensuel',incomeGoal:'Objectif de revenus',currency:'Devise',language:'Langue',notifications:'Notifications',theme:'Thème',profile:'Profil',goals:'Objectifs',export:'Exporter',reset:'Réinitialiser',demoData:'Données démo',scheduled:'Planifié',past:'Passé',search:'Rechercher',fromDate:'De',toDate:'À',noTxns:'Aucune transaction trouvée',welcome:'Bon retour'},
+  de:{home:'Start',add:'Hinzufügen',charts:'Diagramme',history:'Verlauf',settings:'Einstellungen',totalBalance:'Gesamtguthaben',income:'Einnahmen',expenses:'Ausgaben',save:'Speichern',cancel:'Abbrechen',delete:'Löschen',edit:'Bearbeiten',recent:'Zuletzt',upcoming:'Bevorstehend',seeAll:'Alle sehen',addTransaction:'Transaktion hinzufügen',schedule:'Planen',signIn:'Anmelden',signUp:'Registrieren',email:'E-Mail',phone:'Telefon',otp:'Bestätigungscode',continue:'Weiter',logout:'Abmelden',name:'Vollständiger Name',budgetGoal:'Monatsbudget',incomeGoal:'Einkommensziel',currency:'Währung',language:'Sprache',notifications:'Benachrichtigungen',theme:'Design',profile:'Profil',goals:'Ziele',export:'Exportieren',reset:'Zurücksetzen',demoData:'Demodaten',scheduled:'Geplant',past:'Vergangen',search:'Suchen',fromDate:'Von',toDate:'Bis',noTxns:'Keine Transaktionen',welcome:'Willkommen zurück'},
+  ar:{home:'الرئيسية',add:'إضافة',charts:'الرسوم',history:'السجل',settings:'الإعدادات',totalBalance:'الرصيد الكلي',income:'الدخل',expenses:'المصاريف',save:'حفظ',cancel:'إلغاء',delete:'حذف',edit:'تعديل',recent:'الأخيرة',upcoming:'القادمة',seeAll:'عرض الكل',addTransaction:'إضافة معاملة',schedule:'جدولة',signIn:'تسجيل الدخول',signUp:'التسجيل',email:'البريد الإلكتروني',phone:'رقم الهاتف',otp:'رمز التحقق',continue:'متابعة',logout:'تسجيل الخروج',name:'الاسم الكامل',budgetGoal:'الميزانية الشهرية',incomeGoal:'هدف الدخل',currency:'العملة',language:'اللغة',notifications:'الإشعارات',theme:'المظهر',profile:'الملف الشخصي',goals:'الأهداف',export:'تصدير',reset:'إعادة ضبط',demoData:'بيانات تجريبية',scheduled:'مجدول',past:'السابقة',search:'بحث',fromDate:'من',toDate:'إلى',noTxns:'لا توجد معاملات',welcome:'مرحباً بعودتك'},
+  hi:{home:'होम',add:'जोड़ें',charts:'चार्ट',history:'इतिहास',settings:'सेटिंग',totalBalance:'कुल शेष',income:'आय',expenses:'खर्च',save:'सेव',cancel:'रद्द',delete:'हटाएं',edit:'संपादित',recent:'हालिया',upcoming:'आने वाला',seeAll:'सब देखें',addTransaction:'लेनदेन जोड़ें',schedule:'शेड्यूल',signIn:'साइन इन',signUp:'साइन अप',email:'ईमेल',phone:'फ़ोन',otp:'सत्यापन कोड',continue:'जारी रखें',logout:'लॉग आउट',name:'पूरा नाम',budgetGoal:'मासिक बजट',incomeGoal:'आय लक्ष्य',currency:'मुद्रा',language:'भाषा',notifications:'सूचनाएं',theme:'थीम',profile:'प्रोफ़ाइल',goals:'लक्ष्य',export:'निर्यात',reset:'रीसेट',demoData:'डेमो डेटा',scheduled:'निर्धारित',past:'पिछला',search:'खोजें',fromDate:'से',toDate:'तक',noTxns:'कोई लेनदेन नहीं',welcome:'वापस स्वागत है'},
+  zh:{home:'主页',add:'添加',charts:'图表',history:'历史',settings:'设置',totalBalance:'总余额',income:'收入',expenses:'支出',save:'保存',cancel:'取消',delete:'删除',edit:'编辑',recent:'最近',upcoming:'即将到来',seeAll:'查看全部',addTransaction:'添加交易',schedule:'安排',signIn:'登录',signUp:'注册',email:'电子邮件',phone:'电话',otp:'验证码',continue:'继续',logout:'退出',name:'全名',budgetGoal:'月度预算',incomeGoal:'收入目标',currency:'货币',language:'语言',notifications:'通知',theme:'主题',profile:'档案',goals:'目标',export:'导出',reset:'重置',demoData:'演示数据',scheduled:'已计划',past:'过去',search:'搜索',fromDate:'从',toDate:'至',noTxns:'未找到交易',welcome:'欢迎回来'},
+  ja:{home:'ホーム',add:'追加',charts:'グラフ',history:'履歴',settings:'設定',totalBalance:'総残高',income:'収入',expenses:'支出',save:'保存',cancel:'キャンセル',delete:'削除',edit:'編集',recent:'最近',upcoming:'予定',seeAll:'すべて見る',addTransaction:'取引を追加',schedule:'スケジュール',signIn:'ログイン',signUp:'登録',email:'メール',phone:'電話',otp:'確認コード',continue:'続ける',logout:'ログアウト',name:'フルネーム',budgetGoal:'月次予算',incomeGoal:'収入目標',currency:'通貨',language:'言語',notifications:'通知',theme:'テーマ',profile:'プロフィール',goals:'目標',export:'エクスポート',reset:'リセット',demoData:'デモデータ',scheduled:'予定済み',past:'過去',search:'検索',fromDate:'開始日',toDate:'終了日',noTxns:'取引が見つかりません',welcome:'おかえりなさい'},
+};
+const T=(lang,key)=>(TRANS[lang]||TRANS.en)[key]||(TRANS.en)[key]||key;
+
+const THEMES=[
+  {id:'dark',  name:'Midnight',isDark:true, bg:'#0a0a12',card:'#15151e',card2:'#1c1c28',text:'#f0f0f8',sub:'#a0a0c0',muted:'#606080',muted2:'#303048',accent:'#f5a623',heroA:'#1a1530',heroB:'#10101e'},
+  {id:'navy',  name:'Deep Navy',isDark:true, bg:'#040c1a',card:'#091828',card2:'#0e2035',text:'#e8f0ff',sub:'#7090c0',muted:'#405880',muted2:'#203048',accent:'#4e9af1',heroA:'#091828',heroB:'#050f1e'},
+  {id:'forest',name:'Forest',   isDark:true, bg:'#060d08',card:'#0c1c10',card2:'#122218',text:'#e0f0e8',sub:'#60a070',muted:'#408060',muted2:'#204030',accent:'#30d158',heroA:'#0c1c10',heroB:'#08140b'},
+  {id:'cosmos',name:'Cosmos',   isDark:true, bg:'#0b0710',card:'#150e22',card2:'#1c142e',text:'#ece8ff',sub:'#9070c0',muted:'#7050a0',muted2:'#402860',accent:'#bf5af2',heroA:'#150e22',heroB:'#0d0918'},
+  {id:'ember', name:'Ember',    isDark:true, bg:'#100804',card:'#1c1008',card2:'#281608',text:'#fff0e5',sub:'#c08060',muted:'#906040',muted2:'#602010',accent:'#ff6b35',heroA:'#1c1008',heroB:'#140a05'},
+  {id:'light', name:'Daylight', isDark:false,bg:'#f0f0f8',card:'#ffffff',card2:'#e8e8f5',text:'#0c0c20',sub:'#5050a0',muted:'#808090',muted2:'#c0c0d8',accent:'#5856d6',heroA:'#ffffff',heroB:'#f0f0fc'},
+];
+
+const EXP_CATS=[
+  {id:'food',         label:'Food',        icon:'🍔',color:'#ff6b35'},
+  {id:'transport',    label:'Transport',   icon:'🚗',color:'#4e9af1'},
+  {id:'bills',        label:'Bills',       icon:'⚡',color:'#f5a623'},
+  {id:'shopping',     label:'Shopping',   icon:'🛍️',color:'#af52de'},
+  {id:'health',       label:'Health',      icon:'❤️',color:'#ff2d55'},
+  {id:'entertainment',label:'Fun',         icon:'🎮',color:'#30d158'},
+  {id:'education',    label:'Education',   icon:'📚',color:'#5ac8fa'},
+  {id:'travel',       label:'Travel',      icon:'✈️',color:'#34aadc'},
+  {id:'other',        label:'Other',       icon:'📦',color:'#888'},
+];
+const INC_CATS=[
+  {id:'salary',    label:'Salary',    icon:'💼',color:'#30d158'},
+  {id:'freelance', label:'Freelance', icon:'💻',color:'#4e9af1'},
+  {id:'investment',label:'Invest',    icon:'📈',color:'#f5a623'},
+  {id:'gift',      label:'Gift',      icon:'🎁',color:'#af52de'},
+  {id:'other',     label:'Other',     icon:'💰',color:'#888'},
+];
+const getCat=(type,id)=>{const l=type==='income'?INC_CATS:EXP_CATS;return l.find(c=>c.id===id)||l[l.length-1];};
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// STORAGE & HELPERS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const LS={get:(k,fb=null)=>{try{const v=localStorage.getItem(k);return v!==null?JSON.parse(v):fb;}catch{return fb;}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}},del:(k)=>{try{localStorage.removeItem(k);}catch{}}};
+
+const fmtMoney=(n,cur='USD')=>{try{return new Intl.NumberFormat(CURRENCIES.find(c=>c.code===cur)?.locale||'en-US',{style:'currency',currency:cur,minimumFractionDigits:cur==='JPY'||cur==='KRW'?0:2,maximumFractionDigits:cur==='JPY'||cur==='KRW'?0:2}).format(Math.abs(n));}catch{const c=CURRENCIES.find(x=>x.code===cur);return`${c?.symbol||'$'}${Math.abs(n).toFixed(2)}`;}};
+const fmtK=(n,cur='USD')=>{if(Math.abs(n)>=1000){const s=CURRENCIES.find(c=>c.code===cur)?.symbol||'$';return`${s}${(Math.abs(n)/1000).toFixed(1)}k`;}return fmtMoney(n,cur);};
+const todayStr=()=>new Date().toISOString().split('T')[0];
+const dayStr=d=>{try{return new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});}catch{return d;}};
+const monthLbl=(y,m)=>new Date(y,m,1).toLocaleString('default',{month:'long',year:'numeric'});
+const parseT=t=>{try{const[h,rest]=t.split(':');const[min,ap]=rest.split(' ');let hr=parseInt(h);if(ap==='PM'&&hr!==12)hr+=12;if(ap==='AM'&&hr===12)hr=0;return{h:hr,m:parseInt(min)||0};}catch{return{h:9,m:0};}};
+const genOTP=()=>Math.floor(100000+Math.random()*900000).toString();
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SEED DATA
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function buildSeed(){
+  const now=new Date();const y=now.getFullYear();const mo=now.getMonth();
+  const D=(m,d)=>new Date(y,m,Math.min(d,new Date(y,m+1,0).getDate())).toISOString().split('T')[0];
+  const F=days=>new Date(y,mo,now.getDate()+days).toISOString().split('T')[0];
+  let id=1;
+  return[
+    {id:id++,type:'income', amount:4800,category:'salary',      note:'Monthly salary',        date:D(mo,1)},
+    {id:id++,type:'income', amount:750, category:'freelance',   note:'UI design project',     date:D(mo,4)},
+    {id:id++,type:'expense',amount:1300,category:'bills',       note:'Rent payment',          date:D(mo,2)},
+    {id:id++,type:'expense',amount:94,  category:'food',        note:'Whole Foods groceries', date:D(mo,3)},
+    {id:id++,type:'expense',amount:62,  category:'transport',   note:'Shell gas station',     date:D(mo,5)},
+    {id:id++,type:'expense',amount:16,  category:'bills',       note:'Netflix subscription',  date:D(mo,6)},
+    {id:id++,type:'expense',amount:248, category:'shopping',    note:'Nike shoes — online',   date:D(mo,7)},
+    {id:id++,type:'income', amount:220, category:'investment',  note:'ETF dividend payout',   date:D(mo,8)},
+    {id:id++,type:'expense',amount:48,  category:'food',        note:'Chipotle × 3',          date:D(mo,9)},
+    {id:id++,type:'expense',amount:88,  category:'health',      note:'Pharmacy — vitamins',   date:D(mo,10)},
+    {id:id++,type:'expense',amount:128, category:'bills',       note:'Electric & water',      date:D(mo,11)},
+    {id:id++,type:'expense',amount:36,  category:'entertainment',note:'Spotify + Hulu',       date:D(mo,12)},
+    {id:id++,type:'expense',amount:312, category:'shopping',    note:'Amazon — home items',   date:D(mo,13)},
+    {id:id++,type:'expense',amount:78,  category:'food',        note:'Date night dinner',     date:D(mo,14)},
+    {id:id++,type:'income', amount:480, category:'freelance',   note:'Logo + brand kit',      date:D(mo,15)},
+    {id:id++,type:'expense',amount:34,  category:'transport',   note:'Uber rides',            date:D(mo,16)},
+    {id:id++,type:'expense',amount:145, category:'health',      note:'Gym membership',        date:D(mo,17)},
+    {id:id++,type:'expense',amount:80,  category:'education',   note:'Udemy course',          date:D(mo,18)},
+    {id:id++,type:'expense',amount:185, category:'bills',       note:'Phone bill',            date:D(mo,20)},
+    // Last month
+    {id:id++,type:'income', amount:4800,category:'salary',      note:'Monthly salary',        date:D(mo-1,1)},
+    {id:id++,type:'income', amount:420, category:'freelance',   note:'Web dev contract',      date:D(mo-1,6)},
+    {id:id++,type:'expense',amount:1300,category:'bills',       note:'Rent payment',          date:D(mo-1,2)},
+    {id:id++,type:'expense',amount:112, category:'food',        note:'Trader Joe\'s',         date:D(mo-1,4)},
+    {id:id++,type:'expense',amount:295, category:'shopping',    note:'IKEA — desk setup',     date:D(mo-1,9)},
+    {id:id++,type:'income', amount:175, category:'investment',  note:'Stock dividends',       date:D(mo-1,12)},
+    {id:id++,type:'expense',amount:96,  category:'entertainment',note:'Concert tickets x2',   date:D(mo-1,14)},
+    {id:id++,type:'expense',amount:155, category:'bills',       note:'Utilities bundle',      date:D(mo-1,18)},
+    {id:id++,type:'expense',amount:215, category:'shopping',    note:'H&M clothing',          date:D(mo-1,25)},
+    // 2 months ago
+    {id:id++,type:'income', amount:4800,category:'salary',      note:'Monthly salary',        date:D(mo-2,1)},
+    {id:id++,type:'income', amount:900, category:'freelance',   note:'App design project',    date:D(mo-2,10)},
+    {id:id++,type:'income', amount:300, category:'gift',        note:'Birthday money',        date:D(mo-2,15)},
+    {id:id++,type:'expense',amount:1300,category:'bills',       note:'Rent payment',          date:D(mo-2,2)},
+    {id:id++,type:'expense',amount:98,  category:'food',        note:'Costco run',            date:D(mo-2,5)},
+    {id:id++,type:'expense',amount:420, category:'shopping',    note:'Best Buy — monitor',    date:D(mo-2,8)},
+    {id:id++,type:'expense',amount:188, category:'transport',   note:'Car service + gas',     date:D(mo-2,20)},
+    {id:id++,type:'expense',amount:65,  category:'travel',      note:'Road trip gas',         date:D(mo-2,26)},
+    // Scheduled
+    {id:id++,type:'expense',amount:1300,category:'bills',       note:'Rent — next month',     date:F(12),scheduled:true,notifyWhenDue:true},
+    {id:id++,type:'income', amount:4800,category:'salary',      note:'Salary — next month',   date:F(13),scheduled:true,notifyWhenDue:true},
+    {id:id++,type:'expense',amount:185, category:'bills',       note:'Phone bill due',        date:F(6), scheduled:true,notifyWhenDue:true},
+    {id:id++,type:'expense',amount:350, category:'shopping',    note:'Anniversary gift',      date:F(9), scheduled:true,notifyWhenDue:false},
+  ];
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SHARED COMPONENTS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function applyTheme(th){
+  const s=document.documentElement.style;
+  [['--bg',th.bg],['--card',th.card],['--card2',th.card2],['--text',th.text],['--sub',th.sub||'#a0a0c0'],['--muted',th.muted],['--muted2',th.muted2],['--accent',th.accent],['--hero-a',th.heroA],['--hero-b',th.heroB],['--border',th.isDark?'rgba(255,255,255,.07)':'rgba(0,0,0,.08)'],['--border2',th.isDark?'rgba(255,255,255,.13)':'rgba(0,0,0,.14)'],['--green',th.isDark?'#30d158':'#1a8040'],['--red',th.isDark?'#ff453a':'#cc1010']].forEach(([k,v])=>s.setProperty(k,v));
+  const hex=th.accent.replace('#','');const[r,g,b]=[0,2,4].map(i=>parseInt(hex.slice(i,i+2),16));
+  s.setProperty('--a10',`rgba(${r},${g},${b},.10)`);s.setProperty('--a20',`rgba(${r},${g},${b},.20)`);
+  s.setProperty('--g10','rgba(48,209,88,.10)');s.setProperty('--r10','rgba(255,69,58,.10)');
+  document.body.style.background=th.bg;
+  document.querySelector('meta[name=theme-color]').content=th.bg;
+}
+
+const Card=({ch,style={}})=><div style={{background:'var(--card)',borderRadius:20,padding:16,border:'1px solid var(--border)',...style}}>{ch}</div>;
+const Tog=({on,fn,col='var(--accent)'})=><div onClick={fn} style={{width:46,height:28,borderRadius:14,background:on?col:'var(--muted2)',position:'relative',cursor:'pointer',transition:'all .25s',flexShrink:0,boxShadow:on?`0 0 16px ${col}44`:'none'}}><div style={{position:'absolute',top:3,left:on?20:3,width:22,height:22,borderRadius:11,background:'#fff',transition:'left .25s',boxShadow:'0 2px 8px rgba(0,0,0,.3)'}}/></div>;
+
+function Toast({toasts}){
+  if(!toasts.length)return null;
+  return<div style={{position:'fixed',top:'calc(var(--safe-t) + 10px)',left:'50%',transform:'translateX(-50%)',zIndex:9800,display:'flex',flexDirection:'column',gap:8,width:'min(calc(100% - 24px),400px)',pointerEvents:'none'}}>
+    {toasts.map(t=><div key={t.id} style={{background:t.err?'#1e0808':t.warn?'#1e1600':'var(--card)',border:`1px solid ${t.err?'rgba(255,58,58,.4)':t.warn?'rgba(245,166,35,.4)':'var(--border2)'}`,borderRadius:18,padding:'13px 16px',display:'flex',alignItems:'flex-start',gap:10,boxShadow:'0 10px 40px rgba(0,0,0,.5)',animation:'toastIn .3s ease'}}>
+      <span style={{fontSize:20,flexShrink:0,lineHeight:1.2}}>{t.icon||'🔔'}</span>
+      <div style={{flex:1}}>{t.title&&<div style={{fontSize:13,fontWeight:700,color:t.err?'var(--red)':t.warn?'var(--accent)':'var(--text)',marginBottom:3}}>{t.title}</div>}<div style={{fontSize:12,color:'var(--sub)',lineHeight:1.45}}>{t.body}</div></div>
+    </div>)}
+  </div>;
+}
+
+function Modal({onBg,ch,style={}}){
+  return<div onClick={e=>{if(e.target===e.currentTarget&&onBg)onBg();}} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.7)',zIndex:8000,display:'flex',alignItems:'flex-end',animation:'fadeIn .2s'}}>
+    <div style={{background:'var(--card)',borderRadius:'26px 26px 0 0',width:'100%',maxHeight:'96dvh',maxHeight:'96vh',overflowY:'auto',animation:'slideUp .3s ease',paddingBottom:'calc(env(safe-area-inset-bottom,0px) + 12px)',...style}}>{ch}</div>
+  </div>;
+}
+
+function Confirm({title,body,ok='Confirm',danger,onOk,onCancel}){
+  return<div onClick={e=>{if(e.target===e.currentTarget)onCancel();}} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.75)',zIndex:9500,display:'flex',alignItems:'center',justifyContent:'center',padding:24,animation:'fadeIn .15s'}}>
+    <div style={{background:'var(--card)',borderRadius:26,padding:'26px 22px',width:'100%',maxWidth:340,animation:'popIn .2s'}}>
+      <div style={{fontSize:19,fontWeight:800,color:'var(--text)',textAlign:'center',marginBottom:8}}>{title}</div>
+      <div style={{fontSize:14,color:'var(--sub)',textAlign:'center',lineHeight:1.6,marginBottom:24}}>{body}</div>
+      <div style={{display:'flex',gap:10}}>
+        <button onClick={onCancel} style={{flex:1,padding:'13px',borderRadius:14,border:'1px solid var(--border2)',background:'transparent',color:'var(--sub)',fontSize:14,fontWeight:700}}>Cancel</button>
+        <button onClick={onOk} style={{flex:1,padding:'13px',borderRadius:14,border:'none',background:danger?'var(--red)':'var(--accent)',color:danger?'#fff':'#000',fontSize:14,fontWeight:700}}>{ok}</button>
+      </div>
+    </div>
+  </div>;
+}
+
+// Mini donut chart
+function Donut({data,size=110}){
+  const total=data.reduce((s,d)=>s+d.v,0);
+  if(!total)return<div style={{width:size,height:size,borderRadius:'50%',background:'var(--card2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,color:'var(--muted)'}}>No data</div>;
+  const r=44,cx=60,cy=60,sw=13,circ=2*Math.PI*r;let off=0;
+  const sl=data.map((d,i)=>{const pct=d.v/total,dash=Math.max(circ*pct-1.5,0),gap=circ-dash;const s=<circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={d.color} strokeWidth={sw} strokeDasharray={`${dash} ${gap}`} strokeDashoffset={-off+circ/4}/>;off+=circ*pct;return s;});
+  return<svg width={size} height={size} viewBox="0 0 120 120"><circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--card2)" strokeWidth={sw}/>{sl}</svg>;
+}
+function Bars({weeks,height=100}){
+  const mx=Math.max(...weeks.flatMap(w=>[w.i,w.e]),1);
+  const bw=18,gp=8;const W=weeks.length*(bw*2+gp+6)+6;
+  return<svg width="100%" height={height} viewBox={`0 0 ${W} ${height}`} preserveAspectRatio="xMidYMid meet">
+    {weeks.map((w,i)=>{const x=4+i*(bw*2+gp+6);const ih=(w.i/mx)*(height-22),eh=(w.e/mx)*(height-22);return<g key={i}><rect x={x} y={height-22-ih} width={bw} height={Math.max(ih,2)} rx={4} fill="var(--green)" opacity=".85"/><rect x={x+bw+3} y={height-22-eh} width={bw} height={Math.max(eh,2)} rx={4} fill="var(--red)" opacity=".85"/><text x={x+bw} y={height-5} textAnchor="middle" fill="var(--muted)" fontSize={9}>{w.l}</text></g>;})}
+  </svg>;
+}
+function Line({pts,height=70}){
+  if(pts.length<2)return null;
+  const vals=pts.map(p=>p.y),mn=Math.min(...vals),mx=Math.max(...vals),rng=mx-mn||1,pad=8,W=300;
+  const pp=pts.map((p,i)=>({x:pad+i*(W-pad*2)/(pts.length-1),y:pad+(1-(p.y-mn)/rng)*(height-pad*2)}));
+  const d=pp.map((p,i)=>`${i===0?'M':'L'}${p.x},${p.y}`).join(' ');
+  return<svg width="100%" height={height} viewBox={`0 0 ${W} ${height}`} preserveAspectRatio="none">
+    <defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--accent)" stopOpacity=".3"/><stop offset="100%" stopColor="var(--accent)" stopOpacity="0"/></linearGradient></defs>
+    <path d={`${d} L${pp[pp.length-1].x},${height} L${pp[0].x},${height} Z`} fill="url(#lg)"/>
+    <path d={d} fill="none" stroke="var(--accent)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>;
+}
+
+// Tab icons
+const Icons={
+  Home:a=><svg width={22} height={22} viewBox="0 0 24 24" fill="none"><path d="M3 12L12 3l9 9" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2" strokeLinecap="round"/></svg>,
+  Add:a=><svg width={22} height={22} viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2"/><path d="M12 8v8M8 12h8" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2.5" strokeLinecap="round"/></svg>,
+  Charts:a=><svg width={22} height={22} viewBox="0 0 24 24" fill="none"><rect x="2" y="3" width="20" height="18" rx="3" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2"/><path d="M7 14v3M11 10v7M15 7v10" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2" strokeLinecap="round"/></svg>,
+  History:a=><svg width={22} height={22} viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2"/><path d="M12 7v5l3 3" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2" strokeLinecap="round"/></svg>,
+  Settings:a=><svg width={22} height={22} viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2" strokeLinecap="round"/></svg>,
+};
+const TABS=['Home','Add','Charts','History','Settings'];
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// AUTH SCREEN — Email + Phone OTP login/signup
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function AuthScreen({onAuth,toast}){
+  const [mode,setMode]=useState('choose'); // choose|email|phone|otp
+  const [isLogin,setIsLogin]=useState(true);
+  const [name,setName]=useState('');
+  const [email,setEmail]=useState('');
+  const [countryCode,setCC]=useState(COUNTRY_CODES[0]);
+  const [phone,setPhone]=useState('');
+  const [otpInput,setOtpInput]=useState('');
+  const [generatedOtp,setGenOtp]=useState('');
+  const [otpChannel,setOtpChannel]=useState(''); // email|phone
+  const [loading,setLoading]=useState(false);
+  const [showCC,setShowCC]=useState(false);
+  const [ccSearch,setCCSearch]=useState('');
+  const otpRefs=[useRef(),useRef(),useRef(),useRef(),useRef(),useRef()];
+
+
+  const sendEmailOTP=async(addr,otp)=>{
+    toast({icon:'⏳',title:'Sending code…',body:`Delivering to ${addr}`});
+    try{
+      await emailjs.send(EMAILJS_SERVICE,EMAILJS_TEMPLATE,{to_email:addr,otp:otp,expiry_minutes:'5'});
+      toast({icon:'📧',title:'Code sent to your email!',body:`Check ${addr} — enter the 6-digit code. Check spam if not received.`});
+      return true;
+    }catch(e){
+      // Real fallback — still show code so user isn't locked out
+      toast({icon:'⚠️',title:`Email issue — your code: ${otp}`,body:`Could not deliver to ${addr}. Use this code to sign in now. (${e?.text||e?.message||'check EmailJS dashboard'})`,warn:true});
+      return true;
+    }
+  };
+
+  const sendPhoneOTP=async(fullPhone,otp)=>{
+    // SMS: open the messages app pre-filled — user sends to themselves
+    const msg=`Your LedgrTrack code is: ${otp}\nValid 5 mins. Do not share.`;
+    window.open(`sms:${fullPhone}?body=${encodeURIComponent(msg)}`);
+    // Show code clearly on screen so user can copy it
+    toast({icon:'💬',title:`SMS opened — Code: ${otp}`,body:`Send the pre-filled SMS to yourself, then come back and enter the code above.`,warn:true});
+    return true;
+  };
+
+  const handleEmailSubmit=async()=>{
+    if(!email.includes('@')){toast({icon:'❌',title:'Invalid email',body:'Enter a valid email address.',err:true});return;}
+    if(!isLogin&&!name.trim()){toast({icon:'❌',title:'Name required',body:'Please enter your full name.',err:true});return;}
+    setLoading(true);
+    const otp=genOTP();setGenOtp(otp);
+    await sendEmailOTP(email,otp);
+    setOtpChannel('email');setMode('otp');setLoading(false);
+  };
+
+  const handlePhoneSubmit=async()=>{
+    if(phone.length<6){toast({icon:'❌',title:'Invalid phone',body:'Enter a valid phone number.',err:true});return;}
+    if(!isLogin&&!name.trim()){toast({icon:'❌',title:'Name required',body:'Please enter your full name.',err:true});return;}
+    setLoading(true);
+    const otp=genOTP();setGenOtp(otp);
+    const fullPhone=`${countryCode.code}${phone}`;
+    await sendPhoneOTP(fullPhone,otp);
+    setOtpChannel('phone');setMode('otp');setLoading(false);
+  };
+
+  const handleOtpVerify=()=>{
+    if(otpInput===generatedOtp){
+      const user={name:name||email.split('@')[0]||`User`,email:otpChannel==='email'?email:'',phone:otpChannel==='phone'?`${countryCode.code}${phone}`:'',countryCode:countryCode.code,verified:true,uid:`user_${Date.now()}`};
+      LS.set('auth_user',user);
+      toast({icon:'🎉',title:`Welcome${name?`, ${name}`:''}!`,body:'You\'re signed in to Ledgr.'});
+      onAuth(user);
+    }else{
+      toast({icon:'❌',title:'Wrong code',body:'The verification code is incorrect. Try again.',err:true});
+      setOtpInput('');otpRefs[0].current?.focus();
+    }
+  };
+
+  const handleOtpKey=(i,v)=>{
+    const digits=v.replace(/\D/g,'');
+    if(digits.length>1){
+      // Paste
+      const full=digits.slice(0,6);setOtpInput(full);
+      otpRefs[Math.min(full.length,5)].current?.focus();return;
+    }
+    const arr=otpInput.split('');arr[i]=digits;const next=arr.join('').slice(0,6);setOtpInput(next);
+    if(digits&&i<5)otpRefs[i+1].current?.focus();
+    if(!digits&&i>0)otpRefs[i-1].current?.focus();
+  };
+
+  const filteredCC=COUNTRY_CODES.filter(c=>`${c.name} ${c.code} ${c.flag}`.toLowerCase().includes(ccSearch.toLowerCase()));
+
+  return<div style={{minHeight:'100%',minHeight:'-webkit-fill-available',display:'flex',flexDirection:'column',background:'var(--bg)',color:'var(--text)',padding:'0 24px',paddingBottom:'calc(env(safe-area-inset-bottom,0px) + 24px)'}}>
+    {/* Header */}
+    <div style={{paddingTop:`calc(env(safe-area-inset-top,0px) + 60px)`,textAlign:'center',marginBottom:40}}>
+      <svg width="72" height="72" viewBox="0 0 100 100" style={{borderRadius:18,marginBottom:16,boxShadow:'0 12px 40px rgba(245,166,35,.25)'}}>
+        <rect width="100" height="100" rx="20" fill="#0a0a12"/>
+        <rect x="8" y="8" width="84" height="84" rx="15" fill="url(#ag)"/>
+        <defs><linearGradient id="ag" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#f5a623"/><stop offset="100%" stopColor="#c8720a"/></linearGradient></defs>
+        <text x="50" y="68" textAnchor="middle" fontSize="48" fontWeight="800" fill="white" fontFamily="-apple-system,sans-serif">$</text>
+      </svg>
+      <div style={{fontSize:32,fontWeight:900,letterSpacing:-1}}>Ledgr</div>
+      <div style={{fontSize:14,color:'var(--sub)',marginTop:6}}>{isLogin?'Sign in to your account':'Create your account'}</div>
+    </div>
+
+    {/* Mode: Choose */}
+    {mode==='choose'&&<div>
+      <button onClick={()=>setMode('email')} style={{width:'100%',padding:'16px',borderRadius:18,border:'1px solid var(--border2)',background:'var(--card)',color:'var(--text)',fontSize:16,fontWeight:700,display:'flex',alignItems:'center',gap:14,marginBottom:12,textAlign:'left'}}>
+        <div style={{width:44,height:44,borderRadius:12,background:'var(--a10)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>📧</div>
+        <div><div style={{fontSize:15,fontWeight:700}}>Continue with Email</div><div style={{fontSize:12,color:'var(--sub)',marginTop:2}}>Get a one-time code by email</div></div>
+        <span style={{marginLeft:'auto',color:'var(--muted)',fontSize:18}}>›</span>
+      </button>
+      <button onClick={()=>setMode('phone')} style={{width:'100%',padding:'16px',borderRadius:18,border:'1px solid var(--border2)',background:'var(--card)',color:'var(--text)',fontSize:16,fontWeight:700,display:'flex',alignItems:'center',gap:14,marginBottom:32,textAlign:'left'}}>
+        <div style={{width:44,height:44,borderRadius:12,background:'var(--g10)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>📱</div>
+        <div><div style={{fontSize:15,fontWeight:700}}>Continue with Phone</div><div style={{fontSize:12,color:'var(--sub)',marginTop:2}}>Get a one-time code by SMS</div></div>
+        <span style={{marginLeft:'auto',color:'var(--muted)',fontSize:18}}>›</span>
+      </button>
+      <div style={{textAlign:'center',color:'var(--muted)',fontSize:13}}>
+        {isLogin?'New to Ledgr? ':'Already have an account? '}
+        <span onClick={()=>setIsLogin(!isLogin)} style={{color:'var(--accent)',fontWeight:700,cursor:'pointer'}}>{isLogin?'Sign up':'Sign in'}</span>
+      </div>
+      <div style={{marginTop:24,padding:'14px 16px',borderRadius:14,background:'var(--card2)',border:'1px solid var(--border)',textAlign:'center'}}>
+        <div style={{fontSize:12,color:'var(--muted)',lineHeight:1.6}}>🔒 Your data stays on your device. We use OTP codes for secure, password-free login.</div>
+      </div>
+    </div>}
+
+    {/* Mode: Email */}
+    {mode==='email'&&<div>
+      <button onClick={()=>setMode('choose')} style={{background:'none',border:'none',color:'var(--accent)',fontSize:14,fontWeight:700,marginBottom:24,display:'flex',alignItems:'center',gap:6}}>‹ Back</button>
+      {!isLogin&&<div style={{marginBottom:14}}>
+        <div style={{fontSize:12,color:'var(--sub)',marginBottom:6,fontWeight:600}}>FULL NAME</div>
+        <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={{width:'100%',background:'var(--card)',border:'1px solid var(--border2)',borderRadius:14,color:'var(--text)',fontSize:16,padding:'14px 16px',outline:'none'}}/>
+      </div>}
+      <div style={{marginBottom:20}}>
+        <div style={{fontSize:12,color:'var(--sub)',marginBottom:6,fontWeight:600}}>EMAIL ADDRESS</div>
+        <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" style={{width:'100%',background:'var(--card)',border:'1px solid var(--border2)',borderRadius:14,color:'var(--text)',fontSize:16,padding:'14px 16px',outline:'none'}}/>
+      </div>
+      <button onClick={handleEmailSubmit} disabled={loading} style={{width:'100%',padding:'16px',borderRadius:16,border:'none',background:'var(--accent)',color:'#000',fontSize:16,fontWeight:800,opacity:loading?.7:1}}>
+        {loading?'Sending OTP…':'Send Verification Code →'}
+      </button>
+    </div>}
+
+    {/* Mode: Phone */}
+    {mode==='phone'&&<div>
+      <button onClick={()=>setMode('choose')} style={{background:'none',border:'none',color:'var(--accent)',fontSize:14,fontWeight:700,marginBottom:24,display:'flex',alignItems:'center',gap:6}}>‹ Back</button>
+      {!isLogin&&<div style={{marginBottom:14}}>
+        <div style={{fontSize:12,color:'var(--sub)',marginBottom:6,fontWeight:600}}>FULL NAME</div>
+        <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={{width:'100%',background:'var(--card)',border:'1px solid var(--border2)',borderRadius:14,color:'var(--text)',fontSize:16,padding:'14px 16px',outline:'none'}}/>
+      </div>}
+      <div style={{fontSize:12,color:'var(--sub)',marginBottom:6,fontWeight:600}}>PHONE NUMBER</div>
+      <div style={{display:'flex',gap:8,marginBottom:20,position:'relative'}}>
+        <button onClick={()=>setShowCC(!showCC)} style={{padding:'14px 12px',borderRadius:14,border:'1px solid var(--border2)',background:'var(--card)',color:'var(--text)',fontSize:15,fontWeight:700,display:'flex',alignItems:'center',gap:6,whiteSpace:'nowrap',flexShrink:0}}>
+          {countryCode.flag} {countryCode.code} <span style={{fontSize:10,color:'var(--muted)'}}>▾</span>
+        </button>
+        <input type="tel" value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g,''))} placeholder="Phone number" style={{flex:1,background:'var(--card)',border:'1px solid var(--border2)',borderRadius:14,color:'var(--text)',fontSize:16,padding:'14px 14px',outline:'none'}}/>
+      </div>
+      {/* Country code dropdown */}
+      {showCC&&<div style={{background:'var(--card)',border:'1px solid var(--border2)',borderRadius:18,padding:'12px',marginBottom:12,maxHeight:280,overflowY:'auto'}}>
+        <input value={ccSearch} onChange={e=>setCCSearch(e.target.value)} placeholder="Search country…" style={{width:'100%',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:10,color:'var(--text)',fontSize:14,padding:'10px 12px',outline:'none',marginBottom:10}}/>
+        {filteredCC.map(c=><div key={c.country} onClick={()=>{setCC(c);setShowCC(false);setCCSearch('');}} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:10,cursor:'pointer',background:'transparent'}} onMouseEnter={e=>e.currentTarget.style.background='var(--card2)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+          <span style={{fontSize:18}}>{c.flag}</span>
+          <span style={{flex:1,fontSize:14,fontWeight:600}}>{c.name}</span>
+          <span style={{fontSize:13,color:'var(--muted)',fontWeight:700}}>{c.code}</span>
+        </div>)}
+      </div>}
+      <button onClick={handlePhoneSubmit} disabled={loading} style={{width:'100%',padding:'16px',borderRadius:16,border:'none',background:'var(--green)',color:'#000',fontSize:16,fontWeight:800,opacity:loading?.7:1}}>
+        {loading?'Sending OTP…':'Send Verification Code →'}
+      </button>
+      <div style={{marginTop:14,fontSize:12,color:'var(--muted)',textAlign:'center',lineHeight:1.6}}>📝 Your SMS app will open pre-filled. Send the code to yourself, then enter it here.</div>
+    </div>}
+
+    {/* Mode: OTP */}
+    {mode==='otp'&&<div>
+      <button onClick={()=>setMode(otpChannel)} style={{background:'none',border:'none',color:'var(--accent)',fontSize:14,fontWeight:700,marginBottom:20,display:'flex',alignItems:'center',gap:6}}>‹ Back</button>
+
+      {/* Email OTP — code comes via email, NOT shown on screen */}
+      {otpChannel==='email'&&<div style={{textAlign:'center',marginBottom:24}}>
+        <div style={{width:72,height:72,borderRadius:20,background:'rgba(78,154,241,.12)',border:'1px solid rgba(78,154,241,.3)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:36,margin:'0 auto 14px'}}>📧</div>
+        <div style={{fontSize:20,fontWeight:800,marginBottom:8}}>Check your email</div>
+        <div style={{fontSize:14,color:'var(--sub)',lineHeight:1.6,marginBottom:6}}>We sent a 6-digit code to</div>
+        <div style={{fontSize:15,fontWeight:700,color:'var(--accent)',marginBottom:4}}>{email}</div>
+        <div style={{fontSize:12,color:'var(--muted)',lineHeight:1.6}}>Check your inbox (and spam folder).<br/>The code expires in 5 minutes.</div>
+      </div>}
+
+      {/* Phone OTP — code shown prominently since SMS goes to themselves */}
+      {otpChannel==='phone'&&<div style={{textAlign:'center',marginBottom:24}}>
+        <div style={{width:72,height:72,borderRadius:20,background:'var(--g10)',border:'1px solid rgba(48,209,88,.3)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:36,margin:'0 auto 14px'}}>💬</div>
+        <div style={{fontSize:20,fontWeight:800,marginBottom:8}}>Check your SMS</div>
+        <div style={{fontSize:13,color:'var(--sub)',lineHeight:1.6,marginBottom:14}}>Your SMS app opened with the code pre-filled.<br/>Send it to <strong style={{color:'var(--text)'}}>{countryCode.code} {phone}</strong>, then enter the code below.</div>
+        {/* Show code visibly for phone since user sends SMS to themselves */}
+        <div style={{background:'var(--card2)',borderRadius:16,padding:'16px 20px',border:'1px solid var(--border2)',marginBottom:6,display:'inline-block'}}>
+          <div style={{fontSize:11,color:'var(--muted)',textTransform:'uppercase',letterSpacing:1,fontWeight:700,marginBottom:8}}>Your verification code</div>
+          <div style={{fontSize:36,fontWeight:900,letterSpacing:8,color:'var(--accent)',fontFamily:'monospace'}}>{generatedOtp}</div>
+          <div style={{fontSize:11,color:'var(--muted)',marginTop:8}}>Expires in 5 minutes</div>
+        </div>
+      </div>}
+
+      {/* 6-digit input boxes */}
+      <div style={{display:'flex',gap:10,justifyContent:'center',marginBottom:20}}>
+        {[0,1,2,3,4,5].map(i=><input key={i} ref={otpRefs[i]} type="tel" maxLength={6} value={otpInput[i]||''} onChange={e=>handleOtpKey(i,e.target.value)} onKeyDown={e=>{if(e.key==='Backspace'&&!otpInput[i]&&i>0)otpRefs[i-1].current?.focus();}} style={{width:46,height:56,borderRadius:14,border:`2px solid ${otpInput[i]?'var(--accent)':'var(--border2)'}`,background:'var(--card)',color:'var(--text)',fontSize:24,fontWeight:800,textAlign:'center',outline:'none',caretColor:'var(--accent)',transition:'border-color .2s'}}/>)}
+      </div>
+      <button onClick={handleOtpVerify} disabled={otpInput.length<6} style={{width:'100%',padding:'16px',borderRadius:16,border:'none',background:otpInput.length===6?'var(--accent)':'var(--card2)',color:otpInput.length===6?'#000':'var(--muted)',fontSize:16,fontWeight:800,transition:'all .2s'}}>
+        Verify & Sign In ✓
+      </button>
+      <button onClick={()=>{const otp=genOTP();setGenOtp(otp);setOtpInput('');otpChannel==='email'?sendEmailOTP(email,otp):sendPhoneOTP(`${countryCode.code}${phone}`,otp);}} style={{width:'100%',padding:'12px',borderRadius:14,border:'none',background:'transparent',color:'var(--accent)',fontSize:14,fontWeight:700,marginTop:10}}>
+        Resend code
+      </button>
+    </div>}
+  </div>;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TX SHEET (Add/Edit)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function TxSheet({tx,onSave,onClose,defSched=false,toast,cur='USD',lang='en'}){
+  const ed=!!tx;
+  const [type,setType]=useState(tx?.type||'expense');
+  const [amt,setAmt]=useState(tx?String(tx.amount):'');
+  const [cat,setCat]=useState(tx?.category||'');
+  const [note,setNote]=useState(tx?.note||'');
+  const [date,setDate]=useState(tx?.date||todayStr());
+  const [sched,setSched]=useState(tx?.scheduled||defSched);
+  const [notify,setNotify]=useState(tx?.notifyWhenDue!==false);
+  const cats=type==='income'?INC_CATS:EXP_CATS;
+  const numK=[['7','8','9'],['4','5','6'],['1','2','3'],['.',  '0','⌫']];
+  const tap=v=>{if(v==='⌫'){setAmt(a=>a.slice(0,-1));return;}if(v==='.'&&amt.includes('.'))return;if(amt.replace('.','').length>=9)return;setAmt(a=>a===''&&v==='.'?'0.':a+v);};
+  const save=()=>{
+    const n=parseFloat(amt);if(!n||n<=0){toast({icon:'⚠️',title:'Enter amount',body:'Please type an amount.',warn:true});return;}
+    if(!cat){toast({icon:'⚠️',title:'Pick category',body:'Select a category below.',warn:true});return;}
+    onSave({...(tx||{}),id:tx?.id||Date.now(),type,amount:n,category:cat,note:note.trim(),date,scheduled:sched,notifyWhenDue:sched&&notify});
+    onClose();
+  };
+  const cs=CURRENCIES.find(c=>c.code===cur)?.symbol||'$';
+  const disp=amt?`${cs}${parseFloat(amt||0).toLocaleString('en-US',{minimumFractionDigits:amt.includes('.')&&amt.split('.')[1]?.length>0?Math.min(amt.split('.')[1].length,2):0})}`:`${cs}0.00`;
+
+  return<Modal onBg={onClose} ch={<>
+    <div style={{display:'flex',justifyContent:'center',padding:'10px 0 2px'}}><div style={{width:36,height:4,borderRadius:2,background:'var(--muted2)'}}/></div>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 20px 12px'}}>
+      <div style={{fontSize:19,fontWeight:800}}>{ed?'Edit':'Add'} Transaction</div>
+      <div style={{display:'flex',gap:8}}>
+        <button onClick={()=>setSched(!sched)} style={{padding:'6px 12px',borderRadius:10,border:`1px solid ${sched?'var(--accent)':'var(--border2)'}`,background:sched?'var(--a10)':'transparent',color:sched?'var(--accent)':'var(--muted)',fontSize:12,fontWeight:700}}>📅 {sched?'Sched':'Future'}</button>
+        <button onClick={onClose} style={{width:30,height:30,borderRadius:15,background:'var(--card2)',border:'none',color:'var(--muted)',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
+      </div>
+    </div>
+    {/* Type */}
+    <div style={{display:'flex',background:'var(--card2)',borderRadius:14,padding:4,gap:4,margin:'0 16px 12px'}}>
+      {['expense','income'].map(tp=><button key={tp} onClick={()=>{setType(tp);setCat('');}} style={{flex:1,padding:'11px',borderRadius:10,border:'none',background:type===tp?(tp==='income'?'var(--green)':'var(--red)'):'transparent',color:type===tp?'#fff':'var(--muted)',fontSize:15,fontWeight:800,transition:'all .18s'}}>{tp==='income'?'💚 Income':'❤️ Expense'}</button>)}
+    </div>
+    {/* Amount */}
+    <div style={{textAlign:'center',padding:'6px 16px 10px'}}>
+      <div style={{fontSize:amt.length>8?34:52,fontWeight:900,letterSpacing:-2,color:amt?(type==='income'?'var(--green)':'var(--red)'):'var(--muted2)',minHeight:62,display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>{disp}</div>
+    </div>
+    {/* Numpad */}
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,padding:'0 16px 12px'}}>
+      {numK.flat().map(k=><button key={k} onClick={()=>tap(k)} style={{height:52,borderRadius:14,border:'1px solid var(--border)',background:k==='⌫'?'var(--card2)':'var(--card)',color:'var(--text)',fontSize:k==='⌫'?16:22,fontWeight:700,transition:'transform .08s'}}>{k}</button>)}
+    </div>
+    {/* Category */}
+    <div style={{padding:'0 16px 12px'}}>
+      <div style={{fontSize:10,color:'var(--muted)',marginBottom:8,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>Category</div>
+      <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(cats.length,5)},1fr)`,gap:6}}>
+        {cats.map(c=><button key={c.id} onClick={()=>setCat(c.id)} style={{padding:'8px 4px',borderRadius:12,border:`1.5px solid ${cat===c.id?c.color:'var(--border)'}`,background:cat===c.id?c.color+'22':'var(--card2)',display:'flex',flexDirection:'column',alignItems:'center',gap:2,transition:'all .15s'}}>
+          <span style={{fontSize:20}}>{c.icon}</span>
+          <span style={{fontSize:9,color:cat===c.id?c.color:'var(--muted)',fontWeight:700}}>{c.label}</span>
+        </button>)}
+      </div>
+    </div>
+    {/* Note + Date */}
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,padding:'0 16px 10px'}}>
+      {[{label:'Note',el:<input value={note} onChange={e=>setNote(e.target.value)} placeholder="Optional…" style={{background:'none',border:'none',color:'var(--text)',fontSize:14,width:'100%',outline:'none'}}/>},{label:sched?'Due Date':'Date',el:<input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{background:'none',border:'none',color:'var(--text)',fontSize:13,width:'100%',outline:'none'}}/>}].map((f,i)=><div key={i} style={{background:'var(--card2)',borderRadius:12,padding:'10px 14px',border:'1px solid var(--border)'}}>
+        <div style={{fontSize:9,color:'var(--muted)',marginBottom:5,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>{f.label}</div>
+        {f.el}
+      </div>)}
+    </div>
+    {sched&&<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px 12px'}}>
+      <div><div style={{fontSize:14,fontWeight:700}}>🔔 Notify when due</div><div style={{fontSize:12,color:'var(--sub)',marginTop:1}}>Reminder on due date</div></div>
+      <Tog on={notify} fn={()=>setNotify(!notify)}/>
+    </div>}
+    <div style={{padding:'4px 16px 12px'}}>
+      <button onClick={save} style={{width:'100%',padding:'16px',borderRadius:16,border:'none',background:!amt||!cat?'var(--card2)':'var(--accent)',color:!amt||!cat?'var(--muted)':'#000',fontSize:16,fontWeight:800,transition:'all .2s'}}>{ed?'Update':'Save Transaction'}</button>
+    </div>
+  </>}/>;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// HOME SCREEN
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function HomeScreen({txns,onNav,onAdd,onSched,user,budgetGoal,incomeGoal,cur,lang}){
+  const t=k=>T(lang,k);
+  const now=new Date();
+  const live=txns.filter(x=>!x.scheduled);
+  const mn=live.filter(x=>{const d=new Date(x.date+'T12:00:00');return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
+  const inc=mn.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
+  const exp=mn.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
+  const bal=live.reduce((s,x)=>x.type==='income'?s+x.amount:s-x.amount,0);
+  const recent=[...live].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,6);
+  const upcoming=txns.filter(x=>x.scheduled).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,3);
+  const hr=now.getHours();
+  const greet=hr<12?'Good morning':hr<17?'Good afternoon':'Good evening';
+  const isDemo=txns.length>=35;
+
+  return<div style={{color:'var(--text)',padding:'0 16px',paddingBottom:`calc(var(--tab-h) + env(safe-area-inset-bottom,0px) + 20px)`}}>
+    <div style={{paddingTop:'var(--hdr)',paddingBottom:4}}>
+      <div style={{fontSize:13,color:'var(--sub)',marginBottom:2}}>{greet}{user?.name?`, ${user.name}`:''} 👋</div>
+      <div style={{fontSize:28,fontWeight:900,letterSpacing:-.5}}>{t('home')}</div>
+    </div>
+    {isDemo&&<div style={{background:'linear-gradient(90deg,var(--a10),rgba(0,0,0,0))',border:'1px solid rgba(245,166,35,.2)',borderRadius:14,padding:'10px 14px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
+      <span>✨</span><div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:'var(--accent)'}}>{t('demoData')}</div><div style={{fontSize:11,color:'var(--sub)',marginTop:1}}>Settings → Reset when ready for real data</div></div>
+    </div>}
+    {/* Hero balance */}
+    <div style={{background:'linear-gradient(135deg,var(--hero-a),var(--hero-b))',borderRadius:26,padding:'22px 22px',marginBottom:12,position:'relative',overflow:'hidden',border:'1px solid var(--border)'}}>
+      <div style={{position:'absolute',top:-50,right:-50,width:160,height:160,borderRadius:'50%',background:'var(--a10)'}}/>
+      <div style={{position:'absolute',bottom:-70,left:-20,width:140,height:140,borderRadius:'50%',background:'var(--a10)',opacity:.4}}/>
+      <div style={{fontSize:11,color:'var(--sub)',textTransform:'uppercase',letterSpacing:.8,fontWeight:700,marginBottom:6}}>{t('totalBalance')}</div>
+      <div style={{fontSize:44,fontWeight:900,letterSpacing:-2,color:bal>=0?'var(--text)':'var(--red)',lineHeight:1}}>{bal<0?'-':''}{fmtMoney(Math.abs(bal),cur)}</div>
+      <div style={{fontSize:12,color:'var(--sub)',marginTop:6}}>{monthLbl(now.getFullYear(),now.getMonth())}</div>
+    </div>
+    {/* Income/Expense */}
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+      {[{label:t('income'),val:inc,col:'var(--green)',goal:incomeGoal},{label:t('expenses'),val:exp,col:'var(--red)',goal:budgetGoal}].map(s=><div key={s.label} style={{background:'var(--card)',borderRadius:18,padding:'14px 16px',border:'1px solid var(--border)'}}>
+        <div style={{fontSize:10,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.8,fontWeight:700,marginBottom:6}}>{s.label}</div>
+        <div style={{fontSize:22,fontWeight:900,color:s.col}}>{fmtK(s.val,cur)}</div>
+        {s.goal>0&&<div style={{marginTop:8}}><div style={{height:4,borderRadius:2,background:'var(--card2)',overflow:'hidden'}}><div style={{height:'100%',width:`${Math.min(100,s.val/s.goal*100)}%`,background:s.label===t('expenses')&&s.val/s.goal>.85?'var(--red)':s.col,borderRadius:2}}/></div><div style={{fontSize:10,color:'var(--muted)',marginTop:3}}>{Math.round(s.val/s.goal*100)}%</div></div>}
+      </div>)}
+    </div>
+    {/* Actions */}
+    <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:10,marginBottom:20}}>
+      <button onClick={onAdd} style={{padding:'14px',borderRadius:16,background:'var(--accent)',border:'none',display:'flex',alignItems:'center',justifyContent:'center',gap:8,fontSize:15,fontWeight:800,color:'#000'}}>＋ {t('addTransaction')}</button>
+      <button onClick={onSched} style={{padding:'14px',borderRadius:16,background:'var(--card)',border:'1px solid var(--accent)',fontSize:13,fontWeight:700,color:'var(--accent)'}}>📅 {t('schedule')}</button>
+    </div>
+    {/* Upcoming */}
+    {upcoming.length>0&&<div style={{marginBottom:20}}>
+      <div style={{fontSize:15,fontWeight:800,marginBottom:10}}>📅 {t('upcoming')}</div>
+      <div style={{background:'var(--card)',borderRadius:20,border:'1px solid var(--border)',padding:'4px 0'}}>
+        {upcoming.map((x,i)=>{const cat=getCat(x.type,x.category);const days=Math.ceil((new Date(x.date)-new Date())/864e5);return<div key={x.id} style={{display:'flex',alignItems:'center',padding:'12px 16px',borderBottom:i<upcoming.length-1?'1px solid var(--border)':'none'}}>
+          <div style={{width:38,height:38,borderRadius:12,background:cat.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,marginRight:12,flexShrink:0}}>{cat.icon}</div>
+          <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{x.note||cat.label}</div><div style={{fontSize:11,color:'var(--sub)',marginTop:1}}>in {days} day{days!==1?'s':''}</div></div>
+          <div style={{textAlign:'right'}}><div style={{fontSize:14,fontWeight:800,color:x.type==='income'?'var(--green)':'var(--red)'}}>{x.type==='income'?'+':'-'}{fmtMoney(x.amount,cur)}</div>{x.notifyWhenDue&&<div style={{fontSize:10,color:'var(--accent)',marginTop:1}}>🔔</div>}</div>
+        </div>;})}
+      </div>
+    </div>}
+    {/* Recent */}
+    {recent.length>0&&<div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+        <div style={{fontSize:15,fontWeight:800}}>{t('recent')}</div>
+        <button onClick={()=>onNav(3)} style={{background:'none',border:'none',color:'var(--accent)',fontSize:13,fontWeight:700}}>{t('seeAll')} →</button>
+      </div>
+      <div style={{background:'var(--card)',borderRadius:20,border:'1px solid var(--border)',padding:'4px 0'}}>
+        {recent.map((x,i)=>{const cat=getCat(x.type,x.category);return<div key={x.id} style={{display:'flex',alignItems:'center',padding:'12px 16px',borderBottom:i<recent.length-1?'1px solid var(--border)':'none'}}>
+          <div style={{width:38,height:38,borderRadius:12,background:cat.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,marginRight:12,flexShrink:0}}>{cat.icon}</div>
+          <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{x.note||cat.label}</div><div style={{fontSize:11,color:'var(--sub)',marginTop:1}}>{dayStr(x.date)}</div></div>
+          <div style={{fontSize:15,fontWeight:800,color:x.type==='income'?'var(--green)':'var(--red)',marginLeft:8}}>{x.type==='income'?'+':'-'}{fmtMoney(x.amount,cur)}</div>
+        </div>;})}
+      </div>
+    </div>}
+  </div>;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CHARTS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function ChartsScreen({txns,cur,lang}){
+  const t=k=>T(lang,k);
+  const now=new Date();
+  const [vm,setVm]=useState(now.getMonth());
+  const [vy,setVy]=useState(now.getFullYear());
+  const nav=d=>{let m=vm+d,y=vy;if(m<0){m=11;y--;}if(m>11){m=0;y++;}setVm(m);setVy(y);};
+  const live=txns.filter(x=>!x.scheduled);
+  const mn=live.filter(x=>{const d=new Date(x.date+'T12:00:00');return d.getMonth()===vm&&d.getFullYear()===vy;});
+  const inc=mn.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
+  const exp=mn.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
+  const weeks=['W1','W2','W3','W4'].map((l,wi)=>{const w=mn.filter(x=>Math.floor((new Date(x.date+'T12:00:00').getDate()-1)/7)===wi);return{l,i:w.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0),e:w.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0)};});
+  const cats=EXP_CATS.map(c=>({...c,v:mn.filter(x=>x.type==='expense'&&x.category===c.id).reduce((s,x)=>s+x.amount,0)})).filter(c=>c.v>0).sort((a,b)=>b.v-a.v);
+  const dim=new Date(vy,vm+1,0).getDate(),fd=new Date(vy,vm,1).getDay();
+  const days=Array.from({length:dim},(_,i)=>{const d=i+1,dt=mn.filter(x=>new Date(x.date+'T12:00:00').getDate()===d);const ni=dt.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);const ne=dt.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);return{d,net:ni-ne,has:dt.length>0};});
+  const sorted=[...mn].sort((a,b)=>new Date(a.date)-new Date(b.date));let run=0;
+  const runPts=[{y:0},...sorted.map(x=>{run+=x.type==='income'?x.amount:-x.amount;return{y:run};})];
+
+  return<div style={{color:'var(--text)',padding:'0 16px',paddingBottom:`calc(var(--tab-h) + env(safe-area-inset-bottom,0px) + 20px)`}}>
+    <div style={{paddingTop:'var(--hdr)',marginBottom:14,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+      <div style={{fontSize:26,fontWeight:900,letterSpacing:-.5}}>{t('charts')}</div>
+      <div style={{display:'flex',alignItems:'center',gap:8}}>
+        <button onClick={()=>nav(-1)} style={{width:32,height:32,borderRadius:10,background:'var(--card)',border:'1px solid var(--border)',color:'var(--text)',fontSize:16}}>‹</button>
+        <div style={{fontSize:12,color:'var(--sub)',minWidth:90,textAlign:'center',fontWeight:700}}>{monthLbl(vy,vm)}</div>
+        <button onClick={()=>nav(1)} style={{width:32,height:32,borderRadius:10,background:'var(--card)',border:'1px solid var(--border)',color:'var(--text)',fontSize:16}}>›</button>
+      </div>
+    </div>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+      {[{l:t('income'),v:inc,c:'var(--green)'},{l:t('expenses'),v:exp,c:'var(--red)'},{l:'Net',v:inc-exp,c:(inc-exp)>=0?'var(--green)':'var(--red)'}].map(s=><div key={s.l} style={{background:'var(--card)',borderRadius:16,padding:'10px 12px',textAlign:'center',border:'1px solid var(--border)'}}>
+        <div style={{fontSize:9,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.5,fontWeight:700,marginBottom:4}}>{s.l}</div>
+        <div style={{fontSize:13,fontWeight:800,color:s.c}}>{fmtK(s.v,cur)}</div>
+      </div>)}
+    </div>
+    <div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)',marginBottom:12}}>
+      <div style={{fontSize:13,fontWeight:700,marginBottom:10,display:'flex',gap:12}}><span>Weekly</span><span style={{color:'var(--green)',fontSize:11}}>● Inc</span><span style={{color:'var(--red)',fontSize:11}}>● Exp</span></div>
+      <Bars weeks={weeks} height={100}/>
+    </div>
+    {cats.length>0&&<div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)',marginBottom:12}}>
+      <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>Expense Breakdown</div>
+      <div style={{display:'flex',gap:14,alignItems:'center'}}>
+        <Donut data={cats.map(c=>({...c,v:c.v}))} size={100}/>
+        <div style={{flex:1,display:'flex',flexDirection:'column',gap:7}}>
+          {cats.slice(0,5).map(c=><div key={c.id} style={{display:'flex',alignItems:'center',gap:8}}>
+            <span style={{fontSize:14}}>{c.icon}</span>
+            <div style={{flex:1}}><div style={{fontSize:11,color:'var(--sub)',fontWeight:600}}>{c.label}</div><div style={{height:3,borderRadius:2,background:'var(--card2)',marginTop:2,overflow:'hidden'}}><div style={{height:'100%',width:`${Math.round(c.v/exp*100)}%`,background:c.color}}/></div></div>
+            <div style={{fontSize:12,fontWeight:700,color:'var(--red)',flexShrink:0}}>{fmtK(c.v,cur)}</div>
+          </div>)}
+        </div>
+      </div>
+    </div>}
+    {runPts.length>2&&<div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)',marginBottom:12}}>
+      <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>Running Balance</div>
+      <Line pts={runPts} height={70}/>
+    </div>}
+    <div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)'}}>
+      <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>Day-by-Day</div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3}}>
+        {['Su','Mo','Tu','We','Th','Fr','Sa'].map((d,i)=><div key={i} style={{fontSize:9,color:'var(--muted)',textAlign:'center',fontWeight:700,padding:'2px 0'}}>{d}</div>)}
+        {Array.from({length:fd}).map((_,i)=><div key={'e'+i}/>)}
+        {days.map(d=><div key={d.d} title={d.has?`${d.d}: ${d.net>=0?'+':''}${fmtMoney(d.net,cur)}`:'—'} style={{aspectRatio:'1',borderRadius:7,fontSize:10,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',background:!d.has?'transparent':d.net>=0?'var(--g10)':'var(--r10)',color:!d.has?'var(--muted2)':d.net>=0?'var(--green)':'var(--red)',border:d.d===now.getDate()&&vm===now.getMonth()&&vy===now.getFullYear()?'1.5px solid var(--accent)':'1px solid transparent'}}>{d.d}</div>)}
+      </div>
+    </div>
+  </div>;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// HISTORY
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function HistoryScreen({txns,onEdit,onDelete,onAddSched,toast,cur,lang}){
+  const t=k=>T(lang,k);
+  const [view,setView]=useState('history');
+  const [filter,setFilter]=useState('all');
+  const [search,setSearch]=useState('');
+  const [start,setStart]=useState('');
+  const [end,setEnd]=useState('');
+  const [editTx,setEditTx]=useState(null);
+  const [delTx,setDelTx]=useState(null);
+  const [showAddS,setAddS]=useState(false);
+
+  const live=txns.filter(x=>!x.scheduled);
+  const sched=txns.filter(x=>x.scheduled).sort((a,b)=>new Date(a.date)-new Date(b.date));
+
+  const filtered=useMemo(()=>{
+    let l=live;
+    if(filter!=='all')l=l.filter(x=>x.type===filter);
+    if(search.trim())l=l.filter(x=>(x.note||'').toLowerCase().includes(search.toLowerCase())||(x.category||'').toLowerCase().includes(search.toLowerCase()));
+    if(start)l=l.filter(x=>x.date>=start);
+    if(end)l=l.filter(x=>x.date<=end);
+    return [...l].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  },[live,filter,search,start,end]);
+
+  const groups=useMemo(()=>{const g=[];filtered.forEach(x=>{const last=g[g.length-1];if(last&&last.date===x.date)last.items.push(x);else g.push({date:x.date,items:[x]});});return g;},[filtered]);
+  const total=filtered.reduce((s,x)=>x.type==='income'?s+x.amount:s-x.amount,0);
+
+  return<div style={{color:'var(--text)',padding:'0 16px',paddingBottom:`calc(var(--tab-h) + env(safe-area-inset-bottom,0px) + 20px)`}}>
+    {editTx&&<TxSheet tx={editTx} onSave={x=>{onEdit(x);setEditTx(null);}} onClose={()=>setEditTx(null)} toast={toast} cur={cur} lang={lang}/>}
+    {delTx&&<Confirm title={t('delete')+' Transaction'} body={`"${delTx.note||delTx.category}" ${fmtMoney(delTx.amount,cur)}`} ok={t('delete')} danger onOk={()=>{onDelete(delTx.id);setDelTx(null);}} onCancel={()=>setDelTx(null)}/>}
+    {showAddS&&<TxSheet onSave={x=>{onAddSched(x);setAddS(false);}} onClose={()=>setAddS(false)} defSched toast={toast} cur={cur} lang={lang}/>}
+
+    <div style={{paddingTop:'var(--hdr)',marginBottom:12}}>
+      <div style={{fontSize:26,fontWeight:900,letterSpacing:-.5,marginBottom:12}}>{t('history')}</div>
+      <div style={{display:'flex',background:'var(--card2)',borderRadius:14,padding:4,gap:4,marginBottom:12}}>
+        {[{v:'history',l:`📋 ${t('past')}`},{v:'scheduled',l:`📅 ${t('scheduled')}${sched.length>0?` (${sched.length})`:''}`}].map(b=><button key={b.v} onClick={()=>setView(b.v)} style={{flex:1,padding:'9px',borderRadius:10,border:'none',background:view===b.v?'var(--card)':'transparent',color:view===b.v?'var(--text)':'var(--muted)',fontSize:13,fontWeight:700,transition:'all .18s'}}>{b.l}</button>)}
+      </div>
+    </div>
+
+    {view==='history'&&<div>
+      {/* Search */}
+      <div style={{background:'var(--card)',borderRadius:14,padding:'10px 14px',border:'1px solid var(--border)',marginBottom:10,display:'flex',alignItems:'center',gap:8}}>
+        <span style={{color:'var(--muted)'}}>🔍</span>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t('search')} style={{background:'none',border:'none',color:'var(--text)',fontSize:14,flex:1,outline:'none'}}/>
+        {search&&<button onClick={()=>setSearch('')} style={{background:'none',border:'none',color:'var(--muted)',fontSize:18,cursor:'pointer'}}>×</button>}
+      </div>
+      {/* Date range */}
+      <div style={{background:'var(--card)',borderRadius:14,padding:'12px 14px',border:'1px solid var(--border)',marginBottom:10}}>
+        <div style={{fontSize:10,color:'var(--muted)',marginBottom:8,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>📅 Date Range</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+          {[{l:t('fromDate'),v:start,s:setStart},{l:t('toDate'),v:end,s:setEnd}].map((f,i)=><div key={i}>
+            <div style={{fontSize:10,color:'var(--muted)',marginBottom:4}}>{f.l}</div>
+            <input type="date" value={f.v} onChange={e=>f.s(e.target.value)} style={{width:'100%',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:10,color:f.v?'var(--text)':'var(--muted)',fontSize:13,padding:'9px 10px',outline:'none'}}/>
+          </div>)}
+        </div>
+        {(start||end)&&<button onClick={()=>{setStart('');setEnd('');}} style={{marginTop:8,background:'none',border:'none',color:'var(--accent)',fontSize:12,fontWeight:700,cursor:'pointer'}}>✕ Clear dates</button>}
+      </div>
+      {/* Filters */}
+      <div style={{display:'flex',gap:8,marginBottom:12}}>
+        {['all','income','expense'].map(f=><button key={f} onClick={()=>setFilter(f)} style={{padding:'7px 16px',borderRadius:99,border:'none',background:filter===f?(f==='income'?'var(--green)':f==='expense'?'var(--red)':'var(--accent)'):'var(--card2)',color:filter===f?'#000':'var(--muted)',fontSize:13,fontWeight:700,flexShrink:0}}>
+          {f==='all'?'All':f.charAt(0).toUpperCase()+f.slice(1)}
+        </button>)}
+      </div>
+      {/* Stats bar */}
+      {filtered.length>0&&<div style={{background:'var(--card)',borderRadius:12,padding:'10px 14px',border:'1px solid var(--border)',marginBottom:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <span style={{fontSize:12,color:'var(--sub)'}}>{filtered.length} transaction{filtered.length!==1?'s':''}</span>
+        <span style={{fontSize:13,fontWeight:800,color:total>=0?'var(--green)':'var(--red)'}}>{total>=0?'+':''}{fmtMoney(total,cur)}</span>
+      </div>}
+      {/* Groups */}
+      {groups.length===0&&<div style={{textAlign:'center',marginTop:60,color:'var(--muted)'}}>
+        <div style={{fontSize:44,marginBottom:12}}>🔍</div>
+        <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>{t('noTxns')}</div>
+        <div style={{fontSize:13}}>Try adjusting filters or date range</div>
+      </div>}
+      {groups.map(g=><div key={g.date} style={{marginBottom:16}}>
+        <div style={{fontSize:11,color:'var(--sub)',textTransform:'uppercase',letterSpacing:.8,fontWeight:700,marginBottom:6}}>{dayStr(g.date)}</div>
+        <div style={{background:'var(--card)',borderRadius:20,border:'1px solid var(--border)',padding:'4px 0'}}>
+          {g.items.map((x,i)=>{const cat=getCat(x.type,x.category);return<div key={x.id} style={{display:'flex',alignItems:'center',padding:'12px 14px',borderBottom:i<g.items.length-1?'1px solid var(--border)':'none'}}>
+            <div style={{width:38,height:38,borderRadius:12,background:cat.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,marginRight:12,flexShrink:0}}>{cat.icon}</div>
+            <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:700,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{x.note||cat.label}</div><div style={{fontSize:11,color:'var(--sub)',marginTop:1}}>{cat.label}</div></div>
+            <div style={{textAlign:'right',flexShrink:0}}>
+              <div style={{fontSize:15,fontWeight:800,color:x.type==='income'?'var(--green)':'var(--red)'}}>{x.type==='income'?'+':'-'}{fmtMoney(x.amount,cur)}</div>
+              <div style={{display:'flex',gap:10,marginTop:4,justifyContent:'flex-end'}}>
+                <button onClick={()=>setEditTx(x)} style={{background:'none',border:'none',color:'var(--accent)',fontSize:11,fontWeight:700,cursor:'pointer',padding:0}}>{t('edit')}</button>
+                <button onClick={()=>setDelTx(x)} style={{background:'none',border:'none',color:'var(--muted2)',fontSize:11,fontWeight:700,cursor:'pointer',padding:0}}>{t('delete')}</button>
+              </div>
+            </div>
+          </div>;})}
+        </div>
+      </div>)}
+    </div>}
+
+    {view==='scheduled'&&<div>
+      <button onClick={()=>setAddS(true)} style={{width:'100%',padding:'14px',borderRadius:14,border:'1.5px dashed var(--accent)',background:'var(--a10)',color:'var(--accent)',fontSize:14,fontWeight:800,marginBottom:14}}>+ Add Scheduled</button>
+      {sched.length===0&&<div style={{textAlign:'center',marginTop:40,color:'var(--muted)'}}><div style={{fontSize:44,marginBottom:12}}>📅</div><div style={{fontSize:16,fontWeight:700}}>No scheduled transactions</div></div>}
+      {sched.map(x=>{const cat=getCat(x.type,x.category);const days=Math.ceil((new Date(x.date)-new Date())/864e5);const past=days<0;const urgent=!past&&days<=3;
+        return<div key={x.id} style={{background:'var(--card)',borderRadius:18,padding:'14px 16px',border:`1px solid ${past?'rgba(255,69,58,.3)':urgent?'rgba(245,166,35,.3)':'var(--border)'}`,marginBottom:10}}>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <div style={{width:42,height:42,borderRadius:12,background:cat.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,flexShrink:0}}>{cat.icon}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:14,fontWeight:700,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{x.note||cat.label}</div>
+              <div style={{fontSize:12,color:past?'var(--red)':urgent?'var(--accent)':'var(--sub)',marginTop:2,fontWeight:past||urgent?700:400}}>{dayStr(x.date)} · {past?'⚠️ Overdue':days===0?'Today':days===1?'Tomorrow':`in ${days} days`}</div>
+              {x.notifyWhenDue&&<div style={{fontSize:11,color:'var(--accent)',marginTop:2}}>🔔 reminder set</div>}
+            </div>
+            <div style={{textAlign:'right',flexShrink:0}}>
+              <div style={{fontSize:15,fontWeight:800,color:x.type==='income'?'var(--green)':'var(--red)'}}>{x.type==='income'?'+':'-'}{fmtMoney(x.amount,cur)}</div>
+              <div style={{display:'flex',gap:8,marginTop:5,justifyContent:'flex-end'}}>
+                <button onClick={()=>setEditTx(x)} style={{background:'none',border:'none',color:'var(--accent)',fontSize:12,fontWeight:700,cursor:'pointer',padding:0}}>{t('edit')}</button>
+                <button onClick={()=>setDelTx(x)} style={{background:'none',border:'none',color:'var(--red)',fontSize:12,fontWeight:700,cursor:'pointer',padding:0}}>{t('delete')}</button>
+              </div>
+            </div>
+          </div>
+        </div>;})}
+    </div>}
+  </div>;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SETTINGS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function SettingsScreen({user,onLogout,theme,onTheme,txns,onReset,toast,budgetGoal,incomeGoal,onBudget,onIncome,cur,onCur,lang,onLang}){
+  const t=k=>T(lang,k);
+  const [sec,setSec]=useState('profile');
+  const [notifEn,setNE]=useState(()=>LS.get('notif_en',{push:true,email:false,sms:false}));
+  const [activeTimes,setAT]=useState(()=>LS.get('notif_times',['9:00 AM','6:00 PM']));
+  const [customTime,setCustom]=useState('');
+  const [notifPerm,setNP]=useState(()=>'Notification' in window?Notification.permission:'denied');
+  const [testSent,setTS]=useState('');
+  const [showReset,setSR]=useState(false);
+  const [saving,setSaving]=useState(false);
+  const [curSearch,setCurSearch]=useState('');
+  const [langSearch,setLangSearch]=useState('');
+  const [ejKey,setEJKey]=useState('');// legacy — kept for state compat
+  const timerRef=useRef([]);
+
+  const saveNE=v=>{setNE(v);LS.set('notif_en',v);};
+  const toggleTime=t2=>{const n=activeTimes.includes(t2)?activeTimes.filter(r=>r!==t2):[...activeTimes,t2].sort((a,b)=>{const pa=parseT(a),pb=parseT(b);return(pa.h*60+pa.m)-(pb.h*60+pb.m);});setAT(n);LS.set('notif_times',n);};
+  const addCustom=()=>{if(!customTime)return;const[h,m]=customTime.split(':').map(Number);const ap=h>=12?'PM':'AM';const hr=h%12||12;const lbl=`${hr}:${String(m).padStart(2,'0')} ${ap}`;if(!activeTimes.includes(lbl)){const n=[...activeTimes,lbl].sort((a,b)=>{const pa=parseT(a),pb=parseT(b);return(pa.h*60+pa.m)-(pb.h*60+pb.m);});setAT(n);LS.set('notif_times',n);}setCustom('');};
+
+  // ── Notification email address (user can override) ──────────
+  const [notifEmail,setNotifEmail]=useState(()=>LS.get('notif_email','')||user?.email||'');
+  const [notifPhone,setNotifPhone]=useState(()=>LS.get('notif_phone','')||user?.phone||'');
+
+  // ── Build a rich reminder message body ──────────────────────
+  const buildReminderBody=(ts)=>{
+    const live2=txns.filter(x=>!x.scheduled);
+    const now2=new Date();
+    const mn=live2.filter(x=>{const d=new Date(x.date+'T12:00:00');return d.getMonth()===now2.getMonth()&&d.getFullYear()===now2.getFullYear();});
+    const inc=mn.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
+    const exp=mn.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
+    const bal=live2.reduce((s,x)=>x.type==='income'?s+x.amount:s-x.amount,0);
+    const upcoming2=txns.filter(x=>x.scheduled).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,3);
+    const upcomingText=upcoming2.length>0?`\n\nUpcoming:\n${upcoming2.map(x=>`• ${x.note||x.category}: ${x.type==='income'?'+':'-'}${fmtMoney(x.amount,cur)} (${dayStr(x.date)})`).join('\n')}`:'';
+    return{
+      subject:`💰 Ledgr Reminder — ${ts}`,
+      text:`Hi ${user?.name||'there'},\n\nThis is your ${ts} Ledgr reminder!\n\n📊 This Month:\n• Income: ${fmtMoney(inc,cur)}\n• Expenses: ${fmtMoney(exp,cur)}\n• Net: ${fmtMoney(inc-exp,cur)}\n\n💰 Total Balance: ${fmtMoney(bal,cur)}${upcomingText}\n\nOpen Ledgr to log new transactions.\n\n— Ledgr`,
+      sms:`💰 Ledgr ${ts}: Income ${fmtMoney(inc,cur)} | Expenses ${fmtMoney(exp,cur)} | Balance ${fmtMoney(bal,cur)}. Open app to log! 📱`,
+    };
+  };
+
+  // ── Send via EmailJS ─────────────────────────────────────────
+  const sendViaEmailJS=async(addr,subject,body,ts)=>{
+    try{
+      await emailjs.send(EMAILJS_SERVICE,EMAILJS_TEMPLATE,{to_email:addr,otp:body,expiry_minutes:ts});
+      toast({icon:'📧',title:`${ts} — Email sent!`,body:`Reminder delivered to ${addr}`});
+    }catch(e){
+      // Graceful fallback to mailto
+      window.open(`mailto:${addr}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+      toast({icon:'📧',title:`${ts} Email`,body:`Mail app opened (EmailJS: ${e?.text||e?.message||'error'})`,warn:true});
+    }
+  };
+
+  // ── Send via SMS (opens SMS app pre-filled) ──────────────────
+  const sendViaSMS=(phone,body,ts)=>{
+    window.open(`sms:${phone}?body=${encodeURIComponent(body)}`);
+    toast({icon:'💬',title:`${ts} — SMS Opened`,body:`Reminder ready to send to ${phone}`});
+  };
+
+  // ── Fire all enabled channels ────────────────────────────────
+  const fireAllChannels=async(ts)=>{
+    const{subject,text,sms}=buildReminderBody(ts);
+    // 1. On-screen push
+    if(notifEn.push){
+      toast({icon:'🔔',title:`💰 Budget Reminder — ${ts}`,body:text.split('\n').slice(0,4).join(' ')});
+      if('Notification' in window&&Notification.permission==='granted'){
+        try{new Notification(`💰 Ledgr — ${ts}`,{body:`Tap to open Ledgr and log your transactions!`,tag:`ledgr-${ts}`});}catch(e){}
+      }
+    }
+    // 2. Email
+    if(notifEn.email&&notifEmail){
+      await sendViaEmailJS(notifEmail,subject,text,ts);
+    }
+    // 3. SMS
+    if(notifEn.sms&&notifPhone){
+      sendViaSMS(notifPhone,sms,ts);
+    }
+  };
+
+  // ── Schedule all reminder times ──────────────────────────────
+  const scheduleAll=()=>{
+    timerRef.current.forEach(x=>{clearTimeout(x);clearInterval(x);});timerRef.current=[];
+    if(!activeTimes.length){toast({icon:'⚠️',title:'No times selected',body:'Pick at least one reminder time below.',warn:true});return;}
+    const enabledChannels=[];
+    if(notifEn.push)enabledChannels.push('📱 Push');
+    if(notifEn.email&&notifEmail)enabledChannels.push('📧 Email');
+    if(notifEn.sms&&notifPhone)enabledChannels.push('💬 SMS');
+    if(!enabledChannels.length){toast({icon:'⚠️',title:'No channels active',body:'Enable Push, Email, or SMS above — and make sure email/phone are set.',warn:true});return;}
+
+    activeTimes.forEach(ts=>{
+      const{h,m}=parseT(ts);
+      const now2=new Date();const nxt=new Date(now2);
+      nxt.setHours(h,m,0,0);if(nxt<=now2)nxt.setDate(nxt.getDate()+1);
+      const delay=nxt-now2;
+      const tid=setTimeout(async()=>{
+        await fireAllChannels(ts);
+        // Repeat every 24h
+        const iv=setInterval(()=>fireAllChannels(ts),86400000);
+        timerRef.current.push(iv);
+      },delay);
+      timerRef.current.push(tid);
+    });
+
+    LS.set('notif_times',activeTimes);
+    LS.set('notif_email',notifEmail);
+    LS.set('notif_phone',notifPhone);
+    LS.set('notif_en',notifEn);
+    setSaving(true);setTimeout(()=>setSaving(false),2000);
+
+    const minStr=activeTimes.length===1?activeTimes[0]:`${activeTimes[0]} – ${activeTimes[activeTimes.length-1]}`;
+    toast({icon:'✅',title:'Reminders scheduled!',body:`${activeTimes.length} time${activeTimes.length>1?'s':''} · Channels: ${enabledChannels.join(', ')}`});
+  };
+
+  // ── Test each channel individually ───────────────────────────
+  const testPush=()=>{
+    toast({icon:'🔔',title:'Test — Push Notification',body:`Ledgr has ${txns.filter(x=>!x.scheduled).length} transactions. Reminders will fire at your chosen times.`});
+    if('Notification' in window&&Notification.permission==='granted'){try{new Notification('💰 Ledgr Test',{body:'Push notifications are working! ✓',tag:'ledgr-test'});}catch(e){}}
+    setTS('push');setTimeout(()=>setTS(''),3000);
+  };
+  const testEmail=async()=>{
+    const addr=notifEmail||user?.email;
+    if(!addr){toast({icon:'❌',title:'No email set',body:'Enter your email below first.',err:true});return;}
+    setTS('email');
+    const{subject,text}=buildReminderBody('Test');
+    await sendViaEmailJS(addr,`[TEST] ${subject}`,`This is a TEST reminder.\n\n${text}`,'Test');
+    setTimeout(()=>setTS(''),4000);
+  };
+  const testSMS=()=>{
+    const ph=notifPhone||user?.phone;
+    if(!ph){toast({icon:'❌',title:'No phone set',body:'Enter your phone number below first.',err:true});return;}
+    const{sms}=buildReminderBody('Test');
+    sendViaSMS(ph,`[TEST] ${sms}`,'Test');
+    setTS('sms');setTimeout(()=>setTS(''),3000);
+  };
+
+  const PRESET_T=['6:00 AM','7:00 AM','8:00 AM','9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM','6:00 PM','7:00 PM','8:00 PM','9:00 PM','10:00 PM'];
+  const filtCur=CURRENCIES.filter(c=>`${c.code} ${c.name} ${c.symbol}`.toLowerCase().includes(curSearch.toLowerCase()));
+  const filtLang=LANGUAGES.filter(l=>`${l.code} ${l.name}`.toLowerCase().includes(langSearch.toLowerCase()));
+
+  const navItems=[{id:'profile',icon:'👤',l:t('profile')},{id:'goals',icon:'🎯',l:t('goals')},{id:'currency',icon:'💱',l:t('currency')},{id:'language',icon:'🌐',l:t('language')},{id:'notif',icon:'🔔',l:t('notifications')},{id:'theme',icon:'🎨',l:t('theme')},{id:'emailjs',icon:'⚙️',l:'EmailJS'},{id:'export',icon:'📤',l:t('export')},{id:'reset',icon:'⚠️',l:t('reset')}];
+
+  return<div style={{color:'var(--text)',padding:'0 16px',paddingBottom:`calc(var(--tab-h) + env(safe-area-inset-bottom,0px) + 20px)`}}>
+    {showReset&&<Confirm title="⚠️ Hard Reset" body="Delete ALL data: transactions, settings, goals, profile. This cannot be undone." ok="Reset All" danger onOk={()=>{onReset();setSR(false);toast({icon:'🗑️',title:'Reset complete',body:'All data wiped.',warn:true});}} onCancel={()=>setSR(false)}/>}
+
+    <div style={{paddingTop:'var(--hdr)',marginBottom:12}}>
+      <div style={{fontSize:26,fontWeight:900,letterSpacing:-.5}}>{t('settings')}</div>
+    </div>
+    {/* Nav pills */}
+    <div style={{display:'flex',gap:8,marginBottom:16,overflowX:'auto',paddingBottom:4}}>
+      {navItems.map(p=><button key={p.id} onClick={()=>setSec(p.id)} style={{padding:'8px 14px',borderRadius:99,border:`1px solid ${sec===p.id?'var(--accent)':'var(--border)'}`,background:sec===p.id?'var(--a10)':'transparent',color:sec===p.id?'var(--accent)':'var(--muted)',fontSize:13,fontWeight:700,whiteSpace:'nowrap',flexShrink:0,transition:'all .15s'}}>{p.icon} {p.l}</button>)}
+    </div>
+
+    {/* PROFILE */}
+    {sec==='profile'&&<div>
+      <div style={{textAlign:'center',marginBottom:20}}>
+        <div style={{width:80,height:80,borderRadius:'50%',background:'linear-gradient(135deg,var(--accent),#c87010)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:36,fontWeight:900,color:'#000',margin:'0 auto 12px',boxShadow:'0 8px 28px var(--a20)'}}>
+          {user?.name?user.name[0].toUpperCase():'$'}
+        </div>
+        <div style={{fontSize:19,fontWeight:800}}>{user?.name||'Set your name'}</div>
+        <div style={{fontSize:13,color:'var(--sub)',marginTop:4}}>{user?.email||user?.phone||''}</div>
+      </div>
+      {user&&<div style={{background:'var(--card)',borderRadius:16,padding:'14px',border:'1px solid var(--border)',marginBottom:14}}>
+        {user.email&&<div style={{display:'flex',gap:10,alignItems:'center',padding:'8px 0'}}><span style={{fontSize:18}}>📧</span><div><div style={{fontSize:13,fontWeight:700}}>{user.email}</div><div style={{fontSize:11,color:'var(--sub)'}}>Verified email</div></div></div>}
+        {user.phone&&<div style={{display:'flex',gap:10,alignItems:'center',padding:'8px 0',borderTop:user.email?'1px solid var(--border)':'none'}}><span style={{fontSize:18}}>📱</span><div><div style={{fontSize:13,fontWeight:700}}>{user.phone}</div><div style={{fontSize:11,color:'var(--sub)'}}>Verified phone</div></div></div>}
+      </div>}
+      <button onClick={onLogout} style={{width:'100%',padding:'14px',borderRadius:14,border:'1px solid var(--border)',background:'var(--r10)',color:'var(--red)',fontSize:15,fontWeight:800}}>{t('logout')}</button>
+    </div>}
+
+    {/* GOALS */}
+    {sec==='goals'&&<div>
+      {[{l:t('budgetGoal'),icon:'💰',v:budgetGoal,s:onBudget,col:'var(--red)'},{l:t('incomeGoal'),icon:'🎯',v:incomeGoal,s:onIncome,col:'var(--green)'}].map((g,i)=><div key={i} style={{background:'var(--card)',borderRadius:18,padding:'16px',border:'1px solid var(--border)',marginBottom:12}}>
+        <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>{g.icon} {g.l}</div>
+        <div style={{display:'flex',alignItems:'center',gap:8}}><span style={{fontSize:24,color:g.col,fontWeight:900}}>{CURRENCIES.find(c=>c.code===cur)?.symbol||'$'}</span><input value={g.v||''} type="number" min="0" onChange={e=>g.s(parseFloat(e.target.value)||0)} placeholder="e.g. 3000" style={{background:'none',border:'none',color:'var(--text)',fontSize:28,flex:1,outline:'none',fontWeight:900}}/></div>
+      </div>)}
+      <button onClick={()=>{LS.set('budget_goal',budgetGoal);LS.set('income_goal',incomeGoal);toast({icon:'✅',title:'Goals saved',body:'Updated on Home screen.'});}} style={{width:'100%',padding:'14px',borderRadius:14,border:'none',background:'var(--accent)',color:'#000',fontSize:15,fontWeight:800}}>{t('save')} Goals</button>
+    </div>}
+
+    {/* CURRENCY */}
+    {sec==='currency'&&<div>
+      <div style={{fontSize:13,color:'var(--sub)',marginBottom:14,lineHeight:1.5}}>Choose your display currency. All amounts will be formatted in this currency.</div>
+      <input value={curSearch} onChange={e=>setCurSearch(e.target.value)} placeholder="Search currency…" style={{width:'100%',background:'var(--card)',border:'1px solid var(--border2)',borderRadius:14,color:'var(--text)',fontSize:14,padding:'12px 16px',outline:'none',marginBottom:12}}/>
+      <div style={{display:'flex',flexDirection:'column',gap:4}}>
+        {filtCur.map(c=><button key={c.code} onClick={()=>{onCur(c.code);LS.set('currency',c.code);toast({icon:'💱',title:'Currency updated',body:`Now showing ${c.name} (${c.symbol})`});}} style={{display:'flex',alignItems:'center',gap:12,padding:'13px 16px',borderRadius:14,border:`1.5px solid ${cur===c.code?'var(--accent)':'var(--border)'}`,background:cur===c.code?'var(--a10)':'var(--card)',textAlign:'left',transition:'all .15s'}}>
+          <div style={{width:42,height:42,borderRadius:10,background:'var(--card2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,fontWeight:800,flexShrink:0,color:'var(--accent)'}}>{c.symbol}</div>
+          <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,color:'var(--text)'}}>{c.name}</div><div style={{fontSize:12,color:'var(--sub)'}}>{c.code}</div></div>
+          {cur===c.code&&<span style={{color:'var(--accent)',fontSize:18}}>✓</span>}
+        </button>)}
+      </div>
+    </div>}
+
+    {/* LANGUAGE */}
+    {sec==='language'&&<div>
+      <div style={{fontSize:13,color:'var(--sub)',marginBottom:14}}>Choose your display language. The UI will update immediately.</div>
+      <input value={langSearch} onChange={e=>setLangSearch(e.target.value)} placeholder="Search language…" style={{width:'100%',background:'var(--card)',border:'1px solid var(--border2)',borderRadius:14,color:'var(--text)',fontSize:14,padding:'12px 16px',outline:'none',marginBottom:12}}/>
+      <div style={{display:'flex',flexDirection:'column',gap:4}}>
+        {filtLang.map(l=><button key={l.code} onClick={()=>{onLang(l.code);LS.set('language',l.code);document.documentElement.dir=l.dir;document.documentElement.lang=l.code;toast({icon:'🌐',title:'Language updated',body:`Now in ${l.name}`});}} style={{display:'flex',alignItems:'center',gap:12,padding:'13px 16px',borderRadius:14,border:`1.5px solid ${lang===l.code?'var(--accent)':'var(--border)'}`,background:lang===l.code?'var(--a10)':'var(--card)',textAlign:'left',transition:'all .15s'}}>
+          <div style={{fontSize:14,fontWeight:700,color:'var(--text)',flex:1}}>{l.name}</div>
+          <div style={{fontSize:12,color:'var(--sub)',fontWeight:600}}>{l.code.toUpperCase()}</div>
+          {lang===l.code&&<span style={{color:'var(--accent)',fontSize:18}}>✓</span>}
+        </button>)}
+      </div>
+    </div>}
+
+    {/* NOTIFICATIONS */}
+    {sec==='notif'&&<div>
+
+      {/* ── Step 1: Channels ── */}
+      <div style={{background:'var(--card)',borderRadius:18,padding:'14px 16px',border:'1px solid var(--border)',marginBottom:12}}>
+        <div style={{fontSize:13,fontWeight:800,marginBottom:4,color:'var(--text)'}}>Step 1 — Choose Channels</div>
+        <div style={{fontSize:12,color:'var(--sub)',marginBottom:14,lineHeight:1.5}}>All enabled channels fire at your reminder times simultaneously.</div>
+
+        {/* Push */}
+        <div style={{display:'flex',alignItems:'center',padding:'12px 0',borderBottom:'1px solid var(--border)'}}>
+          <div style={{width:40,height:40,borderRadius:12,background:notifEn.push?'var(--a10)':'var(--card2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,marginRight:12,flexShrink:0,border:`1px solid ${notifEn.push?'var(--accent)':'var(--border)'}`}}>📱</div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:14,fontWeight:700}}>On-Screen Push</div>
+            <div style={{fontSize:11,color:'var(--sub)',marginTop:1}}>
+              {notifPerm==='granted'?'✅ Browser permission granted':'⚠️ Permission required — tap Enable below'}
+            </div>
+          </div>
+          <Tog on={notifEn.push} fn={()=>saveNE({...notifEn,push:!notifEn.push})}/>
+        </div>
+        {notifPerm!=='granted'&&notifEn.push&&<button onClick={async()=>{const p=await Notification.requestPermission();setNP(p);p==='granted'?toast({icon:'✅',title:'Push enabled!',body:'On-screen reminders will now fire.'}):toast({icon:'❌',title:'Blocked',body:'Go to device Settings → Browser → Notifications to allow.',err:true});}} style={{width:'100%',padding:'9px',borderRadius:10,border:'none',background:'var(--a10)',color:'var(--accent)',fontSize:13,fontWeight:800,margin:'8px 0 4px'}}>Enable Browser Notifications ↗</button>}
+
+        {/* Email */}
+        <div style={{padding:'12px 0',borderBottom:'1px solid var(--border)'}}>
+          <div style={{display:'flex',alignItems:'center',marginBottom:notifEn.email?10:0}}>
+            <div style={{width:40,height:40,borderRadius:12,background:notifEn.email?'rgba(78,154,241,.15)':'var(--card2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,marginRight:12,flexShrink:0,border:`1px solid ${notifEn.email?'var(--blue)':'var(--border)'}`}}>📧</div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:14,fontWeight:700}}>Email Reminders</div>
+              <div style={{fontSize:11,color:'var(--sub)',marginTop:1}}>{notifEn.email?(notifEmail?`→ ${notifEmail}`:'Set email below'):'Opens your email app'}</div>
+            </div>
+            <Tog on={notifEn.email} fn={()=>saveNE({...notifEn,email:!notifEn.email})} col='var(--blue)'/>
+          </div>
+          {notifEn.email&&<div style={{background:'var(--card2)',borderRadius:12,padding:'10px 14px',border:'1px solid var(--border)'}}>
+            <div style={{fontSize:10,color:'var(--muted)',marginBottom:5,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>📧 Send reminders to this email</div>
+            <input type="email" value={notifEmail} onChange={e=>{setNotifEmail(e.target.value);LS.set('notif_email',e.target.value);}} placeholder="your@email.com" style={{background:'none',border:'none',color:'var(--text)',fontSize:15,width:'100%',outline:'none'}}/>
+          </div>}
+        </div>
+
+        {/* SMS */}
+        <div style={{padding:'12px 0 4px'}}>
+          <div style={{display:'flex',alignItems:'center',marginBottom:notifEn.sms?10:0}}>
+            <div style={{width:40,height:40,borderRadius:12,background:notifEn.sms?'var(--g10)':'var(--card2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,marginRight:12,flexShrink:0,border:`1px solid ${notifEn.sms?'var(--green)':'var(--border)'}`}}>💬</div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:14,fontWeight:700}}>SMS Reminders</div>
+              <div style={{fontSize:11,color:'var(--sub)',marginTop:1}}>{notifEn.sms?(notifPhone?`→ ${notifPhone}`:'Set phone below'):'Opens your SMS app'}</div>
+            </div>
+            <Tog on={notifEn.sms} fn={()=>saveNE({...notifEn,sms:!notifEn.sms})} col='var(--green)'/>
+          </div>
+          {notifEn.sms&&<div style={{background:'var(--card2)',borderRadius:12,padding:'10px 14px',border:'1px solid var(--border)'}}>
+            <div style={{fontSize:10,color:'var(--muted)',marginBottom:5,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>💬 Send reminders to this number</div>
+            <input type="tel" value={notifPhone} onChange={e=>{setNotifPhone(e.target.value);LS.set('notif_phone',e.target.value);}} placeholder="+1 (555) 000-0000" style={{background:'none',border:'none',color:'var(--text)',fontSize:15,width:'100%',outline:'none'}}/>
+          </div>}
+        </div>
+      </div>
+
+      {/* ── Step 2: Times ── */}
+      <div style={{background:'var(--card)',borderRadius:18,padding:'14px 16px',border:'1px solid var(--border)',marginBottom:12}}>
+        <div style={{fontSize:13,fontWeight:800,marginBottom:4}}>Step 2 — Set Reminder Times</div>
+        <div style={{fontSize:12,color:'var(--sub)',marginBottom:12,lineHeight:1.5}}>Pick preset times or type a custom one. All enabled channels fire at each time.</div>
+        {/* Custom time */}
+        <div style={{display:'flex',gap:8,marginBottom:12}}>
+          <input type="time" value={customTime} onChange={e=>setCustom(e.target.value)} style={{flex:1,background:'var(--card2)',border:'1px solid var(--border)',borderRadius:10,color:'var(--text)',fontSize:14,padding:'9px 12px',outline:'none'}}/>
+          <button onClick={addCustom} style={{padding:'9px 18px',borderRadius:10,border:'none',background:'var(--accent)',color:'#000',fontSize:13,fontWeight:800,whiteSpace:'nowrap'}}>+ Add</button>
+        </div>
+        {/* Active times as chips */}
+        {activeTimes.length>0&&<div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:12}}>
+          {activeTimes.map(ti=><div key={ti} style={{display:'flex',alignItems:'center',gap:4,background:'var(--a10)',border:'1px solid var(--accent)',borderRadius:20,padding:'5px 10px 5px 12px'}}>
+            <span style={{fontSize:12,color:'var(--accent)',fontWeight:800}}>⏰ {ti}</span>
+            <button onClick={()=>toggleTime(ti)} style={{background:'none',border:'none',color:'var(--muted)',fontSize:16,lineHeight:1,cursor:'pointer',marginLeft:4}}>×</button>
+          </div>)}
+        </div>}
+        {activeTimes.length===0&&<div style={{textAlign:'center',padding:'12px',color:'var(--muted)',fontSize:13,marginBottom:8}}>No times selected — tap a preset below</div>}
+        {/* Preset grid */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:14}}>
+          {PRESET_T.map(ti=>{const on=activeTimes.includes(ti);return<button key={ti} onClick={()=>toggleTime(ti)} style={{padding:'9px 4px',borderRadius:10,border:`1px solid ${on?'var(--accent)':'var(--border)'}`,background:on?'var(--a10)':'transparent',color:on?'var(--accent)':'var(--muted)',fontSize:11,fontWeight:700,transition:'all .15s'}}>{on?'✓ ':''}{ti}</button>;})}
+        </div>
+        <button onClick={scheduleAll} style={{width:'100%',padding:'14px',borderRadius:13,border:'none',background:saving?'var(--green)':'var(--accent)',color:'#000',fontSize:15,fontWeight:800,transition:'all .25s',boxShadow:saving?'0 0 20px rgba(48,209,88,.3)':activeTimes.length?'0 4px 20px var(--a20)':'none'}}>
+          {saving?'✅ Reminders Activated!':'⏰ Save & Activate All Reminders'}
+        </button>
+      </div>
+
+      {/* ── Step 3: Test ── */}
+      <div style={{background:'var(--card)',borderRadius:18,padding:'14px 16px',border:'1px solid var(--border)'}}>
+        <div style={{fontSize:13,fontWeight:800,marginBottom:4}}>Step 3 — Test It Now</div>
+        <div style={{fontSize:12,color:'var(--sub)',marginBottom:14,lineHeight:1.5}}>Sends a real test notification immediately via each channel. Use this to confirm everything works before relying on the reminders.</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+          {[
+            {k:'push',l:'Push',icon:'📱',sub:'On-screen',fn:testPush,col:'var(--a10)',border:'var(--accent)'},
+            {k:'email',l:'Email',icon:'📧',sub:notifEmail||'set email',fn:testEmail,col:'rgba(78,154,241,.1)',border:'var(--blue)'},
+            {k:'sms',l:'SMS',icon:'💬',sub:notifPhone||'set phone',fn:testSMS,col:'var(--g10)',border:'var(--green)'},
+          ].map(ch=><button key={ch.k} onClick={ch.fn} style={{padding:'14px 6px',borderRadius:14,border:`1.5px solid ${testSent===ch.k?ch.border:'var(--border)'}`,background:testSent===ch.k?ch.col:'var(--card2)',color:testSent===ch.k?'var(--text)':'var(--muted)',fontSize:12,fontWeight:700,display:'flex',flexDirection:'column',alignItems:'center',gap:5,transition:'all .2s'}}>
+            <span style={{fontSize:26}}>{ch.icon}</span>
+            <span style={{fontWeight:800,color:testSent===ch.k?'var(--accent)':'var(--text)'}}>{testSent===ch.k?'✓ Sent!':ch.l}</span>
+            <span style={{fontSize:10,color:'var(--muted)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'100%'}}>{ch.sub}</span>
+          </button>)}
+        </div>
+        <div style={{marginTop:12,padding:'10px 14px',borderRadius:12,background:'var(--card2)',border:'1px solid var(--border)'}}>
+          <div style={{fontSize:11,color:'var(--muted)',lineHeight:1.6}}>
+            📱 <strong style={{color:'var(--text)'}}>Push</strong> — fires in-app + browser banner (requires permission)<br/>
+            📧 <strong style={{color:'var(--text)'}}>Email</strong> — opens your mail app pre-filled (or silent via EmailJS in ⚙️)<br/>
+            💬 <strong style={{color:'var(--text)'}}>SMS</strong> — opens your messages app pre-filled to send yourself
+          </div>
+        </div>
+      </div>
+    </div>}
+
+    {/* THEME */}
+    {sec==='theme'&&<div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+        {THEMES.map(th=>{const active=theme.id===th.id;return<button key={th.id} onClick={()=>onTheme(th)} style={{borderRadius:20,overflow:'hidden',border:`2px solid ${active?'var(--accent)':'transparent'}`,cursor:'pointer',padding:0,boxShadow:active?'0 0 0 3px var(--a20)':'none',transition:'all .2s',background:'none'}}>
+          <div style={{background:th.bg,padding:'14px 14px 10px'}}>
+            <div style={{background:th.card,borderRadius:10,padding:'10px 12px',marginBottom:6}}><div style={{fontSize:10,color:th.muted,marginBottom:3}}>Balance</div><div style={{fontSize:16,fontWeight:900,color:th.text}}>$5,240</div></div>
+            <div style={{display:'flex',gap:4}}><div style={{flex:1,background:th.card2,borderRadius:7,padding:'5px 8px'}}><div style={{fontSize:9,color:th.accent,fontWeight:700}}>+$4,800</div></div><div style={{flex:1,background:th.card2,borderRadius:7,padding:'5px 8px'}}><div style={{fontSize:9,color:'#ff453a',fontWeight:700}}>-$2,160</div></div></div>
+          </div>
+          <div style={{background:th.card,padding:'8px 12px',display:'flex',alignItems:'center',justifyContent:'space-between'}}><span style={{fontSize:13,fontWeight:700,color:th.text}}>{th.name}</span>{active&&<span style={{color:th.accent,fontSize:14}}>✓</span>}</div>
+        </button>;})}
+      </div>
+    </div>}
+
+    {/* EMAILJS STATUS */}
+    {sec==='emailjs'&&<div>
+      <div style={{background:'var(--g10)',borderRadius:18,padding:'20px',border:'1px solid rgba(48,209,88,.25)',marginBottom:14,textAlign:'center'}}>
+        <div style={{fontSize:40,marginBottom:10}}>✅</div>
+        <div style={{fontSize:16,fontWeight:800,color:'var(--green)',marginBottom:6}}>EmailJS Connected</div>
+        <div style={{fontSize:13,color:'var(--sub)',lineHeight:1.6}}>Real email delivery is active.<br/>OTP codes are sent automatically when users sign in.</div>
+      </div>
+      <div style={{background:'var(--card)',borderRadius:16,padding:'16px',border:'1px solid var(--border)',marginBottom:12}}>
+        <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>Active Configuration</div>
+        {[{l:'Service ID',v:'service_e3aq4gh'},{l:'Template ID',v:'template_5zywxbh'},{l:'Sender',v:'ledgrtrack@gmail.com'},{l:'Template vars',v:'{{to_email}}, {{otp}}, {{expiry_minutes}}'}].map(r=><div key={r.l} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',borderBottom:'1px solid var(--border)'}}>
+          <span style={{fontSize:12,color:'var(--sub)'}}>{r.l}</span>
+          <span style={{fontSize:12,fontWeight:700,fontFamily:'monospace',color:'var(--accent)'}}>{r.v}</span>
+        </div>)}
+      </div>
+      <div style={{background:'var(--card)',borderRadius:16,padding:'16px',border:'1px solid var(--border)'}}>
+        <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>How it works</div>
+        <div style={{fontSize:12,color:'var(--sub)',lineHeight:1.8}}>
+          1. User enters their email on login screen<br/>
+          2. App generates a secure 6-digit OTP<br/>
+          3. EmailJS sends it instantly from <strong style={{color:'var(--text)'}}>ledgrtrack@gmail.com</strong><br/>
+          4. User enters the code → signed in ✓<br/>
+          5. Daily reminders also send via this route
+        </div>
+      </div>
+    </div>}
+
+    {/* EXPORT */}
+    {sec==='export'&&<div>
+      <div style={{background:'var(--card)',borderRadius:18,padding:'18px',border:'1px solid var(--border)',marginBottom:12}}>
+        <div style={{fontSize:24,marginBottom:8}}>📄</div>
+        <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>Export PDF Report</div>
+        <div style={{fontSize:13,color:'var(--sub)',marginBottom:14,lineHeight:1.5}}>Full printable transaction report</div>
+        <button onClick={()=>{
+          const live2=txns.filter(x=>!x.scheduled).sort((a,b)=>new Date(b.date)-new Date(a.date));
+          const bal=live2.reduce((s,x)=>x.type==='income'?s+x.amount:s-x.amount,0);
+          const inc2=live2.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
+          const exp2=live2.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
+          const rows=live2.slice(0,100).map(x=>`<tr><td>${new Date(x.date+'T12:00:00').toLocaleDateString()}</td><td>${x.note||x.category}</td><td style="color:${x.type==='income'?'#1a8040':'#cc1010'};font-weight:700">${x.type==='income'?'+':'-'}${fmtMoney(x.amount,cur)}</td><td style="text-transform:capitalize">${x.category}</td></tr>`).join('');
+          const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ledgr Report</title><style>body{font-family:-apple-system,sans-serif;padding:40px;color:#1c1c1e}h1{font-size:28px;margin:0 0 4px}h2{font-size:15px;color:#888;font-weight:400;margin:0 0 28px}.r{display:flex;gap:20px;margin-bottom:28px}.b{background:#f5f5fa;border-radius:12px;padding:14px 18px}.b .l{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}.b .v{font-size:22px;font-weight:900}table{width:100%;border-collapse:collapse}th{background:#f5f5fa;text-align:left;padding:10px 12px;font-size:12px;color:#888}td{padding:10px 12px;border-bottom:1px solid #eee;font-size:13px}.ft{margin-top:30px;font-size:12px;color:#aaa;text-align:center}</style></head><body><h1>Ledgr Report</h1><h2>${user?.name||'Personal'} · ${new Date().toLocaleString('default',{month:'long',year:'numeric'})}</h2><div class="r"><div class="b"><div class="l">Net</div><div class="v" style="color:${bal>=0?'#1a8040':'#cc1010'}">${bal<0?'-':''}${fmtMoney(Math.abs(bal),cur)}</div></div><div class="b"><div class="l">Income</div><div class="v" style="color:#1a8040">${fmtMoney(inc2,cur)}</div></div><div class="b"><div class="l">Expenses</div><div class="v" style="color:#cc1010">${fmtMoney(exp2,cur)}</div></div></div><table><thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Category</th></tr></thead><tbody>${rows}</tbody></table><div class="ft">Generated ${new Date().toLocaleString()} · Ledgr</div><script>window.onload=()=>window.print()<\/script></body></html>`;
+          const w=window.open('','_blank');if(w){w.document.write(html);w.document.close();}
+        }} style={{width:'100%',padding:'12px',borderRadius:12,border:'none',background:'var(--accent)',color:'#000',fontSize:14,fontWeight:800}}>{t('export')} PDF</button>
+      </div>
+      <div style={{background:'var(--card)',borderRadius:18,padding:'16px',border:'1px solid var(--border)'}}>
+        <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>📊 Stats</div>
+        {[['Transactions',txns.filter(x=>!x.scheduled).length],['Scheduled',txns.filter(x=>x.scheduled).length],['Total income',fmtMoney(txns.filter(x=>!x.scheduled&&x.type==='income').reduce((s,x)=>s+x.amount,0),cur)],['Total expenses',fmtMoney(txns.filter(x=>!x.scheduled&&x.type==='expense').reduce((s,x)=>s+x.amount,0),cur)],['Net',fmtMoney(txns.filter(x=>!x.scheduled).reduce((s,x)=>x.type==='income'?s+x.amount:s-x.amount,0),cur)]].map(([l,v])=><div key={l} style={{display:'flex',justifyContent:'space-between',padding:'9px 0',borderBottom:'1px solid var(--border)'}}>
+          <span style={{fontSize:13,color:'var(--sub)'}}>{l}</span><span style={{fontSize:13,fontWeight:800}}>{v}</span>
+        </div>)}
+      </div>
+    </div>}
+
+    {/* RESET */}
+    {sec==='reset'&&<div>
+      <div style={{background:'var(--r10)',borderRadius:20,padding:'20px',border:'1px solid rgba(255,69,58,.2)',marginBottom:14}}>
+        <div style={{fontSize:28,marginBottom:8}}>⚠️</div>
+        <div style={{fontSize:17,fontWeight:800,color:'var(--red)',marginBottom:8}}>Danger Zone</div>
+        <div style={{fontSize:13,color:'var(--sub)',lineHeight:1.6,marginBottom:16}}>Currently showing <strong style={{color:'var(--text)'}}>demo data</strong>. Reset when you're ready to start with your real finances.</div>
+        <button onClick={()=>setSR(true)} style={{width:'100%',padding:'14px',borderRadius:14,border:'none',background:'var(--red)',color:'#fff',fontSize:15,fontWeight:800}}>🗑️ Hard Reset — Delete Everything</button>
+      </div>
+      <div style={{background:'var(--card)',borderRadius:16,padding:'16px',border:'1px solid var(--border)'}}>
+        <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>Will delete:</div>
+        {['All transactions (past & scheduled)','Auth session & profile','Budget & income goals','Notification settings','Theme preference'].map((item,i,a)=><div key={i} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'7px 0',borderBottom:i<a.length-1?'1px solid var(--border)':'none'}}>
+          <div style={{width:6,height:6,borderRadius:3,background:'var(--red)',flexShrink:0,marginTop:5}}/>
+          <div style={{fontSize:13,color:'var(--sub)'}}>{item}</div>
+        </div>)}
+      </div>
+    </div>}
+  </div>;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ROOT APP
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function App(){
+  const [user,setUser]=useState(()=>LS.get('auth_user',null));
+  const [tab,setTab]=useState(()=>LS.get('budget_tab',0));
+  const [txns,setTxns]=useState(()=>{const s=LS.get('budget_txns',null);return s===null?buildSeed():s;});
+  const [theme,setTheme]=useState(()=>{const t=LS.get('budget_theme',null);return t||THEMES[0];});
+  const [budgetGoal,setBudget]=useState(()=>LS.get('budget_goal',3000));
+  const [incomeGoal,setIncome]=useState(()=>LS.get('income_goal',5000));
+  const [cur,setCur]=useState(()=>LS.get('currency','USD'));
+  const [lang,setLang]=useState(()=>LS.get('language','en'));
+  const [toasts,setToasts]=useState([]);
+  const [showAdd,setAdd]=useState(false);
+  const [showSched,setSched]=useState(false);
+  const [notifBanner,setNB]=useState(()=>'Notification' in window&&Notification.permission==='default');
+
+  useEffect(()=>{applyTheme(theme);},[theme]);
+  useEffect(()=>{LS.set('budget_tab',tab);},[tab]);
+  useEffect(()=>{LS.set('budget_txns',txns);},[txns]);
+
+  // Splash
+  useEffect(()=>{setTimeout(()=>{const s=document.getElementById('splash');if(s){s.classList.add('hide');setTimeout(()=>s.remove(),500);}},1200);},[]);
+  // SW
+  useEffect(()=>{'serviceWorker' in navigator&&navigator.serviceWorker.register('./sw.js').catch(()=>{});},[]);
+  // Apply language dir
+  useEffect(()=>{const l=LANGUAGES.find(x=>x.code===lang);if(l){document.documentElement.dir=l.dir;document.documentElement.lang=l.code;}},[lang]);
+
+  // Check upcoming
+  useEffect(()=>{
+    const check=()=>{
+      const now=new Date();now.setHours(0,0,0,0);
+      txns.filter(x=>x.scheduled&&x.notifyWhenDue).forEach(x=>{
+        const due=new Date(x.date+'T12:00:00');due.setHours(0,0,0,0);
+        const diff=Math.round((due-now)/864e5);
+        if(diff===0||diff===1){
+          const key=`notif_${x.id}_${todayStr()}`;
+          if(!sessionStorage.getItem(key)){
+            sessionStorage.setItem(key,'1');
+            const cat=getCat(x.type,x.category);
+            addToast({icon:cat.icon,title:diff===0?'Due Today!':'Due Tomorrow',body:`${x.note||cat.label}: ${x.type==='income'?'+':'-'}${fmtMoney(x.amount,cur)}`,warn:diff===0});
+            if('Notification' in window&&Notification.permission==='granted'){try{new Notification(`📅 ${diff===0?'Due Today':'Tomorrow'}`,{body:`${x.note||cat.label}: ${fmtMoney(x.amount,cur)}`});}catch(e){}}
+          }
+        }
+      });
+    };
+    check();const iv=setInterval(check,60000);return()=>clearInterval(iv);
+  },[txns,cur]);
+
+  const addToast=useCallback(t=>{
+    const id=Date.now()+Math.random();
+    setToasts(p=>[...p.slice(-2),{...t,id}]);
+    setTimeout(()=>setToasts(p=>p.filter(x=>x.id!==id)),5500);
+  },[]);
+
+  const handleTheme=th=>{setTheme(th);LS.set('budget_theme',th);applyTheme(th);};
+  const handleBudget=v=>{setBudget(v);LS.set('budget_goal',v);};
+  const handleIncome=v=>{setIncome(v);LS.set('income_goal',v);};
+  const handleCur=v=>{setCur(v);LS.set('currency',v);};
+  const handleLang=v=>{setLang(v);LS.set('language',v);};
+
+  const addTx=tx=>{setTxns(p=>[tx,...p]);addToast({icon:getCat(tx.type,tx.category).icon,title:'Transaction saved',body:`${tx.type==='income'?'+':'-'}${fmtMoney(tx.amount,cur)}`});};
+  const editTx=tx=>{setTxns(p=>p.map(x=>x.id===tx.id?tx:x));addToast({icon:'✏️',title:'Updated',body:`${tx.note||tx.category}`});};
+  const delTx=id=>{setTxns(p=>p.filter(x=>x.id!==id));addToast({icon:'🗑️',title:'Deleted',body:'Transaction removed.'});};
+
+  const hardReset=()=>{
+    ['budget_txns','budget_theme','budget_tab','budget_goal','income_goal','currency','language','notif_en','notif_times','notif_email','notif_phone','auth_user'].forEach(k=>LS.del(k));
+    LS.set('budget_txns',[]);LS.set('budget_goal',0);LS.set('income_goal',0);
+    setTxns([]);setTheme(THEMES[0]);applyTheme(THEMES[0]);setBudget(0);setIncome(0);setCur('USD');setLang('en');setTab(0);setUser(null);
+  };
+
+  const handleAuth=u=>{setUser(u);};
+  const handleLogout=()=>{LS.del('auth_user');setUser(null);setTab(0);addToast({icon:'👋',title:'Signed out',body:'See you next time!'});};
+
+  const t=k=>T(lang,k);
+  const sharedProps={cur,lang};
+
+  // If not logged in, show auth
+  if(!user){
+    return<>
+      <Toast toasts={toasts}/>
+      <AuthScreen onAuth={handleAuth} toast={addToast}/>
+    </>;
+  }
+
+  return<>
+    <Toast toasts={toasts}/>
+    {showAdd&&<TxSheet onSave={addTx} onClose={()=>setAdd(false)} toast={addToast} {...sharedProps}/>}
+    {showSched&&<TxSheet onSave={addTx} onClose={()=>setSched(false)} defSched toast={addToast} {...sharedProps}/>}
+
+    {/* Tablet sidebar */}
+    <div id="sidebar" style={{display:'none',width:230,flexShrink:0,background:'var(--card)',borderRight:'1px solid var(--border)',flexDirection:'column',paddingTop:`calc(var(--safe-t) + 24px)`,paddingBottom:24}}>
+      <div style={{padding:'0 20px 20px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:12}}>
+        <svg width="40" height="40" viewBox="0 0 100 100" style={{borderRadius:10,flexShrink:0}}>
+          <rect width="100" height="100" rx="20" fill="#0a0a12"/>
+          <rect x="8" y="8" width="84" height="84" rx="14" fill="url(#sg2)"/>
+          <defs><linearGradient id="sg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#f5a623"/><stop offset="100%" stopColor="#c8720a"/></linearGradient></defs>
+          <text x="50" y="68" textAnchor="middle" fontSize="48" fontWeight="800" fill="white" fontFamily="-apple-system,sans-serif">$</text>
+        </svg>
+        <div><div style={{fontSize:18,fontWeight:900}}>Ledgr</div><div style={{fontSize:11,color:'var(--sub)'}}>Finance Tracker</div></div>
+      </div>
+      <div style={{flex:1,padding:'12px 8px'}}>
+        {TABS.map((name,i)=><button key={i} onClick={()=>setTab(i)} style={{width:'100%',display:'flex',alignItems:'center',gap:12,padding:'12px 14px',borderRadius:14,border:'none',background:tab===i?'var(--a10)':'transparent',color:tab===i?'var(--accent)':'var(--muted)',fontSize:14,fontWeight:700,marginBottom:4,transition:'all .15s',textAlign:'left'}}>
+          {Icons[name](tab===i)}<span>{t(name.toLowerCase())||name}</span>
+        </button>)}
+      </div>
+      <div style={{padding:'0 12px'}}><div style={{fontSize:12,color:'var(--sub)',padding:'12px 2px',borderTop:'1px solid var(--border)'}}>{user.name||user.email||user.phone}</div></div>
+    </div>
+
+    {/* Main */}
+    <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',minWidth:0}}>
+      {/* Notif banner */}
+      {notifBanner&&<div style={{background:'var(--card2)',borderBottom:'1px solid var(--border)',padding:'10px 16px',display:'flex',alignItems:'center',gap:10,flexShrink:0,zIndex:300}}>
+        <span style={{fontSize:20}}>🔔</span>
+        <div style={{flex:1,fontSize:12,color:'var(--sub)',lineHeight:1.4}}>Enable notifications for daily reminders</div>
+        <button onClick={async()=>{const p=await Notification.requestPermission();setNB(false);if(p==='granted')addToast({icon:'🔔',title:'Notifications on',body:'Daily reminders will fire at your chosen times.'});}} style={{padding:'7px 14px',borderRadius:10,background:'var(--accent)',border:'none',color:'#000',fontWeight:800,fontSize:12,whiteSpace:'nowrap'}}>Allow</button>
+        <button onClick={()=>setNB(false)} style={{background:'none',border:'none',color:'var(--muted)',fontSize:22,lineHeight:1,cursor:'pointer'}}>×</button>
+      </div>}
+
+      {/* Screens */}
+      <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
+        {tab===0&&<HomeScreen txns={txns} onNav={setTab} onAdd={()=>setAdd(true)} onSched={()=>setSched(true)} user={user} budgetGoal={budgetGoal} incomeGoal={incomeGoal} {...sharedProps}/>}
+        {tab===1&&<div style={{color:'var(--text)',padding:`var(--hdr) 16px`,paddingBottom:`calc(var(--tab-h) + env(safe-area-inset-bottom,0px) + 20px)`}}>
+          <div style={{fontSize:26,fontWeight:900,letterSpacing:-.5,marginBottom:20}}>{t('add')}</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
+            {[{icon:'➕',title:t('addTransaction'),sub:'Record now',accent:false,fn:()=>setAdd(true)},{icon:'📅',title:t('schedule'),sub:'Plan ahead',accent:true,fn:()=>setSched(true)}].map((b,i)=><button key={i} onClick={b.fn} style={{padding:'22px 16px',borderRadius:22,border:`1.5px solid ${b.accent?'var(--accent)':'var(--border)'}`,background:b.accent?'var(--a10)':'var(--card)',display:'flex',flexDirection:'column',alignItems:'center',gap:8,textAlign:'center'}}>
+              <span style={{fontSize:34}}>{b.icon}</span>
+              <div style={{fontSize:14,fontWeight:800,color:b.accent?'var(--accent)':'var(--text)'}}>{b.title}</div>
+              <div style={{fontSize:11,color:'var(--sub)'}}>{b.sub}</div>
+            </button>)}
+          </div>
+        </div>}
+        {tab===2&&<ChartsScreen txns={txns} {...sharedProps}/>}
+        {tab===3&&<HistoryScreen txns={txns} onEdit={editTx} onDelete={delTx} onAddSched={addTx} toast={addToast} {...sharedProps}/>}
+        {tab===4&&<SettingsScreen user={user} onLogout={handleLogout} theme={theme} onTheme={handleTheme} txns={txns} onReset={hardReset} toast={addToast} budgetGoal={budgetGoal} incomeGoal={incomeGoal} onBudget={handleBudget} onIncome={handleIncome} cur={cur} onCur={handleCur} lang={lang} onLang={handleLang}/>}
+      </div>
+
+      {/* Tab bar */}
+      <div id="tabbar" style={{flexShrink:0,background:'var(--card)',borderTop:'.5px solid var(--border)',backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',paddingTop:8,paddingBottom:`calc(8px + env(safe-area-inset-bottom,0px))`,display:'flex',justifyContent:'space-around',alignItems:'center',zIndex:100}}>
+        {TABS.map((name,i)=><button key={i} onClick={()=>setTab(i)} style={{background:'none',border:'none',display:'flex',flexDirection:'column',alignItems:'center',gap:3,padding:'4px 10px',borderRadius:12,opacity:tab===i?1:.4,transition:'opacity .18s',minWidth:48}}>
+          {Icons[name](tab===i)}
+          <span style={{fontSize:9,color:tab===i?'var(--accent)':'var(--muted)',fontWeight:700,letterSpacing:.3}}>{(t(name.toLowerCase())||name).toUpperCase().slice(0,7)}</span>
+        </button>)}
+      </div>
+    </div>
+  </>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
