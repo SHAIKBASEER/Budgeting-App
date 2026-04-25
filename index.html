@@ -84,187 +84,194 @@ const {useState,useEffect,useRef,useMemo,useCallback}=React;
 // CONSTANTS & DATA
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// EmailJS config — ONE template controls all 4 email operations
-// EmailJS Dashboard values
+// EmailJS config — user sets their own in Settings
+// To use real email: create free account at emailjs.com
+// Default: shows OTP on screen (demo mode)
 const EMAILJS_SERVICE='service_e3aq4gh';
+const EMAILJS_TEMPLATE='template_5zywxbh';
 const EMAILJS_PUBLIC_KEY='Edku-DGDzomlJreV6';
-const EMAILJS_TEMPLATE_MAIN='template_d8h2718'; // Single LedgrTrack template
-
-(function initEJS(){try{emailjs.init({publicKey:EMAILJS_PUBLIC_KEY});}catch(e){try{emailjs.init(EMAILJS_PUBLIC_KEY);}catch(_){}}})();
-
-// ━━ SHARED EMAIL SENDER ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-async function ejsSend(params){
-  try{
-    await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE_MAIN, params);
-    return {ok:true};
-  }catch(e){
-    return {ok:false, err:e?.text||e?.message||'EmailJS error'};
-  }
+(function(){try{emailjs.init(EMAILJS_PUBLIC_KEY);}catch(e){}})();
+const symFor=cur=>(typeof CURRENCIES!=='undefined'?CURRENCIES:[]).find(c=>c.code===cur)?.symbol||'$';
+const fmtAmt=(n,cur)=>symFor(cur)+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtNet=(n,cur)=>(n>=0?'+':'')+fmtAmt(n,cur);
+async function sendEmail(toEmail,subject,html){
+  try{await emailjs.send(EMAILJS_SERVICE,EMAILJS_TEMPLATE,{to_email:toEmail,subject,html_content:html});return{ok:true};}
+  catch(e){return{ok:false,err:e?.text||e?.message||'EmailJS error'};}
 }
-
-// Keep HTML safe before sending dynamic HTML blocks into {{{summary_html}}}
-const escHtml=v=>String(v??'').replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]));
-
-// Shared currency formatter (available at module level)
-const symFor=cur=>(CURRENCIES||[]).find(c=>c.code===cur)?.symbol||'$';
-const fmtAmt=(n,cur)=>{const s=symFor(cur);return`${s}${Math.abs(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;};
-const fmtNet=(n,cur)=>`${Number(n)>=0?'+':'-'}${fmtAmt(n,cur)}`;
-
-// ━━ EMAIL 1: OTP — new signup vs returning login ━━━━━━━━━━━━━
+function eShell(body){
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+    +'<body style="margin:0;padding:0;background:#f0f2f5;font-family:Arial,sans-serif">'
+    +'<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0f2f5;padding:28px 12px">'
+    +'<tr><td align="center"><table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px">'
+    +'<tr><td style="background:linear-gradient(135deg,#0a0a12,#1a1530);border-radius:18px 18px 0 0;padding:24px 32px;text-align:center">'
+    +'<table cellpadding="0" cellspacing="0" border="0" align="center"><tr>'
+    +'<td style="background:linear-gradient(135deg,#f5a623,#c8720a);border-radius:12px;width:44px;height:44px;text-align:center;vertical-align:middle;font-size:24px;font-weight:900;color:#fff">$</td>'
+    +'<td style="padding-left:12px;font-size:22px;font-weight:900;color:#f0f0f8;vertical-align:middle">LedgrTrack</td>'
+    +'</tr></table></td></tr>'
+    +'<tr><td style="background:#fff;padding:32px;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb">'+body+'</td></tr>'
+    +'<tr><td style="background:#f9fafb;border-radius:0 0 18px 18px;border:1px solid #e5e7eb;border-top:none;padding:18px 32px;text-align:center">'
+    +'<p style="margin:0 0 4px;font-size:12px;color:#9ca3af"><strong style="color:#6b7280">LedgrTrack</strong> &middot; Personal Finance Tracker</p>'
+    +'<p style="margin:0;font-size:11px;color:#d1d5db">Automated email &mdash; please do not reply</p>'
+    +'</td></tr></table></td></tr></table></body></html>';
+}
+function sRow(icon,label,val,color,last){
+  const b=last?'':'border-bottom:1px solid #f3f4f6;';
+  return '<tr><td style="padding:9px 0;font-size:13px;color:#6b7280;'+b+'">'+icon+' '+label+'</td>'
+    +'<td style="padding:9px 0;text-align:right;font-size:14px;font-weight:700;color:'+(color||'#1f2937')+';'+b+'">'+val+'</td></tr>';
+}
+function ctaBtn(txt){
+  return '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:24px"><tr><td align="center">'
+    +'<a href="https://shaikbaseer.github.io/Budgeting-App/" style="display:inline-block;background:linear-gradient(135deg,#f5a623,#c8720a);color:#000;text-align:center;padding:15px 44px;border-radius:12px;font-size:15px;font-weight:900;text-decoration:none">'+txt+'</a>'
+    +'</td></tr></table>';
+}
 async function sendOTPEmail({toEmail,toName,otp,isNewUser}){
-  const displayName=toName||toEmail.split('@')[0];
-  return ejsSend({
-    to_email:toEmail,
-    to_name:displayName,
-    subject_line:isNewUser?'Verify your LedgrTrack account 🔐':'Sign in to LedgrTrack 👋',
-    main_title:'Your verification code',
-    main_message:isNewUser
-      ?`You're creating your LedgrTrack account. Use this code to verify your email and get started.`
-      :`Welcome back! Use this code to sign in to your LedgrTrack account.`,
-    highlight_value:otp,
-    highlight_label:'Verification code · expires in 5 minutes',
-    summary_title:'Security Notice',
-    summary_html:'If you did not request this code, you can safely ignore this email.<br>Never share your verification code with anyone.',
-    button_text:'Open LedgrTrack →',
-  });
+  const nm=toName||toEmail.split('@')[0]||'there';
+  const subj=isNewUser?'Verify your LedgrTrack account':'Sign in to LedgrTrack';
+  const bg=isNewUser?{c:'#ecfdf5',b:'#6ee7b7',t:'#065f46',l:'New Account'}:{c:'#eff6ff',b:'#bfdbfe',t:'#1e40af',l:'Welcome back'};
+  const msg=isNewUser
+    ?'You're creating your LedgrTrack account. Use the verification code below to confirm your email and get started.'
+    :'We received a sign-in request for your account. Enter the code below to access your budget dashboard.';
+  const body='<table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px"><tr>'
+    +'<td style="background:'+bg.c+';border:1px solid '+bg.b+';border-radius:99px;padding:5px 16px;font-size:12px;font-weight:700;color:'+bg.t+'">'+bg.l+'</td></tr></table>'
+    +'<h1 style="margin:0 0 8px;font-size:26px;font-weight:900;color:#1f2937">Hi '+nm+' &#x1F44B;</h1>'
+    +'<p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.7">'+msg+'</p>'
+    +'<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+    +'<td style="background:linear-gradient(135deg,#f9fafb,#f3f4f6);border-radius:16px;padding:28px 20px;text-align:center;border:1px solid #e5e7eb">'
+    +'<p style="margin:0 0 14px;font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:3px">Verification Code</p>'
+    +'<p style="margin:0;font-size:52px;font-weight:900;letter-spacing:14px;color:#0a0a12;font-family:Courier New,Courier,monospace;line-height:1">'+otp+'</p>'
+    +'<p style="margin:16px 0 0;font-size:13px;color:#9ca3af">Expires in <strong style="color:#6b7280">5 minutes</strong> &middot; Do not share this code</p>'
+    +'</td></tr></table>'
+    +'<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:20px"><tr>'
+    +'<td style="background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;padding:14px 16px">'
+    +'<p style="margin:0;font-size:13px;color:#92400e;line-height:1.6">&#x1F512; <strong>Security tip:</strong> LedgrTrack will never ask for your code via phone or chat.</p>'
+    +'</td></tr></table>';
+  return sendEmail(toEmail,subj,eShell(body));
 }
-
-// ━━ EMAIL 2: Welcome after first signup ━━━━━━━━━━━━━━━━━━━━━
 async function sendWelcomeEmail({toEmail,toName,currency}){
-  return ejsSend({
-    to_email:toEmail,
-    to_name:toName||'there',
-    subject_line:`Welcome to LedgrTrack, ${toName||'there'}! 🎉`,
-    main_title:'Welcome to LedgrTrack! 🎉',
-    main_message:'Your account is ready. Start tracking income, expenses, bills, and reminders in one place.',
-    highlight_value:'Account Ready',
-    highlight_label:`Signed up today · Currency: ${currency||'USD'}`,
-    summary_title:'What you can do now',
-    summary_html:'💰 Track spending and income<br>📊 View budget charts<br>📅 Schedule upcoming bills<br>🔔 Receive budget reminders',
-    button_text:'Start Tracking →',
-  });
+  const nm=toName||'there';
+  const today=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  const subj='Welcome to LedgrTrack, '+nm+'!';
+  function feat(ic,ti,de){return '<td width="46%" style="background:#f9fafb;border-radius:10px;padding:16px;text-align:center;vertical-align:top">'
+    +'<div style="font-size:28px;margin-bottom:8px">'+ic+'</div><div style="font-size:13px;font-weight:700;color:#374151">'+ti+'</div>'
+    +'<div style="font-size:11px;color:#9ca3af;margin-top:4px;line-height:1.4">'+de+'</div></td>';}
+  const body='<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px"><tr>'
+    +'<td style="background:linear-gradient(135deg,#f5a623,#c8720a);border-radius:16px;padding:28px 24px;text-align:center">'
+    +'<p style="margin:0 0 8px;font-size:34px">&#x1F389;</p>'
+    +'<h1 style="margin:0 0 6px;font-size:26px;font-weight:900;color:#000">Welcome, '+nm+'!</h1>'
+    +'<p style="margin:0;font-size:14px;color:rgba(0,0,0,0.72)">Your account is active and ready to use</p>'
+    +'</td></tr></table>'
+    +'<p style="margin:0 0 20px;font-size:15px;color:#4b5563;line-height:1.7">You joined on <strong>'+today+'</strong> with currency <strong>'+(currency||'USD')+'</strong>.</p>'
+    +'<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px">'
+    +'<tr>'+feat('&#x1F4B0;','Track Spending','Log income &amp; expenses instantly')+'<td width="8%"></td>'+feat('&#x1F4CA;','Visual Charts','See exactly where money goes')+'</tr>'
+    +'<tr><td colspan="3" height="10"></td></tr>'
+    +'<tr>'+feat('&#x1F4C5;','Schedule Bills','Set payments with reminders')+'<td width="8%"></td>'+feat('&#x1F514;','Smart Alerts','Daily emails at your chosen time')+'</tr>'
+    +'</table>'
+    +'<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+    +'<td style="background:#f0fdf4;border:1px solid #6ee7b7;border-radius:12px;padding:16px">'
+    +'<p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#065f46">&#x1F4A1; Quick start tip</p>'
+    +'<p style="margin:0;font-size:13px;color:#047857;line-height:1.6">Go to <strong>Settings &rarr; Goals</strong> to set your monthly budget &amp; income targets.</p>'
+    +'</td></tr></table>'+ctaBtn('Open LedgrTrack &rarr;');
+  return sendEmail(toEmail,subj,eShell(body));
 }
-
-// ━━ EMAIL 3: Scheduled transaction due ━━━━━━━━━━━━━━━━━━━━━━
 async function sendScheduledEmail({toEmail,toName,tx,monthIncome,monthExpense,balance,currency,isToday}){
-  const cats=tx.type==='income'?INC_CATS:EXP_CATS;
-  const cat=cats.find(c=>c.id===tx.category)||cats[cats.length-1];
+  const cl=tx.type==='income'?INC_CATS:EXP_CATS;
+  const cat=cl.find(c=>c.id===tx.category)||cl[cl.length-1];
   const net=monthIncome-monthExpense;
   const[rh,rm]=(tx.remindTime||'09:00').split(':');
-  const hr=parseInt(rh,10)||9;const mn=rm||'00';
-  const ap=hr>=12?'PM':'AM';const h12=hr%12||12;
-  const timeStr=`${h12}:${mn} ${ap}`;
-  const urgency=isToday?'⚠️ Due Today':'📅 Due Tomorrow';
-  const amountText=`${tx.type==='income'?'+':'-'}${fmtAmt(tx.amount,currency)}`;
-  const dueDate=new Date(tx.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
-  return ejsSend({
-    to_email:toEmail,
-    to_name:toName||'there',
-    subject_line:`${urgency}: ${cat.icon} ${tx.note||cat.label} — ${amountText}`,
-    main_title:`${urgency}: ${tx.note||cat.label}`,
-    main_message:`This scheduled ${tx.type==='income'?'income':'expense'} is due ${dueDate} at ${timeStr}.`,
-    highlight_value:amountText,
-    highlight_label:`${tx.type==='income'?'Income':'Expense'} · ${cat.label}`,
-    summary_title:"This Month's Summary",
-    summary_html:
-      `💚 Income: ${fmtAmt(monthIncome,currency)}<br>`+
-      `❤️ Expenses: ${fmtAmt(monthExpense,currency)}<br>`+
-      `📈 Net This Month: ${fmtNet(net,currency)}<br>`+
-      `💰 Total Balance: ${fmtNet(balance,currency)}`,
-    button_text:'Open LedgrTrack to Record →',
-  });
+  const hr=parseInt(rh);const ap=hr>=12?'PM':'AM';const h12=hr%12||12;
+  const ts=h12+':'+rm+' '+ap;
+  const amtStr=(tx.type==='income'?'+':'-')+fmtAmt(tx.amount,currency);
+  const ac=tx.type==='income'?'#059669':'#dc2626';
+  const ds=new Date(tx.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  const ul=isToday?'Due Today':'Due Tomorrow';
+  const ui=isToday?'&#x26A0;&#xFE0F;':'&#x1F4C5;';
+  const ub=isToday?'#fef2f2':'#fffbeb';const ubr=isToday?'#fca5a5':'#f59e0b';const ut=isToday?'#7f1d1d':'#92400e';
+  const subj=ul+': '+cat.icon+' '+(tx.note||cat.label)+' - '+amtStr;
+  const body='<h1 style="margin:0 0 6px;font-size:24px;font-weight:900;color:#1f2937">Hi '+(toName||'there')+' &#x1F44B;</h1>'
+    +'<p style="margin:0 0 20px;font-size:14px;color:#6b7280">You have a scheduled transaction requiring attention.</p>'
+    +'<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px"><tr>'
+    +'<td style="background:'+ub+';border:1px solid '+ubr+';border-radius:14px;padding:18px">'
+    +'<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+    +'<td style="width:48px;vertical-align:top;font-size:30px;padding-top:2px">'+cat.icon+'</td>'
+    +'<td style="vertical-align:top">'
+    +'<p style="margin:0 0 5px;font-size:16px;font-weight:900;color:'+ut+'">'+ui+' '+ul+': '+(tx.note||cat.label)+'</p>'
+    +'<p style="margin:0;font-size:13px;color:'+ut+';">'+(tx.type==='income'?'Income':'Expense')+' &middot; '+cat.label+' &middot; '+ds+' at '+ts+'</p>'
+    +'</td></tr></table></td></tr></table>'
+    +'<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px"><tr>'
+    +'<td style="background:linear-gradient(135deg,#f9fafb,#f3f4f6);border-radius:16px;padding:26px;text-align:center;border:1px solid #e5e7eb">'
+    +'<p style="margin:0 0 8px;font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:3px">'+(tx.type==='income'?'Amount to Receive':'Amount to Pay')+'</p>'
+    +'<p style="margin:0;font-size:44px;font-weight:900;color:'+ac+';font-family:Courier New,Courier,monospace;letter-spacing:2px;line-height:1">'+amtStr+'</p>'
+    +'<p style="margin:10px 0 0;font-size:13px;color:#9ca3af">'+cat.label+' &middot; '+ds+'</p>'
+    +'</td></tr></table>'
+    +'<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px"><tr>'
+    +'<td style="background:#f9fafb;border-radius:14px;padding:20px;border:1px solid #f3f4f6">'
+    +'<p style="margin:0 0 14px;font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:1.5px">&#x1F4CA; This Month's Summary</p>'
+    +'<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+    +sRow('&#x1F49A;','Income',fmtAmt(monthIncome,currency),'#059669')
+    +sRow('&#x2764;&#xFE0F;','Expenses',fmtAmt(monthExpense,currency),'#dc2626')
+    +sRow('&#x1F4C8;','Net This Month',fmtNet(net,currency),net>=0?'#059669':'#dc2626')
+    +'<tr><td style="padding:12px 0 0;font-size:15px;font-weight:700;color:#1f2937">&#x1F4B0; Total Balance</td>'
+    +'<td style="padding:12px 0 0;text-align:right;font-size:22px;font-weight:900;color:'+(balance>=0?'#059669':'#dc2626')+'">'+fmtNet(balance,currency)+'</td></tr>'
+    +'</table></td></tr></table>'+ctaBtn('Open LedgrTrack to Record &rarr;');
+  return sendEmail(toEmail,subj,eShell(body));
 }
-
-// ━━ EMAIL 4: Daily budget reminder ━━━━━━━━━━━━━━━━━━━━━━━━━━
 async function sendReminderEmail({toEmail,toName,remindTime,txns,currency}){
   const now=new Date();
   const live=txns.filter(x=>!x.scheduled);
   const mn=live.filter(x=>{const d=new Date(x.date+'T12:00:00');return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
-  const monthIncome=mn.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
-  const monthExpense=mn.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
-  const balance=live.reduce((s,x)=>x.type==='income'?s+x.amount:s-x.amount,0);
-  const net=monthIncome-monthExpense;
-  const daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
-  const daysLeft=daysInMonth-now.getDate();
-  const upcoming=txns.filter(x=>x.scheduled).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,4);
-  const upcomingHtml=upcoming.length>0
-    ?upcoming.map(x=>{const cats=x.type==='income'?INC_CATS:EXP_CATS;const cat=cats.find(c=>c.id===x.category)||cats[cats.length-1];const d=new Date(x.date+'T12:00:00');const days=Math.ceil((d-now)/864e5);return`${escHtml(cat.icon)} ${escHtml(x.note||cat.label)} ${x.type==='income'?'+':'-'}${fmtAmt(x.amount,currency)} (${days<=0?'today':days===1?'tomorrow':'in '+days+' days'})`;}).join('<br>')
-    :'No upcoming scheduled transactions.';
-  return ejsSend({
-    to_email:toEmail,
-    to_name:toName||'there',
-    subject_line:`💰 LedgrTrack Reminder — ${remindTime}, ${now.toLocaleString('default',{month:'long',year:'numeric'})}`,
-    main_title:'Time to update your budget',
-    main_message:`It's ${remindTime} — log your transactions and keep your budget on track.`,
-    highlight_value:fmtNet(balance,currency),
-    highlight_label:'Current total balance',
-    summary_title:`📊 ${now.toLocaleString('default',{month:'long',year:'numeric'})}`,
-    summary_html:
-      `💚 Income: ${fmtAmt(monthIncome,currency)}<br>`+
-      `❤️ Expenses: ${fmtAmt(monthExpense,currency)}<br>`+
-      `📈 Net This Month: ${fmtNet(net,currency)}<br>`+
-      `📋 Transactions logged: ${mn.length}<br>`+
-      `📅 Days left this month: ${daysLeft}<br><br>`+
-      `<strong>Upcoming Scheduled</strong><br>${upcomingHtml}`,
-    button_text:'Add Transactions Now →',
-  });
+  const mi=mn.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
+  const me=mn.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
+  const bal=live.reduce((s,x)=>x.type==='income'?s+x.amount:s-x.amount,0);
+  const net=mi-me;
+  const dl=new Date(now.getFullYear(),now.getMonth()+1,0).getDate()-now.getDate();
+  const ml=now.toLocaleString('default',{month:'long',year:'numeric'});
+  const pct=mi>0?Math.min(Math.round(me/mi*100),100):0;
+  const pc=pct>90?'#dc2626':pct>70?'#f59e0b':'#059669';
+  const up=txns.filter(x=>x.scheduled).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,5);
+  const ur=up.length>0?up.map(x=>{
+    const cl=x.type==='income'?INC_CATS:EXP_CATS;const ct=cl.find(c=>c.id===x.category)||cl[cl.length-1];
+    const days=Math.ceil((new Date(x.date+'T12:00:00')-now)/864e5);
+    const dl2=days<=0?'Today':days===1?'Tomorrow':'In '+days+' days';
+    const ac=x.type==='income'?'#059669':'#dc2626';
+    return '<tr style="border-bottom:1px solid #fde68a">'
+      +'<td style="padding:10px 0;width:32px;font-size:20px;vertical-align:middle">'+ct.icon+'</td>'
+      +'<td style="padding:10px 6px;vertical-align:middle">'
+      +'<p style="margin:0 0 2px;font-size:13px;font-weight:700;color:#1f2937">'+(x.note||ct.label)+'</p>'
+      +'<p style="margin:0;font-size:12px;color:#92400e">'+ct.label+' &middot; '+dl2+'</p></td>'
+      +'<td style="padding:10px 0;text-align:right;font-size:14px;font-weight:700;color:'+ac+';vertical-align:middle">'+(x.type==='income'?'+':'-')+fmtAmt(x.amount,currency)+'</td></tr>';
+  }).join(''):'<tr><td colspan="3" style="padding:10px 0;font-size:13px;color:#9ca3af">No upcoming scheduled transactions</td></tr>';
+  const subj='LedgrTrack Reminder - '+remindTime+', '+ml;
+  const body='<h1 style="margin:0 0 6px;font-size:24px;font-weight:900;color:#1f2937">Hi '+(toName||'there')+' &#x1F44B;</h1>'
+    +'<p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.7">It's <strong>'+remindTime+'</strong> &mdash; time to log your transactions for <strong>'+ml+'</strong>!</p>'
+    +'<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px"><tr>'
+    +'<td style="background:#f9fafb;border-radius:16px;padding:22px;border:1px solid #f3f4f6">'
+    +'<p style="margin:0 0 16px;font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:1.5px">&#x1F4CA; '+ml+'</p>'
+    +'<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+    +sRow('&#x1F49A;','Income',fmtAmt(mi,currency),'#059669')
+    +sRow('&#x2764;&#xFE0F;','Expenses',fmtAmt(me,currency),'#dc2626')
+    +sRow('&#x1F4C8;','Net This Month',fmtNet(net,currency),net>=0?'#059669':'#dc2626')
+    +'<tr><td style="padding:10px 0 6px;font-size:15px;font-weight:700;color:#1f2937">&#x1F4B0; Total Balance</td>'
+    +'<td style="padding:10px 0 6px;text-align:right;font-size:20px;font-weight:900;color:'+(bal>=0?'#059669':'#dc2626')+'">'+fmtNet(bal,currency)+'</td></tr>'
+    +'</table>'
+    +'<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:6px">'
+    +'<tr><td style="padding-bottom:6px"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+    +'<td style="font-size:12px;color:#6b7280">&#x1F4CB; '+mn.length+' transaction'+(mn.length!==1?'s':'')+' logged</td>'
+    +'<td style="text-align:right;font-size:12px;color:'+pc+';font-weight:700">'+pct+'% of income spent</td>'
+    +'</tr></table></td></tr>'
+    +'<tr><td style="background:#e5e7eb;border-radius:99px;height:8px;overflow:hidden">'
+    +'<table cellpadding="0" cellspacing="0" border="0" style="width:'+Math.max(pct,2)+'%;height:8px"><tr><td style="background:'+pc+';border-radius:99px"></td></tr></table>'
+    +'</td></tr>'
+    +'<tr><td style="padding-top:6px;font-size:12px;color:#9ca3af">&#x1F4C5; '+dl+' day'+(dl!==1?'s':'')+' remaining this month</td></tr>'
+    +'</table></td></tr></table>'
+    +'<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:4px"><tr>'
+    +'<td style="background:#fffbeb;border:1px solid #fcd34d;border-radius:14px;padding:18px">'
+    +'<p style="margin:0 0 12px;font-size:11px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:1.5px">&#x1F4C5; Upcoming Scheduled</p>'
+    +'<table width="100%" cellpadding="0" cellspacing="0" border="0">'+ur+'</table>'
+    +'</td></tr></table>'+ctaBtn('Add Transactions Now &rarr;')
+    +'<p style="margin:20px 0 0;font-size:12px;color:#9ca3af;text-align:center">You set this reminder for <strong style="color:#6b7280">'+remindTime+'</strong> daily &middot; Manage in Settings &rarr; Notifications</p>';
+  return sendEmail(toEmail,subj,eShell(body));
 }
 
-
-
-// ━━ SCHEDULED TRANSACTION REMINDER ENGINE ━━━━━━━━━━━━━━━━━━━
-// Checks scheduled transactions and fires email at their remindTime
-function useScheduledReminders(txns,user,cur){
-  const fired=useRef(new Set());
-  useEffect(()=>{
-    if(!user?.email)return;
-    const check=()=>{
-      const now=new Date();
-      const todayStr2=now.toISOString().split('T')[0];
-      const tomorrowStr=new Date(now.getTime()+864e5).toISOString().split('T')[0];
-      txns.filter(x=>x.scheduled&&x.notifyWhenDue&&x.remindTime).forEach(async x=>{
-        const isToday=x.date===todayStr2;
-        const isTomorrow=x.date===tomorrowStr;
-        if(!isToday&&!isTomorrow)return;
-        // Parse reminder time
-        const[rh,rm]=x.remindTime.split(':').map(Number);
-        const fireAt=new Date(now);
-        fireAt.setHours(rh,rm,0,0);
-        // Fire within a 1-minute window
-        const diff=Math.abs(now-fireAt);
-        const key=`sched_email_${x.id}_${todayStr2}_${x.remindTime}`;
-        if(diff<60000&&!fired.current.has(key)){
-          fired.current.add(key);
-          const live=txns.filter(t=>!t.scheduled);
-          const mnow=new Date();
-          const monthLive=live.filter(t=>{const d=new Date(t.date+'T12:00:00');return d.getMonth()===mnow.getMonth()&&d.getFullYear()===mnow.getFullYear();});
-          const monthIncome=monthLive.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-          const monthExpense=monthLive.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
-          const balance=live.reduce((s,t)=>t.type==='income'?s+t.amount:s-t.amount,0);
-          const body=buildReminderEmailBody({
-            userName:user.name,type:x.type,amount:x.amount,note:x.note,
-            category:x.category,dueDate:x.date,
-            remindType:isToday?'today':'tomorrow',
-            monthIncome,monthExpense,balance,currency:cur,
-          });
-          const remindType=isToday?'Due Today':'Due Tomorrow';
-          const cat=x.type==='income'?INC_CATS.find(c=>c.id===x.category):EXP_CATS.find(c=>c.id===x.category);
-          await sendScheduledEmail({
-            toEmail:user.email,
-            toName:user.name,
-            tx:x,
-            monthIncome,monthExpense,balance,
-            currency:cur,
-            isToday,
-          });
-        }
-      });
-    };
-    check();
-    const iv=setInterval(check,30000);// check every 30s
-    return()=>clearInterval(iv);
-  },[txns,user,cur]);
-}
 const CURRENCIES=[
   {code:'USD',symbol:'$',name:'US Dollar',locale:'en-US'},
   {code:'EUR',symbol:'€',name:'Euro',locale:'de-DE'},
@@ -558,65 +565,34 @@ const Icons={
   Settings:a=><svg width={22} height={22} viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2" strokeLinecap="round"/></svg>,
 };
 const TABS=['Home','Add','Charts','History','Settings'];
-
-// ━━ VOICE COMMAND PARSER ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function parseVoice(text){
-  const t=text.toLowerCase();
-  const amtMatch=text.match(/\$?(\d+(?:\.\d{1,2})?)/);
-  const amount=amtMatch?parseFloat(amtMatch[1]):null;
-  const type=/earn|receiv|got paid|income|salary|deposit|freelan|invest|dividend|gift/i.test(t)?'income':'expense';
-  const catMap=[
-    {id:'food',      words:['food','lunch','dinner','breakfast','restaurant','eat','coffee','pizza','burger','snack','café','cafe','meal','grocery','grocer','chipotle','starbucks','doordash','uber eat']},
-    {id:'transport', words:['uber','lyft','taxi','bus','metro','subway','gas','fuel','parking','toll','train','flight','ride','transport']},
-    {id:'bills',     words:['bill','electric','water','internet','wifi','phone bill','utility','rent','netflix','spotify','subscri','amazon prime']},
-    {id:'shopping',  words:['shop','cloth','amazon','online','store','mall','purchase','bought','buy']},
-    {id:'health',    words:['doctor','pharmacy','medicine','gym','health','medical','dentist','hospital','drug','vitamin']},
-    {id:'entertainment',words:['movie','concert','game','fun','show','ticket','club','entertain']},
-    {id:'education', words:['course','book','school','tuition','class','learn','study','udemy','coursera']},
-    {id:'travel',    words:['travel','hotel','flight','vacation','trip','airbnb']},
-    {id:'salary',    words:['salary','paycheck','wage','pay']},
-    {id:'freelance', words:['freelance','project','client','invoice','contract']},
-    {id:'investment',words:['dividend','stock','crypto','interest','invest']},
-    {id:'gift',      words:['gift','present','birthday money']},
-  ];
-  let category='other';
-  for(const c of catMap){if(c.words.some(w=>t.includes(w))){category=c.id;break;}}
-  const note=text.replace(/\$?\d+(?:\.\d{1,2})?\s*(?:dollars?|bucks?|usd)?/gi,'').replace(/\b(spent|paid|bought|received|earned|got|on|for|at|the|a|an|i|my|just)\b/gi,'').replace(/\s+/g,' ').trim().slice(0,40)||null;
+  const t=text.toLowerCase();const am=text.match(/[\$]?(\d+(?:[.]\d{1,2})?)/);
+  const amount=am?parseFloat(am[1]):null;
+  const isInc=/earn|receiv|got paid|income|salary|deposit|freelan|invest|dividend|gift/i.test(t);
+  const type=isInc?'income':'expense';
+  const cm=[{id:'food',w:['food','lunch','dinner','breakfast','restaurant','coffee','pizza','grocery','chipotle','starbucks']},{id:'transport',w:['uber','lyft','bus','metro','gas','fuel','parking','train']},{id:'bills',w:['bill','electric','water','internet','rent','netflix','spotify']},{id:'shopping',w:['shop','cloth','amazon','online','store','bought']},{id:'health',w:['doctor','pharmacy','medicine','gym','health','dental']},{id:'entertainment',w:['movie','concert','game','fun','show','ticket']},{id:'education',w:['course','book','school','tuition','study']},{id:'travel',w:['travel','hotel','flight','vacation','trip']},{id:'salary',w:['salary','paycheck','wage']},{id:'freelance',w:['freelance','project','client','invoice']},{id:'investment',w:['dividend','stock','crypto','invest']}];
+  let category='other';for(const c of cm){if(c.w.some(w=>t.includes(w))){category=c.id;break;}}
+  const note=text.replace(/[\$]?\d+(?:[.]\d{1,2})?\s*(?:dollars?|bucks?)?/gi,'').replace(/\b(spent|paid|bought|received|earned|got|on|for|at|the|a|an|i|my|just)\b/gi,'').replace(/\s+/g,' ').trim().slice(0,40)||null;
   return{amount,type,category,note};
 }
-
 function VoiceButton({onResult,toast}){
-  const [listening,setListening]=useState(false);
-  const [supported]=useState(()=>'webkitSpeechRecognition' in window||'SpeechRecognition' in window);
+  const [listening,setL]=useState(false);
+  const sup='webkitSpeechRecognition' in window||'SpeechRecognition' in window;
   const recRef=useRef(null);
-
-  const start=()=>{
-    if(!supported){toast({icon:'❌',title:'Voice not supported',body:'Your browser does not support voice input. Try Chrome.',err:true});return;}
+  const go=()=>{
+    if(!sup){toast({icon:'X',title:'Not supported',body:'Try Chrome on Android or desktop.',err:true});return;}
     const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-    const rec=new SR();
-    recRef.current=rec;
-    rec.lang='en-US';rec.interimResults=false;rec.maxAlternatives=1;
-    rec.onstart=()=>setListening(true);
-    rec.onend=()=>setListening(false);
-    rec.onerror=e=>{setListening(false);toast({icon:'❌',title:'Voice error',body:e.error==='not-allowed'?'Microphone permission denied — check browser settings.':e.error,err:true});};
-    rec.onresult=e=>{
-      const transcript=e.results[0][0].transcript;
-      toast({icon:'🎤',title:'Heard: "'+transcript+'"',body:'Parsing your transaction…'});
-      const parsed=parseVoice(transcript);
-      onResult(parsed,transcript);
-    };
-    rec.start();
+    const r=new SR();recRef.current=r;r.lang='en-US';r.interimResults=false;r.maxAlternatives=1;
+    r.onstart=()=>setL(true);r.onend=()=>setL(false);
+    r.onerror=e=>{setL(false);toast({icon:'X',title:'Mic error',body:e.error==='not-allowed'?'Microphone blocked - check browser settings':e.error,err:true});};
+    r.onresult=e=>{const t=e.results[0][0].transcript;toast({icon:'mic',title:'Heard: "'+t+'"',body:'Parsing your transaction...'});onResult(parseVoice(t),t);};
+    r.start();
   };
-  const stop=()=>{recRef.current?.stop();setListening(false);};
-
-  if(!supported)return null;
-  return(
-    <button onClick={listening?stop:start} style={{width:'100%',padding:'14px',borderRadius:16,border:`1.5px solid ${listening?'var(--red)':'var(--border2)'}`,background:listening?'var(--r10)':'var(--card)',color:listening?'var(--red)':'var(--sub)',fontSize:14,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',gap:10,transition:'all .2s',animation:listening?'pulse 1s infinite':undefined}}>
-      {listening
-        ?<><span style={{width:10,height:10,borderRadius:'50%',background:'var(--red)',animation:'pulse 1s infinite',display:'inline-block'}}/>Listening… tap to stop</>
-        :<>🎤 Add by Voice — speak naturally</>}
-    </button>
-  );
+  const stop=()=>{recRef.current?.stop();setL(false);};
+  if(!sup)return null;
+  return<button onClick={listening?stop:go} style={{width:'100%',padding:'14px',borderRadius:16,border:'1.5px solid '+(listening?'var(--red)':'var(--border2)'),background:listening?'var(--r10)':'var(--card)',color:listening?'var(--red)':'var(--sub)',fontSize:14,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',gap:10,transition:'all .2s'}}>
+    {listening?<><span style={{width:10,height:10,borderRadius:'50%',background:'var(--red)',display:'inline-block'}}/>Listening... tap to stop</>:<>mic Add by Voice — say "spent $50 on groceries"</>}
+  </button>;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -640,18 +616,9 @@ function AuthScreen({onAuth,toast}){
 
   const sendEmailOTP=async(addr,otp,isNewUser)=>{
     toast({icon:'⏳',title:'Sending code…',body:`Delivering to ${addr}`});
-    const res=await sendOTPEmail({
-      toEmail:addr,
-      toName:name||addr.split('@')[0],
-      otp,
-      isNewUser
-    });
-    if(res.ok){
-      toast({icon:'📧',title:'Code sent to your email!',body:`Check ${addr} — enter the 6-digit code. Check spam if not received.`});
-      return true;
-    }
-    // Fallback — still show code so user is not locked out while testing
-    toast({icon:'⚠️',title:`Email issue — your code: ${otp}`,body:`Could not deliver to ${addr}. Use this code to sign in now. (${res.err||'check EmailJS dashboard'})`,warn:true});
+    const res=await sendOTPEmail({toEmail:addr,toName:name||addr.split('@')[0],otp,isNewUser});
+    if(res.ok){toast({icon:'📧',title:isNewUser?'Welcome! Check your email':'Code sent!',body:`Check ${addr} for your code. Check spam if needed.`});}
+    else{toast({icon:'⚠️',title:`Code: ${otp}`,body:`Email failed (${res.err||'check EmailJS'}). Use this code to sign in.`,warn:true});}
     return true;
   };
 
@@ -683,15 +650,11 @@ function AuthScreen({onAuth,toast}){
     setOtpChannel('phone');setMode('otp');setLoading(false);
   };
 
-  const handleOtpVerify=async()=>{
+  const handleOtpVerify=()=>{
     if(otpInput===generatedOtp){
       const user={name:name||email.split('@')[0]||`User`,email:otpChannel==='email'?email:'',phone:otpChannel==='phone'?`${countryCode.code}${phone}`:'',countryCode:countryCode.code,verified:true,uid:`user_${Date.now()}`};
       LS.set('auth_user',user);
       toast({icon:'🎉',title:`Welcome${name?`, ${name}`:''}!`,body:'You\'re signed in to Ledgr.'});
-      // Send welcome email only for brand-new email signup users
-      if(!isLogin && otpChannel==='email'){
-        sendWelcomeEmail({toEmail:user.email,toName:user.name,currency:LS.get('currency','USD')});
-      }
       onAuth(user);
     }else{
       toast({icon:'❌',title:'Wrong code',body:'The verification code is incorrect. Try again.',err:true});
@@ -898,13 +861,13 @@ function TxSheet({tx,onSave,onClose,defSched=false,toast,cur='USD',lang='en',voi
     {sched&&<div style={{padding:'0 16px 12px'}}>
       <div style={{background:'var(--card2)',borderRadius:14,padding:'12px 14px',border:'1px solid var(--border)'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:notify?12:0}}>
-          <div><div style={{fontSize:14,fontWeight:700}}>🔔 Email reminder when due</div><div style={{fontSize:11,color:'var(--sub)',marginTop:2}}>Get an email notification on due date</div></div>
+          <div><div style={{fontSize:14,fontWeight:700}}>Email reminder when due</div><div style={{fontSize:11,color:'var(--sub)',marginTop:2}}>Get an email on the due date</div></div>
           <Tog on={notify} fn={()=>setNotify(!notify)}/>
         </div>
         {notify&&<div>
-          <div style={{fontSize:10,color:'var(--muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>⏰ Reminder time on due date</div>
-          <input type="time" value={remindTime} onChange={e=>setRemindTime(e.target.value)} style={{width:'100%',background:'var(--card)',border:'1px solid var(--border2)',borderRadius:10,color:'var(--text)',fontSize:15,padding:'10px 14px',outline:'none',fontWeight:700}}/>
-          <div style={{fontSize:11,color:'var(--muted)',marginTop:6}}>You'll receive an email at this time on {date?new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}):'the due date'}</div>
+          <div style={{fontSize:10,color:'var(--muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>Send reminder at</div>
+          <input type="time" value={remindTime} onChange={e=>setRemindTime(e.target.value)} style={{width:'100%',background:'var(--card)',border:'1px solid var(--border2)',borderRadius:10,color:'var(--text)',fontSize:16,padding:'10px 14px',outline:'none',fontWeight:700}}/>
+          <div style={{fontSize:11,color:'var(--muted)',marginTop:6}}>An email will be sent at this exact time on the due date</div>
         </div>}
       </div>
     </div>}
@@ -1200,88 +1163,84 @@ function SettingsScreen({user,onLogout,theme,onTheme,txns,onReset,toast,budgetGo
   const [notifEmail,setNotifEmail]=useState(()=>LS.get('notif_email','')||user?.email||'');
   const [notifPhone,setNotifPhone]=useState(()=>LS.get('notif_phone','')||user?.phone||'');
 
-  // ── Build a rich reminder message body ──────────────────────
-  const buildReminderBody=(ts)=>{
-    const live2=txns.filter(x=>!x.scheduled);
-    const now2=new Date();
-    const mn=live2.filter(x=>{const d=new Date(x.date+'T12:00:00');return d.getMonth()===now2.getMonth()&&d.getFullYear()===now2.getFullYear();});
-    const monthIncome=mn.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
-    const monthExpense=mn.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
-    const balance=live2.reduce((s,x)=>x.type==='income'?s+x.amount:s-x.amount,0);
-    const upcoming2=txns.filter(x=>x.scheduled).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,4);
-    const sym=CURRENCIES.find(c=>c.code===cur)?.symbol||'$';
-    const fmt2=n=>`${sym}${Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2})}`;
-    const upcomingList=upcoming2.map(x=>{const cat=getCat(x.type,x.category);return{emoji:cat.icon,note:x.note||cat.label,amtStr:`${x.type==='income'?'+':'-'}${fmt2(x.amount)}`,dateStr:new Date(x.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})};});
-    const emailBody=buildDailyReminderBody({userName:user?.name,monthIncome,monthExpense,balance,currency:cur,upcomingList});
-    const smsText=`\u{1F4B0} LedgrTrack ${ts}: Income ${fmt2(monthIncome)} | Expenses ${fmt2(monthExpense)} | Balance ${fmt2(balance)}. Open app!`;
-    const subject=`\u{1F4CA} LedgrTrack Daily Reminder \u2014 ${ts}`;
-    return{emailBody,smsText,subject};
-  };
-
+  // ── Fire all enabled channels ────────────────────────────────
   const fireAllChannels=async(ts)=>{
-    const{emailBody,smsText,subject}=buildReminderBody(ts);
     if(notifEn.push){
-      toast({icon:'\uD83D\uDD14',title:`\u{1F4B0} LedgrTrack \u2014 ${ts}`,body:'Time to log your transactions!'});
-      if('Notification' in window&&Notification.permission==='granted'){try{new Notification(`\u{1F4B0} LedgrTrack \u2014 ${ts}`,{body:'Tap to open and log your transactions!',tag:`ledgr-${ts}`});}catch(e){}}
+      toast({icon:'bell',title:'LedgrTrack '+ts,body:'Time to log your transactions!'});
+      if('Notification' in window&&Notification.permission==='granted'){try{new Notification('LedgrTrack '+ts,{body:'Tap to open and log!',tag:'ledgr-'+ts});}catch(e){}}
     }
     if(notifEn.email&&notifEmail){
       const res=await sendReminderEmail({toEmail:notifEmail,toName:user?.name,remindTime:ts,txns,currency:cur});
-      if(res.ok)toast({icon:'📧',title:`${ts} — Reminder emailed!`,body:`Sent to ${notifEmail}`});
-      else toast({icon:'⚠️',title:'Email failed',body:res.err||'Check EmailJS',warn:true});
-      if(res.ok)toast({icon:'\uD83D\uDCE7',title:`${ts} \u2014 Email sent!`,body:`Reminder delivered to ${notifEmail}`});
-      else{window.open(`mailto:${notifEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`);toast({icon:'\uD83D\uDCE7',title:'Email opened',body:'Mail app opened as fallback',warn:true});}
+      if(res.ok)toast({icon:'mail',title:ts+' - Email sent!',body:'Reminder delivered to '+notifEmail});
+      else toast({icon:'warn',title:'Email failed',body:res.err||'Check EmailJS',warn:true});
     }
     if(notifEn.sms&&notifPhone){
-      window.open(`sms:${notifPhone}?body=${encodeURIComponent(smsText)}`);
-      toast({icon:'\uD83D\uDCAC',title:`${ts} \u2014 SMS opened`,body:`Reminder ready for ${notifPhone}`});
+      const sym=symFor(cur);
+      const live=txns.filter(x=>!x.scheduled);
+      const mn=live.filter(x=>{const d=new Date(x.date+'T12:00:00');return d.getMonth()===new Date().getMonth();});
+      const mi=mn.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
+      const me=mn.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
+      const bal=live.reduce((s,x)=>x.type==='income'?s+x.amount:s-x.amount,0);
+      const sms='LedgrTrack '+ts+': Income '+sym+mi.toFixed(0)+' | Expenses '+sym+me.toFixed(0)+' | Balance '+sym+bal.toFixed(0)+'. Open app!';
+      window.open('sms:'+notifPhone+'?body='+encodeURIComponent(sms));
+      toast({icon:'sms',title:ts+' - SMS opened',body:'Ready for '+notifPhone});
     }
   };
 
+    // ── Schedule all reminder times ──────────────────────────────
   const scheduleAll=()=>{
     timerRef.current.forEach(x=>{clearTimeout(x);clearInterval(x);});timerRef.current=[];
-    if(!activeTimes.length){toast({icon:'\u26A0\uFE0F',title:'No times selected',body:'Pick at least one reminder time below.',warn:true});return;}
+    if(!activeTimes.length){toast({icon:'⚠️',title:'No times selected',body:'Pick at least one reminder time below.',warn:true});return;}
     const enabledChannels=[];
-    if(notifEn.push)enabledChannels.push('\uD83D\uDCF1 Push');
-    if(notifEn.email&&notifEmail)enabledChannels.push('\uD83D\uDCE7 Email');
-    if(notifEn.sms&&notifPhone)enabledChannels.push('\uD83D\uDCAC SMS');
-    if(!enabledChannels.length){toast({icon:'\u26A0\uFE0F',title:'No channels active',body:'Enable at least one channel and set email/phone.',warn:true});return;}
+    if(notifEn.push)enabledChannels.push('📱 Push');
+    if(notifEn.email&&notifEmail)enabledChannels.push('📧 Email');
+    if(notifEn.sms&&notifPhone)enabledChannels.push('💬 SMS');
+    if(!enabledChannels.length){toast({icon:'⚠️',title:'No channels active',body:'Enable Push, Email, or SMS above — and make sure email/phone are set.',warn:true});return;}
+
     activeTimes.forEach(ts=>{
-      const{h,m}=parseT(ts);const now2=new Date();const nxt=new Date(now2);
+      const{h,m}=parseT(ts);
+      const now2=new Date();const nxt=new Date(now2);
       nxt.setHours(h,m,0,0);if(nxt<=now2)nxt.setDate(nxt.getDate()+1);
+      const delay=nxt-now2;
       const tid=setTimeout(async()=>{
         await fireAllChannels(ts);
+        // Repeat every 24h
         const iv=setInterval(()=>fireAllChannels(ts),86400000);
         timerRef.current.push(iv);
-      },nxt-now2);
+      },delay);
       timerRef.current.push(tid);
     });
-    LS.set('notif_times',activeTimes);LS.set('notif_email',notifEmail);LS.set('notif_phone',notifPhone);LS.set('notif_en',notifEn);
+
+    LS.set('notif_times',activeTimes);
+    LS.set('notif_email',notifEmail);
+    LS.set('notif_phone',notifPhone);
+    LS.set('notif_en',notifEn);
     setSaving(true);setTimeout(()=>setSaving(false),2000);
-    toast({icon:'\u2705',title:'Reminders scheduled!',body:`${activeTimes.length} time${activeTimes.length>1?'s':''} \u00B7 ${enabledChannels.join(', ')}`});
+
+    const minStr=activeTimes.length===1?activeTimes[0]:`${activeTimes[0]} – ${activeTimes[activeTimes.length-1]}`;
+    toast({icon:'✅',title:'Reminders scheduled!',body:`${activeTimes.length} time${activeTimes.length>1?'s':''} · Channels: ${enabledChannels.join(', ')}`});
   };
 
+  // ── Test each channel individually ───────────────────────────
   const testPush=()=>{
-    toast({icon:'\uD83D\uDD14',title:'\u2705 Push Working',body:`LedgrTrack has ${txns.filter(x=>!x.scheduled).length} transactions logged.`});
-    if('Notification' in window&&Notification.permission==='granted'){try{new Notification('\uD83D\uDCB0 LedgrTrack Test',{body:'Push working! \u2713',tag:'ledgr-test'});}catch(e){}}
+    toast({icon:'🔔',title:'Test — Push Notification',body:`Ledgr has ${txns.filter(x=>!x.scheduled).length} transactions. Reminders will fire at your chosen times.`});
+    if('Notification' in window&&Notification.permission==='granted'){try{new Notification('💰 Ledgr Test',{body:'Push notifications are working! ✓',tag:'ledgr-test'});}catch(e){}}
     setTS('push');setTimeout(()=>setTS(''),3000);
   };
   const testEmail=async()=>{
     const addr=notifEmail||user?.email;
-    if(!addr){toast({icon:'\u274C',title:'No email set',body:'Enter your email in the Email field above.',err:true});return;}
+    if(!addr){toast({icon:'❌',title:'No email set',body:'Enter your email below first.',err:true});return;}
     setTS('email');
-    const res=await sendReminderEmail({toEmail:addr,toName:user?.name,remindTime:'Test',txns,currency:cur});
-    if(res.ok)toast({icon:'📧',title:'✅ Test sent!',body:`Check ${addr} — beautiful reminder email delivered!`});
-    else toast({icon:'⚠️',title:'Test failed',body:res.err||'Update template IDs',warn:true});
-    if(res.ok)toast({icon:'\uD83D\uDCE7',title:'\u2705 Test email sent!',body:`Check ${addr} for your test reminder.`});
-    else{window.open(`mailto:${addr}?subject=${encodeURIComponent('[TEST] LedgrTrack Reminder')}&body=${encodeURIComponent(emailBody)}`);toast({icon:'\uD83D\uDCE7',title:'Mail app opened',body:'EmailJS fallback.',warn:true});}
+    const res=await sendReminderEmail({toEmail:addr,toName:user?.name,remindTime:"Test",txns,currency:cur});
+    if(res.ok)toast({icon:'mail',title:'Test email sent!',body:'Check '+addr+' for your beautiful reminder!'});
+    else toast({icon:'warn',title:'Test failed',body:res.err||'Check EmailJS',warn:true});
     setTimeout(()=>setTS(''),4000);
   };
   const testSMS=()=>{
     const ph=notifPhone||user?.phone;
-    if(!ph){toast({icon:'\u274C',title:'No phone set',body:'Enter your phone number above.',err:true});return;}
-    const{smsText}=buildReminderBody('Test');
-    window.open(`sms:${ph}?body=${encodeURIComponent('[TEST] '+smsText)}`);
-    toast({icon:'\uD83D\uDCAC',title:'\u2705 SMS app opened',body:`Test message ready for ${ph}`});
+    if(!ph){toast({icon:'❌',title:'No phone set',body:'Enter your phone number below first.',err:true});return;}
+    // SMS test
+    sendViaSMS(ph,`[TEST] ${sms}`,'Test');
     setTS('sms');setTimeout(()=>setTS(''),3000);
   };
 
@@ -1559,27 +1518,11 @@ function App(){
   const [notifBanner,setNB]=useState(()=>'Notification' in window&&Notification.permission==='default');
 
   useEffect(()=>{applyTheme(theme);},[theme]);
-  // Use scheduled transaction reminder engine
-  useScheduledReminders(txns,user,cur);
   useEffect(()=>{LS.set('budget_tab',tab);},[tab]);
-  useEffect(()=>{
-    LS.set('budget_txns',txns);
-    // Also save under user key for persistence across logins
-    const uk=LS.get('active_user_key','');
-    if(uk)LS.set(`txns_${uk}`,txns);
-  },[txns]);
-  useEffect(()=>{
-    const uk=LS.get('active_user_key','');
-    if(uk){LS.set(`budget_goal_${uk}`,budgetGoal);LS.set(`income_goal_${uk}`,incomeGoal);}
-  },[budgetGoal,incomeGoal]);
-  useEffect(()=>{
-    const uk=LS.get('active_user_key','');
-    if(uk)LS.set(`currency_${uk}`,cur);
-  },[cur]);
-  useEffect(()=>{
-    const uk=LS.get('active_user_key','');
-    if(uk)LS.set(`theme_${uk}`,theme);
-  },[theme]);
+  useEffect(()=>{LS.set('budget_txns',txns);const uk=LS.get('active_user_key','');if(uk)LS.set('txns_'+uk,txns);},[txns]);
+  useEffect(()=>{const uk=LS.get('active_user_key','');if(uk){LS.set('budget_goal_'+uk,budgetGoal);LS.set('income_goal_'+uk,incomeGoal);}},[budgetGoal,incomeGoal]);
+  useEffect(()=>{const uk=LS.get('active_user_key','');if(uk)LS.set('currency_'+uk,cur);},[cur]);
+  useEffect(()=>{const uk=LS.get('active_user_key','');if(uk)LS.set('theme_'+uk,theme);},[theme]);
 
   // Splash
   useEffect(()=>{setTimeout(()=>{const s=document.getElementById('splash');if(s){s.classList.add('hide');setTimeout(()=>s.remove(),500);}},1200);},[]);
@@ -1609,7 +1552,11 @@ function App(){
     check();const iv=setInterval(check,60000);return()=>clearInterval(iv);
   },[txns,cur]);
 
-
+  const addToast=useCallback(t=>{
+    const id=Date.now()+Math.random();
+    setToasts(p=>[...p.slice(-2),{...t,id}]);
+    setTimeout(()=>setToasts(p=>p.filter(x=>x.id!==id)),5500);
+  },[]);
 
   const handleTheme=th=>{setTheme(th);LS.set('budget_theme',th);applyTheme(th);};
   const handleBudget=v=>{setBudget(v);LS.set('budget_goal',v);};
@@ -1627,39 +1574,23 @@ function App(){
     setTxns([]);setTheme(THEMES[0]);applyTheme(THEMES[0]);setBudget(0);setIncome(0);setCur('USD');setLang('en');setTab(0);setUser(null);
   };
 
-  // addToast MUST be defined before handleAuth so it works on login
-  const addToast=t=>{
-    const id=Date.now()+Math.random();
-    setToasts(p=>[...p.slice(-2),{...t,id}]);
-    setTimeout(()=>setToasts(p=>p.filter(x=>x.id!==id)),5500);
-  };
-
   const handleAuth=u=>{
-    // Load this user's saved data by their email/phone key
-    const userKey=u.email||u.phone||u.uid;
-    const savedTxns=LS.get(`txns_${userKey}`,null);
-    const savedBudget=LS.get(`budget_goal_${userKey}`,null);
-    const savedIncome=LS.get(`income_goal_${userKey}`,null);
-    const savedCur=LS.get(`currency_${userKey}`,null);
-    const savedTheme=LS.get(`theme_${userKey}`,null);
-    // Restore saved data or keep seed
-    if(savedTxns!==null){setTxns(savedTxns);}
-    if(savedBudget!==null){setBudget(savedBudget);LS.set('budget_goal',savedBudget);}
-    if(savedIncome!==null){setIncome(savedIncome);LS.set('income_goal',savedIncome);}
-    if(savedCur!==null){setCur(savedCur);LS.set('currency',savedCur);}
-    if(savedTheme!==null){setTheme(savedTheme);applyTheme(savedTheme);LS.set('budget_theme',savedTheme);}
-    // Set user key FIRST so save effects can use it immediately
-    LS.set('active_user_key',userKey);
-    LS.set('auth_user',u);
+    const uk=u.email||u.phone||u.uid;
+    LS.set('active_user_key',uk);LS.set('auth_user',u);
+    const st=LS.get('txns_'+uk,null);
+    const sb=LS.get('budget_goal_'+uk,null);
+    const si=LS.get('income_goal_'+uk,null);
+    const sc=LS.get('currency_'+uk,null);
+    const sth=LS.get('theme_'+uk,null);
+    if(st!==null){setTxns(st);LS.set('budget_txns',st);}
+    if(sb!==null){setBudget(sb);LS.set('budget_goal',sb);}
+    if(si!==null){setIncome(si);LS.set('income_goal',si);}
+    if(sc!==null){setCur(sc);LS.set('currency',sc);}
+    if(sth!==null){setTheme(sth);applyTheme(sth);}
     setUser(u);
-    // Apply restored data synchronously to localStorage too
-    if(savedTxns!==null){LS.set('budget_txns',savedTxns);}
-    const isReturning=savedTxns!==null&&savedTxns.length>0;
-    // Send welcome email for brand new users
-    if(!isReturning&&u.email){
-      setTimeout(()=>sendWelcomeEmail({toEmail:u.email,toName:u.name,currency:LS.get('currency','USD')}),1000);
-    }
-    setTimeout(()=>addToast({icon:isReturning?'👋':'🎉',title:isReturning?`Welcome back, ${u.name||''}!`:`Welcome to LedgrTrack, ${u.name||''}!`,body:isReturning?'Your data has been restored.':'Account ready! Check your email for a welcome message.'}),300);
+    const isNew=st===null||st.length===0;
+    if(isNew&&u.email)setTimeout(()=>sendWelcomeEmail({toEmail:u.email,toName:u.name,currency:LS.get('currency','USD')}),1500);
+    setTimeout(()=>addToast({icon:isNew?'new':'back',title:isNew?'Welcome, '+(u.name||'')+'!':'Welcome back, '+(u.name||'')+'!',body:isNew?'Check your email for a welcome message!':'Your budget data has been restored.'}),300);
   };
   const handleLogout=()=>{LS.del('auth_user');setUser(null);setTab(0);addToast({icon:'👋',title:'Signed out',body:'See you next time!'});};
 
@@ -1714,23 +1645,15 @@ function App(){
         {tab===1&&<div style={{color:'var(--text)',padding:`var(--hdr) 16px`,paddingBottom:`calc(var(--tab-h) + env(safe-area-inset-bottom,0px) + 20px)`}}>
           <div style={{fontSize:26,fontWeight:900,letterSpacing:-.5,marginBottom:20}}>{t('add')}</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
-            {[{icon:'➕',title:t('addTransaction'),sub:'Record now',accent:false,fn:()=>setAdd(true)},{icon:'📅',title:t('schedule'),sub:'Plan ahead',accent:true,fn:()=>setSched(true)}].map((b,i)=><button key={i} onClick={b.fn} style={{padding:'22px 16px',borderRadius:22,border:`1.5px solid ${b.accent?'var(--accent)':'var(--border)'}`,background:b.accent?'var(--a10)':'var(--card)',display:'flex',flexDirection:'column',alignItems:'center',gap:8,textAlign:'center'}}>
-              <span style={{fontSize:34}}>{b.icon}</span>
+            {[{icon:'add',title:t('addTransaction'),sub:'Record now',accent:false,fn:()=>setAdd(true)},{icon:'cal',title:t('schedule'),sub:'Plan ahead',accent:true,fn:()=>setSched(true)}].map((b,i)=><button key={i} onClick={b.fn} style={{padding:'22px 16px',borderRadius:22,border:'1.5px solid '+(b.accent?'var(--accent)':'var(--border)'),background:b.accent?'var(--a10)':'var(--card)',display:'flex',flexDirection:'column',alignItems:'center',gap:8,textAlign:'center'}}>
+              <span style={{fontSize:34}}>{b.accent?'📅':'➕'}</span>
               <div style={{fontSize:14,fontWeight:800,color:b.accent?'var(--accent)':'var(--text)'}}>{b.title}</div>
               <div style={{fontSize:11,color:'var(--sub)'}}>{b.sub}</div>
             </button>)}
           </div>
-          {/* Voice button */}
-          <VoiceButton toast={addToast} onResult={(parsed,raw)=>{
-            if(!parsed.amount){addToast({icon:'⚠️',title:'Could not detect amount',body:`Heard: "${raw}". Try saying "spent $50 on groceries"`,warn:true});return;}
-            setVoiceParsed(parsed);setAdd(true);
-          }}/>
+          <VoiceButton toast={addToast} onResult={(parsed,raw)=>{if(!parsed.amount){addToast({icon:'warn',title:'No amount heard',body:'"'+raw+'" - try "spent $50 on groceries"',warn:true});return;}setVoiceParsed(parsed);setAdd(true);}}/>
           <div style={{marginTop:8,padding:'10px 14px',borderRadius:12,background:'var(--card2)',border:'1px solid var(--border)'}}>
-            <div style={{fontSize:11,color:'var(--muted)',lineHeight:1.7}}>
-              💡 <strong style={{color:'var(--sub)'}}>Try saying:</strong><br/>
-              "Spent $45 on groceries" · "Paid $120 for electricity"<br/>
-              "Got paid $3000 salary" · "Received $200 freelance"
-            </div>
+            <div style={{fontSize:11,color:'var(--muted)',lineHeight:1.7}}>Try: "Spent $45 on groceries" | "Paid $120 rent" | "Got $3000 salary"</div>
           </div>
         </div>}
         {tab===2&&<ChartsScreen txns={txns} {...sharedProps}/>}
