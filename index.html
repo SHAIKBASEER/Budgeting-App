@@ -1546,10 +1546,26 @@ function App(){
 
   useEffect(()=>{applyTheme(theme);},[theme]);
   useEffect(()=>{LS.set('budget_tab',tab);},[tab]);
-  useEffect(()=>{LS.set('budget_txns',txns);const uk=LS.get('active_user_key','');if(uk)LS.set('txns_'+uk,txns);},[txns]);
-  useEffect(()=>{const uk=LS.get('active_user_key','');if(uk){LS.set('budget_goal_'+uk,budgetGoal);LS.set('income_goal_'+uk,incomeGoal);}},[budgetGoal,incomeGoal]);
-  useEffect(()=>{const uk=LS.get('active_user_key','');if(uk)LS.set('currency_'+uk,cur);},[cur]);
-  useEffect(()=>{const uk=LS.get('active_user_key','');if(uk)LS.set('theme_'+uk,theme);},[theme]);
+  useEffect(()=>{
+    LS.set('budget_txns',txns);
+    // Also save under user-specific key for per-account persistence
+    if(user){
+      const uk=(user.email||user.phone||user.uid||'').toLowerCase().trim();
+      if(uk)LS.set('txns_'+uk,txns);
+    }
+  },[txns,user]);
+  useEffect(()=>{
+    if(user){
+      const uk=(user.email||user.phone||user.uid||'').toLowerCase().trim();
+      if(uk){LS.set('budget_goal_'+uk,budgetGoal);LS.set('income_goal_'+uk,incomeGoal);}
+    }
+  },[budgetGoal,incomeGoal,user]);
+  useEffect(()=>{
+    if(user){const uk=(user.email||user.phone||user.uid||'').toLowerCase().trim();if(uk)LS.set('currency_'+uk,cur);}
+  },[cur,user]);
+  useEffect(()=>{
+    if(user){const uk=(user.email||user.phone||user.uid||'').toLowerCase().trim();if(uk)LS.set('theme_'+uk,theme);}
+  },[theme,user]);
 
   // Splash
   useEffect(()=>{setTimeout(()=>{const s=document.getElementById('splash');if(s){s.classList.add('hide');setTimeout(()=>s.remove(),500);}},1200);},[]);
@@ -1558,27 +1574,87 @@ function App(){
   // Apply language dir
   useEffect(()=>{const l=LANGUAGES.find(x=>x.code===lang);if(l){document.documentElement.dir=l.dir;document.documentElement.lang=l.code;}},[lang]);
 
-  // Check upcoming
+  // Scheduled transaction reminders — checks every 30s, sends email at exact remindTime
   useEffect(()=>{
-    const check=()=>{
-      const now=new Date();now.setHours(0,0,0,0);
-      txns.filter(x=>x.scheduled&&x.notifyWhenDue).forEach(x=>{
-        const due=new Date(x.date+'T12:00:00');due.setHours(0,0,0,0);
-        const diff=Math.round((due-now)/864e5);
-        if(diff===0||diff===1){
-          const key=`notif_${x.id}_${todayStr()}`;
-          if(!sessionStorage.getItem(key)){
-            sessionStorage.setItem(key,'1');
-            const cat=getCat(x.type,x.category);
-            addToast({icon:cat.icon,title:diff===0?'Due Today!':'Due Tomorrow',body:`${x.note||cat.label}: ${x.type==='income'?'+':'-'}${fmtMoney(x.amount,cur)}`,warn:diff===0});
-            if('Notification' in window&&Notification.permission==='granted'){try{new Notification(`📅 ${diff===0?'Due Today':'Tomorrow'}`,{body:`${x.note||cat.label}: ${fmtMoney(x.amount,cur)}`});}catch(e){}}
+    if(!user)return;
+    const fired=new Set();
+
+    const check=async()=>{
+      const now=new Date();
+      const todayDate=now.toISOString().split('T')[0];
+      const tomorrowDate=new Date(now.getTime()+864e5).toISOString().split('T')[0];
+      const currentH=now.getHours();
+      const currentM=now.getMinutes();
+
+      for(const x of txns.filter(t=>t.scheduled&&t.notifyWhenDue)){
+        const isToday=x.date===todayDate;
+        const isTomorrow=x.date===tomorrowDate;
+        if(!isToday&&!isTomorrow)continue;
+
+        // Parse the reminder time set on the transaction
+        const [rh,rm]=(x.remindTime||'09:00').split(':').map(Number);
+
+        // Fire within a 1-minute window of the set time
+        const timeMatch=currentH===rh&&currentM>=rm&&currentM<rm+1;
+        const fireKey=`sched_${x.id}_${todayDate}_${rh}_${rm}`;
+
+        if(timeMatch&&!fired.has(fireKey)&&!sessionStorage.getItem(fireKey)){
+          fired.add(fireKey);
+          sessionStorage.setItem(fireKey,'1');
+
+          // Build financial summary for the email
+          const live=txns.filter(t=>!t.scheduled);
+          const mn=live.filter(t=>{const d=new Date(t.date+'T12:00:00');return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
+          const monthIncome=mn.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+          const monthExpense=mn.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+          const balance=live.reduce((s,t)=>t.type==='income'?s+t.amount:s-t.amount,0);
+
+          // Show in-app toast always
+          const cat=getCat(x.type,x.category);
+          addToast({
+            icon:cat.icon,
+            title:(isToday?'Due Today: ':'Due Tomorrow: ')+( x.note||cat.label),
+            body:(x.type==='income'?'+':'-')+fmtMoney(x.amount,cur)+' · Tap to record',
+            warn:isToday,
+          });
+
+          // Push notification
+          if('Notification' in window&&Notification.permission==='granted'){
+            try{new Notification('📅 '+(isToday?'Due Today':'Due Tomorrow')+': '+(x.note||cat.label),{body:(x.type==='income'?'+':'-')+fmtMoney(x.amount,cur),tag:'sched-'+x.id});}catch(e){}
+          }
+
+          // Send email — this is the real fix
+          if(user.email){
+            const res=await sendScheduledEmail({
+              toEmail:user.email,
+              toName:user.name||user.email.split('@')[0],
+              tx:x,
+              monthIncome,monthExpense,balance,
+              currency:cur,
+              isToday,
+            });
+            if(res.ok){
+              addToast({icon:'📧',title:'Reminder email sent!',body:'Check '+user.email+' for transaction details.'});
+            }
           }
         }
-      });
-    };
-    check();const iv=setInterval(check,60000);return()=>clearInterval(iv);
-  },[txns,cur]);
 
+        // Also show day-of toast (once per day, regardless of remindTime)
+        const dayKey=`sched_day_${x.id}_${todayDate}`;
+        if(isToday&&!sessionStorage.getItem(dayKey)){
+          sessionStorage.setItem(dayKey,'1');
+          const cat=getCat(x.type,x.category);
+          addToast({icon:cat.icon,title:'Due Today: '+(x.note||cat.label),body:(x.type==='income'?'+':'-')+fmtMoney(x.amount,cur),warn:true});
+        }
+      }
+    };
+
+    check();
+    const iv=setInterval(check,30000);// every 30 seconds
+    return()=>clearInterval(iv);
+  },[txns,user,cur]);
+
+  // addToast MUST be defined before handleAuth so login toasts work
   const addToast=useCallback(t=>{
     const id=Date.now()+Math.random();
     setToasts(p=>[...p.slice(-2),{...t,id}]);
@@ -1596,30 +1672,54 @@ function App(){
   const delTx=id=>{setTxns(p=>p.filter(x=>x.id!==id));addToast({icon:'🗑️',title:'Deleted',body:'Transaction removed.'});};
 
   const hardReset=()=>{
-    ['budget_txns','budget_theme','budget_tab','budget_goal','income_goal','currency','language','notif_en','notif_times','notif_email','notif_phone','auth_user'].forEach(k=>LS.del(k));
+    ['budget_txns','budget_theme','budget_tab','budget_goal','income_goal','currency','language','notif_en','notif_times','notif_email','notif_phone','auth_user','active_user_key'].forEach(k=>LS.del(k));
     LS.set('budget_txns',[]);LS.set('budget_goal',0);LS.set('income_goal',0);
     setTxns([]);setTheme(THEMES[0]);applyTheme(THEMES[0]);setBudget(0);setIncome(0);setCur('USD');setLang('en');setTab(0);setUser(null);
   };
 
   const handleAuth=u=>{
-    const uk=u.email||u.phone||u.uid;
-    LS.set('active_user_key',uk);LS.set('auth_user',u);
-    const st=LS.get('txns_'+uk,null);
-    const sb=LS.get('budget_goal_'+uk,null);
-    const si=LS.get('income_goal_'+uk,null);
-    const sc=LS.get('currency_'+uk,null);
-    const sth=LS.get('theme_'+uk,null);
-    if(st!==null){setTxns(st);LS.set('budget_txns',st);}
-    if(sb!==null){setBudget(sb);LS.set('budget_goal',sb);}
-    if(si!==null){setIncome(si);LS.set('income_goal',si);}
-    if(sc!==null){setCur(sc);LS.set('currency',sc);}
-    if(sth!==null){setTheme(sth);applyTheme(sth);}
+    // Build user key from email or phone — this is the storage key for all their data
+    const uk=(u.email||u.phone||u.uid).toLowerCase().trim();
+
+    // Load ALL saved data for this user BEFORE setting state
+    const savedTxns   =LS.get('txns_'+uk,null);
+    const savedBudget =LS.get('budget_goal_'+uk,null);
+    const savedIncome =LS.get('income_goal_'+uk,null);
+    const savedCur    =LS.get('currency_'+uk,null);
+    const savedTheme  =LS.get('theme_'+uk,null);
+
+    // Write user key first so save-effects can use it immediately
+    LS.set('active_user_key',uk);
+    LS.set('auth_user',u);
+
+    // Restore data — also write to generic keys so save-effects read them back
+    if(savedTxns!==null){LS.set('budget_txns',savedTxns);setTxns(savedTxns);}
+    if(savedBudget!==null){LS.set('budget_goal',savedBudget);setBudget(savedBudget);}
+    if(savedIncome!==null){LS.set('income_goal',savedIncome);setIncome(savedIncome);}
+    if(savedCur!==null){LS.set('currency',savedCur);setCur(savedCur);}
+    if(savedTheme!==null){applyTheme(savedTheme);setTheme(savedTheme);}
+
     setUser(u);
-    const isNew=st===null||st.length===0;
-    if(isNew&&u.email)setTimeout(()=>sendWelcomeEmail({toEmail:u.email,toName:u.name,currency:LS.get('currency','USD')}),1500);
-    setTimeout(()=>addToast({icon:isNew?'new':'back',title:isNew?'Welcome, '+(u.name||'')+'!':'Welcome back, '+(u.name||'')+'!',body:isNew?'Check your email for a welcome message!':'Your budget data has been restored.'}),300);
+
+    const isNewUser=savedTxns===null;
+    // Send welcome email for brand-new users
+    if(isNewUser&&u.email){
+      setTimeout(()=>sendWelcomeEmail({toEmail:u.email,toName:u.name,currency:savedCur||'USD'}),1500);
+    }
+    // Show toast
+    setTimeout(()=>addToast({
+      icon:isNewUser?'🎉':'👋',
+      title:isNewUser?'Welcome, '+(u.name||u.email)+'!':'Welcome back, '+(u.name||u.email)+'!',
+      body:isNewUser?'Your account is ready. Check email for welcome message.':'Your transactions and settings have been restored.',
+    }),400);
   };
-  const handleLogout=()=>{LS.del('auth_user');setUser(null);setTab(0);addToast({icon:'👋',title:'Signed out',body:'See you next time!'});};
+
+  const handleLogout=()=>{
+    LS.del('auth_user');
+    // Keep user data saved — just clear the session
+    setUser(null);setTab(0);
+    addToast({icon:'👋',title:'Signed out',body:'Your data is saved. Sign in anytime.'});
+  };
 
   const t=k=>T(lang,k);
   const sharedProps={cur,lang};
