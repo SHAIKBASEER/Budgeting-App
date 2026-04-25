@@ -84,87 +84,133 @@ const {useState,useEffect,useRef,useMemo,useCallback}=React;
 // CONSTANTS & DATA
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// EmailJS config — user sets their own in Settings
-// To use real email: create free account at emailjs.com
-// Default: shows OTP on screen (demo mode)
+// EmailJS config — ONE template controls all 4 email operations
+// EmailJS Dashboard values
 const EMAILJS_SERVICE='service_e3aq4gh';
-const EMAILJS_TEMPLATE='template_5zywxbh';
 const EMAILJS_PUBLIC_KEY='Edku-DGDzomlJreV6';
+const EMAILJS_TEMPLATE_MAIN='template_d8h2718'; // Single LedgrTrack template
 
-// Initialize EmailJS immediately with real credentials
-(function initEJS(){try{emailjs.init(EMAILJS_PUBLIC_KEY);}catch(e){}})();
+(function initEJS(){try{emailjs.init({publicKey:EMAILJS_PUBLIC_KEY});}catch(e){try{emailjs.init(EMAILJS_PUBLIC_KEY);}catch(_){}}})();
 
-// ━━ RICH EMAIL HTML BUILDER ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Builds a beautiful plain-text OTP payload that maps to {{otp}}
-// The actual HTML styling is in the EmailJS template on the server
-// For reminder emails we send rich content in the otp field
-function buildReminderEmailBody({userName,type,amount,note,category,dueDate,remindType,monthIncome,monthExpense,balance,currency}){
-  const sym=CURRENCIES.find(c=>c.code===currency)?.symbol||'$';
-  const fmt2=n=>`${sym}${Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-  const cat=type==='income'?INC_CATS.find(c=>c.id===category):EXP_CATS.find(c=>c.id===category);
-  const icon=cat?.icon||'💰';
-  const typeLabel=type==='income'?'Income':'Expense';
-  const amtStr=`${type==='income'?'+':'-'}${fmt2(amount)}`;
-  const dateStr=new Date(dueDate+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
-  const urgency=remindType==='today'?'⚠️ DUE TODAY':'📅 Due Tomorrow';
-
-  // This goes into {{otp}} field — formatted as readable plain-text
-  // EmailJS wraps it in the styled template
-  return `${urgency}: ${icon} ${note||cat?.label||typeLabel}
-
-Amount: ${amtStr}
-Due: ${dateStr}
-Category: ${cat?.label||typeLabel}
-
-─── Your Financial Summary ───
-Monthly Income:   ${fmt2(monthIncome)}
-Monthly Expenses: ${fmt2(monthExpense)}
-Net This Month:   ${fmt2(monthIncome-monthExpense)}
-Total Balance:    ${fmt2(balance)}
-
-Open LedgrTrack to mark as paid or collect.
-
-─────────────────────────────
-LedgrTrack · Personal Finance Tracker
-This is an automated reminder. Do not reply.`;
-}
-
-function buildDailyReminderBody({userName,monthIncome,monthExpense,balance,currency,upcomingList}){
-  const sym=CURRENCIES.find(c=>c.code===currency)?.symbol||'$';
-  const fmt2=n=>`${sym}${Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-  const upcomingText=upcomingList.length>0
-    ?`\n─── Upcoming Transactions ───\n${upcomingList.map(x=>`${x.emoji} ${x.note} · ${x.amtStr} · Due ${x.dateStr}`).join('\n')}`
-    :'';
-  return `Hi ${userName||'there'} 👋
-
-Time to log your transactions for today!
-
-─── This Month So Far ───
-Income:   ${fmt2(monthIncome)}
-Expenses: ${fmt2(monthExpense)}
-Net:      ${monthIncome>=monthExpense?'+':''}${fmt2(monthIncome-monthExpense)}
-Balance:  ${fmt2(balance)}${upcomingText}
-
-Open LedgrTrack → Add Transaction to keep your budget on track.
-
-─────────────────────────────
-LedgrTrack · Personal Finance Tracker
-This is an automated reminder. Do not reply.`;
-}
-
-// ━━ SEND EMAIL VIA EMAILJS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-async function sendLedgrEmail({toEmail,subject,body,expiryLabel}){
+// ━━ SHARED EMAIL SENDER ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function ejsSend(params){
   try{
-    await emailjs.send(EMAILJS_SERVICE,EMAILJS_TEMPLATE,{
-      to_email:toEmail,
-      otp:body,
-      expiry_minutes:expiryLabel||'—',
-    });
-    return{ok:true};
+    await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE_MAIN, params);
+    return {ok:true};
   }catch(e){
-    return{ok:false,err:e?.text||e?.message||'EmailJS error'};
+    return {ok:false, err:e?.text||e?.message||'EmailJS error'};
   }
 }
+
+// Keep HTML safe before sending dynamic HTML blocks into {{{summary_html}}}
+const escHtml=v=>String(v??'').replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[m]));
+
+// Shared currency formatter (available at module level)
+const symFor=cur=>(CURRENCIES||[]).find(c=>c.code===cur)?.symbol||'$';
+const fmtAmt=(n,cur)=>{const s=symFor(cur);return`${s}${Math.abs(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;};
+const fmtNet=(n,cur)=>`${Number(n)>=0?'+':'-'}${fmtAmt(n,cur)}`;
+
+// ━━ EMAIL 1: OTP — new signup vs returning login ━━━━━━━━━━━━━
+async function sendOTPEmail({toEmail,toName,otp,isNewUser}){
+  const displayName=toName||toEmail.split('@')[0];
+  return ejsSend({
+    to_email:toEmail,
+    to_name:displayName,
+    subject_line:isNewUser?'Verify your LedgrTrack account 🔐':'Sign in to LedgrTrack 👋',
+    main_title:'Your verification code',
+    main_message:isNewUser
+      ?`You're creating your LedgrTrack account. Use this code to verify your email and get started.`
+      :`Welcome back! Use this code to sign in to your LedgrTrack account.`,
+    highlight_value:otp,
+    highlight_label:'Verification code · expires in 5 minutes',
+    summary_title:'Security Notice',
+    summary_html:'If you did not request this code, you can safely ignore this email.<br>Never share your verification code with anyone.',
+    button_text:'Open LedgrTrack →',
+  });
+}
+
+// ━━ EMAIL 2: Welcome after first signup ━━━━━━━━━━━━━━━━━━━━━
+async function sendWelcomeEmail({toEmail,toName,currency}){
+  return ejsSend({
+    to_email:toEmail,
+    to_name:toName||'there',
+    subject_line:`Welcome to LedgrTrack, ${toName||'there'}! 🎉`,
+    main_title:'Welcome to LedgrTrack! 🎉',
+    main_message:'Your account is ready. Start tracking income, expenses, bills, and reminders in one place.',
+    highlight_value:'Account Ready',
+    highlight_label:`Signed up today · Currency: ${currency||'USD'}`,
+    summary_title:'What you can do now',
+    summary_html:'💰 Track spending and income<br>📊 View budget charts<br>📅 Schedule upcoming bills<br>🔔 Receive budget reminders',
+    button_text:'Start Tracking →',
+  });
+}
+
+// ━━ EMAIL 3: Scheduled transaction due ━━━━━━━━━━━━━━━━━━━━━━
+async function sendScheduledEmail({toEmail,toName,tx,monthIncome,monthExpense,balance,currency,isToday}){
+  const cats=tx.type==='income'?INC_CATS:EXP_CATS;
+  const cat=cats.find(c=>c.id===tx.category)||cats[cats.length-1];
+  const net=monthIncome-monthExpense;
+  const[rh,rm]=(tx.remindTime||'09:00').split(':');
+  const hr=parseInt(rh,10)||9;const mn=rm||'00';
+  const ap=hr>=12?'PM':'AM';const h12=hr%12||12;
+  const timeStr=`${h12}:${mn} ${ap}`;
+  const urgency=isToday?'⚠️ Due Today':'📅 Due Tomorrow';
+  const amountText=`${tx.type==='income'?'+':'-'}${fmtAmt(tx.amount,currency)}`;
+  const dueDate=new Date(tx.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  return ejsSend({
+    to_email:toEmail,
+    to_name:toName||'there',
+    subject_line:`${urgency}: ${cat.icon} ${tx.note||cat.label} — ${amountText}`,
+    main_title:`${urgency}: ${tx.note||cat.label}`,
+    main_message:`This scheduled ${tx.type==='income'?'income':'expense'} is due ${dueDate} at ${timeStr}.`,
+    highlight_value:amountText,
+    highlight_label:`${tx.type==='income'?'Income':'Expense'} · ${cat.label}`,
+    summary_title:"This Month's Summary",
+    summary_html:
+      `💚 Income: ${fmtAmt(monthIncome,currency)}<br>`+
+      `❤️ Expenses: ${fmtAmt(monthExpense,currency)}<br>`+
+      `📈 Net This Month: ${fmtNet(net,currency)}<br>`+
+      `💰 Total Balance: ${fmtNet(balance,currency)}`,
+    button_text:'Open LedgrTrack to Record →',
+  });
+}
+
+// ━━ EMAIL 4: Daily budget reminder ━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function sendReminderEmail({toEmail,toName,remindTime,txns,currency}){
+  const now=new Date();
+  const live=txns.filter(x=>!x.scheduled);
+  const mn=live.filter(x=>{const d=new Date(x.date+'T12:00:00');return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
+  const monthIncome=mn.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
+  const monthExpense=mn.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
+  const balance=live.reduce((s,x)=>x.type==='income'?s+x.amount:s-x.amount,0);
+  const net=monthIncome-monthExpense;
+  const daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+  const daysLeft=daysInMonth-now.getDate();
+  const upcoming=txns.filter(x=>x.scheduled).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,4);
+  const upcomingHtml=upcoming.length>0
+    ?upcoming.map(x=>{const cats=x.type==='income'?INC_CATS:EXP_CATS;const cat=cats.find(c=>c.id===x.category)||cats[cats.length-1];const d=new Date(x.date+'T12:00:00');const days=Math.ceil((d-now)/864e5);return`${escHtml(cat.icon)} ${escHtml(x.note||cat.label)} ${x.type==='income'?'+':'-'}${fmtAmt(x.amount,currency)} (${days<=0?'today':days===1?'tomorrow':'in '+days+' days'})`;}).join('<br>')
+    :'No upcoming scheduled transactions.';
+  return ejsSend({
+    to_email:toEmail,
+    to_name:toName||'there',
+    subject_line:`💰 LedgrTrack Reminder — ${remindTime}, ${now.toLocaleString('default',{month:'long',year:'numeric'})}`,
+    main_title:'Time to update your budget',
+    main_message:`It's ${remindTime} — log your transactions and keep your budget on track.`,
+    highlight_value:fmtNet(balance,currency),
+    highlight_label:'Current total balance',
+    summary_title:`📊 ${now.toLocaleString('default',{month:'long',year:'numeric'})}`,
+    summary_html:
+      `💚 Income: ${fmtAmt(monthIncome,currency)}<br>`+
+      `❤️ Expenses: ${fmtAmt(monthExpense,currency)}<br>`+
+      `📈 Net This Month: ${fmtNet(net,currency)}<br>`+
+      `📋 Transactions logged: ${mn.length}<br>`+
+      `📅 Days left this month: ${daysLeft}<br><br>`+
+      `<strong>Upcoming Scheduled</strong><br>${upcomingHtml}`,
+    button_text:'Add Transactions Now →',
+  });
+}
+
+
 
 // ━━ SCHEDULED TRANSACTION REMINDER ENGINE ━━━━━━━━━━━━━━━━━━━
 // Checks scheduled transactions and fires email at their remindTime
@@ -203,11 +249,13 @@ function useScheduledReminders(txns,user,cur){
           });
           const remindType=isToday?'Due Today':'Due Tomorrow';
           const cat=x.type==='income'?INC_CATS.find(c=>c.id===x.category):EXP_CATS.find(c=>c.id===x.category);
-          await sendLedgrEmail({
+          await sendScheduledEmail({
             toEmail:user.email,
-            subject:`${remindType}: ${cat?.icon||''} ${x.note||cat?.label} — ${x.type==='income'?'+':'-'}${fmtMoney(x.amount,cur)}`,
-            body,
-            expiryLabel:remindType,
+            toName:user.name,
+            tx:x,
+            monthIncome,monthExpense,balance,
+            currency:cur,
+            isToday,
           });
         }
       });
@@ -590,17 +638,21 @@ function AuthScreen({onAuth,toast}){
   const otpRefs=[useRef(),useRef(),useRef(),useRef(),useRef(),useRef()];
 
 
-  const sendEmailOTP=async(addr,otp)=>{
+  const sendEmailOTP=async(addr,otp,isNewUser)=>{
     toast({icon:'⏳',title:'Sending code…',body:`Delivering to ${addr}`});
-    try{
-      await emailjs.send(EMAILJS_SERVICE,EMAILJS_TEMPLATE,{to_email:addr,otp:otp,expiry_minutes:'5'});
+    const res=await sendOTPEmail({
+      toEmail:addr,
+      toName:name||addr.split('@')[0],
+      otp,
+      isNewUser
+    });
+    if(res.ok){
       toast({icon:'📧',title:'Code sent to your email!',body:`Check ${addr} — enter the 6-digit code. Check spam if not received.`});
       return true;
-    }catch(e){
-      // Real fallback — still show code so user isn't locked out
-      toast({icon:'⚠️',title:`Email issue — your code: ${otp}`,body:`Could not deliver to ${addr}. Use this code to sign in now. (${e?.text||e?.message||'check EmailJS dashboard'})`,warn:true});
-      return true;
     }
+    // Fallback — still show code so user is not locked out while testing
+    toast({icon:'⚠️',title:`Email issue — your code: ${otp}`,body:`Could not deliver to ${addr}. Use this code to sign in now. (${res.err||'check EmailJS dashboard'})`,warn:true});
+    return true;
   };
 
   const sendPhoneOTP=async(fullPhone,otp)=>{
@@ -617,7 +669,7 @@ function AuthScreen({onAuth,toast}){
     if(!isLogin&&!name.trim()){toast({icon:'❌',title:'Name required',body:'Please enter your full name.',err:true});return;}
     setLoading(true);
     const otp=genOTP();setGenOtp(otp);
-    await sendEmailOTP(email,otp);
+    await sendEmailOTP(email,otp,!isLogin);
     setOtpChannel('email');setMode('otp');setLoading(false);
   };
 
@@ -631,11 +683,15 @@ function AuthScreen({onAuth,toast}){
     setOtpChannel('phone');setMode('otp');setLoading(false);
   };
 
-  const handleOtpVerify=()=>{
+  const handleOtpVerify=async()=>{
     if(otpInput===generatedOtp){
       const user={name:name||email.split('@')[0]||`User`,email:otpChannel==='email'?email:'',phone:otpChannel==='phone'?`${countryCode.code}${phone}`:'',countryCode:countryCode.code,verified:true,uid:`user_${Date.now()}`};
       LS.set('auth_user',user);
       toast({icon:'🎉',title:`Welcome${name?`, ${name}`:''}!`,body:'You\'re signed in to Ledgr.'});
+      // Send welcome email only for brand-new email signup users
+      if(!isLogin && otpChannel==='email'){
+        sendWelcomeEmail({toEmail:user.email,toName:user.name,currency:LS.get('currency','USD')});
+      }
       onAuth(user);
     }else{
       toast({icon:'❌',title:'Wrong code',body:'The verification code is incorrect. Try again.',err:true});
@@ -1169,7 +1225,9 @@ function SettingsScreen({user,onLogout,theme,onTheme,txns,onReset,toast,budgetGo
       if('Notification' in window&&Notification.permission==='granted'){try{new Notification(`\u{1F4B0} LedgrTrack \u2014 ${ts}`,{body:'Tap to open and log your transactions!',tag:`ledgr-${ts}`});}catch(e){}}
     }
     if(notifEn.email&&notifEmail){
-      const res=await sendLedgrEmail({toEmail:notifEmail,subject,body:emailBody,expiryLabel:ts});
+      const res=await sendReminderEmail({toEmail:notifEmail,toName:user?.name,remindTime:ts,txns,currency:cur});
+      if(res.ok)toast({icon:'📧',title:`${ts} — Reminder emailed!`,body:`Sent to ${notifEmail}`});
+      else toast({icon:'⚠️',title:'Email failed',body:res.err||'Check EmailJS',warn:true});
       if(res.ok)toast({icon:'\uD83D\uDCE7',title:`${ts} \u2014 Email sent!`,body:`Reminder delivered to ${notifEmail}`});
       else{window.open(`mailto:${notifEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`);toast({icon:'\uD83D\uDCE7',title:'Email opened',body:'Mail app opened as fallback',warn:true});}
     }
@@ -1211,8 +1269,9 @@ function SettingsScreen({user,onLogout,theme,onTheme,txns,onReset,toast,budgetGo
     const addr=notifEmail||user?.email;
     if(!addr){toast({icon:'\u274C',title:'No email set',body:'Enter your email in the Email field above.',err:true});return;}
     setTS('email');
-    const{emailBody,subject}=buildReminderBody('Test Run');
-    const res=await sendLedgrEmail({toEmail:addr,subject:`[TEST] ${subject}`,body:`THIS IS A TEST EMAIL\n\n${emailBody}`,expiryLabel:'Test'});
+    const res=await sendReminderEmail({toEmail:addr,toName:user?.name,remindTime:'Test',txns,currency:cur});
+    if(res.ok)toast({icon:'📧',title:'✅ Test sent!',body:`Check ${addr} — beautiful reminder email delivered!`});
+    else toast({icon:'⚠️',title:'Test failed',body:res.err||'Update template IDs',warn:true});
     if(res.ok)toast({icon:'\uD83D\uDCE7',title:'\u2705 Test email sent!',body:`Check ${addr} for your test reminder.`});
     else{window.open(`mailto:${addr}?subject=${encodeURIComponent('[TEST] LedgrTrack Reminder')}&body=${encodeURIComponent(emailBody)}`);toast({icon:'\uD83D\uDCE7',title:'Mail app opened',body:'EmailJS fallback.',warn:true});}
     setTimeout(()=>setTS(''),4000);
@@ -1550,11 +1609,7 @@ function App(){
     check();const iv=setInterval(check,60000);return()=>clearInterval(iv);
   },[txns,cur]);
 
-  const addToast=useCallback(t=>{
-    const id=Date.now()+Math.random();
-    setToasts(p=>[...p.slice(-2),{...t,id}]);
-    setTimeout(()=>setToasts(p=>p.filter(x=>x.id!==id)),5500);
-  },[]);
+
 
   const handleTheme=th=>{setTheme(th);LS.set('budget_theme',th);applyTheme(th);};
   const handleBudget=v=>{setBudget(v);LS.set('budget_goal',v);};
@@ -1572,6 +1627,13 @@ function App(){
     setTxns([]);setTheme(THEMES[0]);applyTheme(THEMES[0]);setBudget(0);setIncome(0);setCur('USD');setLang('en');setTab(0);setUser(null);
   };
 
+  // addToast MUST be defined before handleAuth so it works on login
+  const addToast=t=>{
+    const id=Date.now()+Math.random();
+    setToasts(p=>[...p.slice(-2),{...t,id}]);
+    setTimeout(()=>setToasts(p=>p.filter(x=>x.id!==id)),5500);
+  };
+
   const handleAuth=u=>{
     // Load this user's saved data by their email/phone key
     const userKey=u.email||u.phone||u.uid;
@@ -1586,11 +1648,18 @@ function App(){
     if(savedIncome!==null){setIncome(savedIncome);LS.set('income_goal',savedIncome);}
     if(savedCur!==null){setCur(savedCur);LS.set('currency',savedCur);}
     if(savedTheme!==null){setTheme(savedTheme);applyTheme(savedTheme);LS.set('budget_theme',savedTheme);}
-    LS.set('auth_user',u);
+    // Set user key FIRST so save effects can use it immediately
     LS.set('active_user_key',userKey);
+    LS.set('auth_user',u);
     setUser(u);
+    // Apply restored data synchronously to localStorage too
+    if(savedTxns!==null){LS.set('budget_txns',savedTxns);}
     const isReturning=savedTxns!==null&&savedTxns.length>0;
-    addToast({icon:isReturning?'👋':'🎉',title:isReturning?`Welcome back, ${u.name||''}!`:`Welcome, ${u.name||''}!`,body:isReturning?'Your budget data has been restored.':'Your account is ready. Demo data loaded to explore.'});
+    // Send welcome email for brand new users
+    if(!isReturning&&u.email){
+      setTimeout(()=>sendWelcomeEmail({toEmail:u.email,toName:u.name,currency:LS.get('currency','USD')}),1000);
+    }
+    setTimeout(()=>addToast({icon:isReturning?'👋':'🎉',title:isReturning?`Welcome back, ${u.name||''}!`:`Welcome to LedgrTrack, ${u.name||''}!`,body:isReturning?'Your data has been restored.':'Account ready! Check your email for a welcome message.'}),300);
   };
   const handleLogout=()=>{LS.del('auth_user');setUser(null);setTab(0);addToast({icon:'👋',title:'Signed out',body:'See you next time!'});};
 
