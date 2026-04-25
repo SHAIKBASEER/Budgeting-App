@@ -144,8 +144,8 @@ async function sendOTPEmail({toEmail,toName,otp,isNewUser}){
   const subj=isNewUser?'Verify your LedgrTrack account':'Sign in to LedgrTrack';
   const bg=isNewUser?{c:'#ecfdf5',b:'#6ee7b7',t:'#065f46',l:'New Account'}:{c:'#eff6ff',b:'#bfdbfe',t:'#1e40af',l:'Welcome back'};
   const msg=isNewUser
-    ?'You're creating your LedgrTrack account. Use the verification code below to confirm your email and get started.'
-    :'We received a sign-in request for your account. Enter the code below to access your budget dashboard.';
+    ?'Create your LedgrTrack account. Enter the code to confirm your email.'
+    :'Welcome back. Enter the code to sign in to your account.';
   const body='<table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px"><tr>'
     +'<td style="background:'+bg.c+';border:1px solid '+bg.b+';border-radius:99px;padding:5px 16px;font-size:12px;font-weight:700;color:'+bg.t+'">'+bg.l+'</td></tr></table>'
     +'<h1 style="margin:0 0 8px;font-size:26px;font-weight:900;color:#1f2937">Hi '+nm+' &#x1F44B;</h1>'
@@ -623,270 +623,197 @@ function AuthScreen({onAuth,toast}){
   const [email,setEmail]=useState('');
   const [cc,setCC]=useState(COUNTRY_CODES[0]);
   const [phone,setPhone]=useState('');
-  const [otpInput,setOtpInput]=useState('');
-  const [generatedOtp,setGenOtp]=useState('');
-  const [otpChannel,setOtpCh]=useState('');
+  const [otp,setOtp]=useState(['','','','','','']);
+  const [genOtp,setGenOtp]=useState('');
+  const [channel,setChannel]=useState('email');
   const [loading,setLoading]=useState(false);
   const [showCC,setShowCC]=useState(false);
-  const [ccSearch,setCCS]=useState('');
-  const [otpError,setOtpError]=useState(false);
-  const [resendTimer,setResendTimer]=useState(0);
-  const otpRefs=[useRef(),useRef(),useRef(),useRef(),useRef(),useRef()];
-  const timerRef=useRef(null);
+  const [ccQ,setCCQ]=useState('');
+  const [err,setErr]=useState('');
+  const [timer,setTimer]=useState(0);
+  const refs=[useRef(),useRef(),useRef(),useRef(),useRef(),useRef()];
+  const tiRef=useRef(null);
 
-  // Start 30s resend timer
   const startTimer=()=>{
-    setResendTimer(30);
-    const iv=setInterval(()=>setResendTimer(t=>{if(t<=1){clearInterval(iv);return 0;}return t-1;}),1000);
-    timerRef.current=iv;
+    clearInterval(tiRef.current);setTimer(30);
+    tiRef.current=setInterval(()=>setTimer(t=>{if(t<=1){clearInterval(tiRef.current);return 0;}return t-1;}),1000);
   };
 
-  const sendEmailOTP=async(addr,otp,isNewUser)=>{
-    const res=await sendOTPEmail({toEmail:addr,toName:name||addr.split('@')[0],otp,isNewUser});
-    if(!res.ok)toast({icon:'⚠️',title:`Code: ${otp}`,body:`Email failed — use this code (${res.err||'EmailJS error'})`,warn:true});
-    return res.ok;
+  const doSendEmail=async(addr,code,isNew)=>{
+    const res=await sendOTPEmail({toEmail:addr,toName:name||addr.split('@')[0],otp:code,isNewUser:isNew});
+    if(!res.ok)toast({icon:'⚠',title:'Code: '+code,body:'Email failed. Use this code to sign in.',warn:true});
+    else toast({icon:'📧',title:'Code sent!',body:'Check '+addr+' for your code. Check spam if needed.'});
   };
 
-  const sendPhoneOTP=async(fullPhone,otp)=>{
-    window.open(`sms:${fullPhone}?body=${encodeURIComponent(`Your LedgrTrack code: ${otp}\nValid 5 mins. Do not share.`)}`);
-    return true;
+  const submitEmail=async()=>{
+    if(!email.includes('@')){toast({icon:'❌',title:'Invalid email',body:'Enter a valid email address.',err:true});return;}
+    if(!isLogin&&!name.trim()){toast({icon:'❌',title:'Name required',body:'Enter your full name.',err:true});return;}
+    setLoading(true);setErr('');
+    const code=(Math.floor(100000+Math.random()*900000)).toString();
+    setGenOtp(code);setOtp(['','','','','','']);
+    setChannel('email');
+    await doSendEmail(email,code,!isLogin);
+    setMode('otp');setLoading(false);startTimer();
+    setTimeout(()=>refs[0].current?.focus(),400);
   };
 
-  const handleEmailSubmit=async()=>{
-    if(!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)){toast({icon:'❌',title:'Invalid email',body:'Enter a valid email address.',err:true});return;}
-    if(!isLogin&&!name.trim()){toast({icon:'❌',title:'Name required',body:'Please enter your full name.',err:true});return;}
-    setLoading(true);
-    const otp=genOTP();setGenOtp(otp);setOtpInput('');
-    await sendEmailOTP(email,otp,!isLogin);
-    setOtpCh('email');setMode('otp');setLoading(false);startTimer();
-    setTimeout(()=>otpRefs[0].current?.focus(),400);
+  const submitPhone=async()=>{
+    if(phone.length<6){toast({icon:'❌',title:'Invalid phone',body:'Enter a valid phone number.',err:true});return;}
+    if(!isLogin&&!name.trim()){toast({icon:'❌',title:'Name required',body:'Enter your full name.',err:true});return;}
+    setLoading(true);setErr('');
+    const code=(Math.floor(100000+Math.random()*900000)).toString();
+    setGenOtp(code);setOtp(['','','','','','']);
+    setChannel('phone');
+    const msg='Your LedgrTrack code: '+code+'. Valid 5 mins. Do not share.';
+    window.open('sms:'+cc.code+phone+'?body='+encodeURIComponent(msg));
+    toast({icon:'💬',title:'SMS opened — code: '+code,body:'Send the SMS to yourself, then enter the code.',warn:true});
+    setMode('otp');setLoading(false);startTimer();
+    setTimeout(()=>refs[0].current?.focus(),400);
   };
 
-  const handlePhoneSubmit=async()=>{
-    if(phone.replace(/\D/g,'').length<6){toast({icon:'❌',title:'Invalid phone',body:'Enter a valid phone number.',err:true});return;}
-    if(!isLogin&&!name.trim()){toast({icon:'❌',title:'Name required',body:'Please enter your full name.',err:true});return;}
-    setLoading(true);
-    const otp=genOTP();setGenOtp(otp);setOtpInput('');
-    await sendPhoneOTP(`${cc.code}${phone}`,otp);
-    setOtpCh('phone');setMode('otp');setLoading(false);startTimer();
-    setTimeout(()=>otpRefs[0].current?.focus(),400);
-  };
-
-  const handleOtpKey=(i,v)=>{
-    setOtpError(false);
-    const digits=v.replace(/\D/g,'');
-    if(digits.length>1){const full=digits.slice(0,6);setOtpInput(full);otpRefs[Math.min(full.length-1,5)].current?.focus();return;}
-    const arr=(otpInput+'      ').split('');arr[i]=digits;const next=arr.join('').slice(0,6).replace(/ /g,'');
-    setOtpInput(arr.slice(0,6).map((x,j)=>j<i?x:j===i?digits:(arr[j]||'')).join('').replace(/\s/g,''));
-    // Simpler approach
-    const chars=[...otpInput];chars[i]=digits;const joined=chars.join('');
-    setOtpInput(digits?joined.slice(0,i+1)+joined.slice(i+1):joined.slice(0,i)+joined.slice(i+1));
-    if(digits&&i<5)otpRefs[i+1].current?.focus();
-    if(!digits&&i>0){otpRefs[i-1].current?.focus();}
-  };
-
-  // Cleaner OTP input handler
-  const otp6=otpInput.padEnd(6,' ');
-
-  const handleOtpChange=(i,val)=>{
-    setOtpError(false);
+  const handleDigit=(i,val)=>{
+    setErr('');
     const d=val.replace(/\D/g,'');
-    if(d.length>1){// paste
-      const full=d.slice(0,6);setOtpInput(full);
-      otpRefs[Math.min(full.length,5)].current?.focus();return;
+    if(d.length>1){
+      const digits=d.slice(0,6).split('');
+      const newOtp=[...otp];digits.forEach((x,j)=>{newOtp[j]=x;});
+      setOtp(newOtp);refs[Math.min(digits.length,5)].current?.focus();return;
     }
-    const arr=otpInput.split('');
-    if(d){arr[i]=d;const ns=arr.join('').slice(0,6);setOtpInput(ns);if(i<5)otpRefs[i+1].current?.focus();}
-    else{const ns=arr.filter((_,j)=>j!==i).join('');setOtpInput(ns);if(i>0)otpRefs[i-1].current?.focus();}
+    const newOtp=[...otp];newOtp[i]=d;setOtp(newOtp);
+    if(d&&i<5)refs[i+1].current?.focus();
+    if(!d&&i>0)refs[i-1].current?.focus();
   };
 
-  const verifyOtp=()=>{
-    if(otpInput!==generatedOtp){
-      setOtpError(true);
-      setOtpInput('');
-      otpRefs[0].current?.focus();
-      toast({icon:'❌',title:'Incorrect code',body:'That code is wrong or expired. Try again.',err:true});
-      return;
+  const handleBackspace=(i,e)=>{
+    if(e.key==='Backspace'&&!otp[i]&&i>0){
+      const newOtp=[...otp];newOtp[i-1]='';setOtp(newOtp);refs[i-1].current?.focus();
     }
-    const nm=name||(otpChannel==='email'?email.split('@')[0]:'User');
-    const user={name:nm,email:otpChannel==='email'?email:'',phone:otpChannel==='phone'?`${cc.code}${phone}`:'',countryCode:cc.code,verified:true,uid:`user_${Date.now()}`};
+  };
+
+  const verify=()=>{
+    const entered=otp.join('');
+    if(entered!==genOtp){
+      setErr('Incorrect code — please try again');
+      setOtp(['','','','','','']);
+      refs[0].current?.focus();return;
+    }
+    const nm=name||(channel==='email'?email.split('@')[0]:'User');
+    const user={name:nm,email:channel==='email'?email:'',phone:channel==='phone'?cc.code+phone:'',countryCode:cc.code,verified:true,uid:'user_'+Date.now()};
     onAuth(user);
   };
 
   const resend=async()=>{
-    if(resendTimer>0)return;
-    const otp=genOTP();setGenOtp(otp);setOtpInput('');setOtpError(false);startTimer();
-    if(otpChannel==='email')await sendEmailOTP(email,otp,!isLogin);
-    else await sendPhoneOTP(`${cc.code}${phone}`,otp);
-    toast({icon:'📨',title:'New code sent',body:'Check for your new verification code.'});
-    setTimeout(()=>otpRefs[0].current?.focus(),300);
+    if(timer>0)return;
+    const code=(Math.floor(100000+Math.random()*900000)).toString();
+    setGenOtp(code);setOtp(['','','','','','']);setErr('');startTimer();
+    if(channel==='email')await doSendEmail(email,code,!isLogin);
+    else{const msg='Your LedgrTrack code: '+code+'. Valid 5 mins.';window.open('sms:'+cc.code+phone+'?body='+encodeURIComponent(msg));}
+    setTimeout(()=>refs[0].current?.focus(),300);
   };
 
-  const fCC=COUNTRY_CODES.filter(x=>`${x.name} ${x.code} ${x.flag}`.toLowerCase().includes(ccSearch.toLowerCase()));
-  const btnStyle={width:'100%',padding:'16px 20px',borderRadius:18,border:'1px solid var(--border2)',background:'var(--card)',color:'var(--text)',fontSize:16,fontWeight:700,display:'flex',alignItems:'center',gap:16,marginBottom:12,textAlign:'left',cursor:'pointer',transition:'all .15s'};
-  const inputStyle={width:'100%',background:'none',border:'none',color:'var(--text)',fontSize:16,outline:'none',fontFamily:'inherit'};
+  const entered=otp.join('');
+  const fCC=COUNTRY_CODES.filter(x=>(x.name+x.code+x.flag).toLowerCase().includes(ccQ.toLowerCase()));
 
-  return<div style={{minHeight:'100%',minHeight:'-webkit-fill-available',display:'flex',flexDirection:'column',background:'var(--bg)',color:'var(--text)',overflowY:'auto'}}>
-    <div style={{flex:1,padding:'0 24px 40px',paddingTop:'calc(env(safe-area-inset-top,0px) + 48px)',maxWidth:400,margin:'0 auto',width:'100%'}}>
+  const iStyle={width:'100%',background:'none',border:'none',color:'var(--text)',fontSize:16,outline:'none',fontFamily:'inherit'};
+  const cardStyle={background:'var(--card)',borderRadius:14,padding:'14px 16px',border:'1px solid var(--border)',marginBottom:14};
+  const labelStyle={fontSize:10,color:'var(--muted)',marginBottom:8,textTransform:'uppercase',letterSpacing:.8,fontWeight:700};
+
+  return<div style={{minHeight:'100%',minHeight:'-webkit-fill-available',background:'var(--bg)',color:'var(--text)',overflowY:'auto'}}>
+    <div style={{maxWidth:400,margin:'0 auto',padding:'0 24px 48px',paddingTop:'calc(env(safe-area-inset-top,0px) + 48px)'}}>
 
       {/* Logo */}
       <div style={{textAlign:'center',marginBottom:mode==='choose'?40:28}}>
-        <div style={{display:'inline-block',position:'relative',marginBottom:16}}>
-          <svg width="72" height="72" viewBox="0 0 100 100" style={{borderRadius:20,display:'block',filter:'drop-shadow(0 12px 32px rgba(245,166,35,.35))'}}>
-            <rect width="100" height="100" rx="22" fill="#0a0a12"/>
-            <rect x="7" y="7" width="86" height="86" rx="16" fill="url(#lg)"/>
-            <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#f5a623"/><stop offset="100%" stopColor="#c8720a"/></linearGradient></defs>
-            <text x="50" y="70" textAnchor="middle" fontSize="50" fontWeight="900" fill="white" fontFamily="-apple-system,sans-serif">$</text>
-          </svg>
-        </div>
-        <div style={{fontSize:30,fontWeight:900,letterSpacing:-1,color:'var(--text)'}}>LedgrTrack</div>
-        <div style={{fontSize:14,color:'var(--sub)',marginTop:6}}>
-          {mode==='choose'?isLogin?'Sign in to your account':'Create your account'
-          :mode==='otp'?'Enter your verification code'
-          :mode==='email'?isLogin?'Sign in with email':'Create account with email'
-          :'Sign in with phone number'}
+        <svg width="70" height="70" viewBox="0 0 100 100" style={{borderRadius:20,display:'block',margin:'0 auto 14px',filter:'drop-shadow(0 8px 24px rgba(245,166,35,.3))'}}>
+          <rect width="100" height="100" rx="22" fill="#0a0a12"/>
+          <rect x="7" y="7" width="86" height="86" rx="16" fill="url(#authGrad)"/>
+          <defs><linearGradient id="authGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#f5a623"/><stop offset="100%" stopColor="#c8720a"/></linearGradient></defs>
+          <text x="50" y="70" textAnchor="middle" fontSize="50" fontWeight="900" fill="white" fontFamily="-apple-system,sans-serif">$</text>
+        </svg>
+        <div style={{fontSize:28,fontWeight:900,letterSpacing:-1}}>LedgrTrack</div>
+        <div style={{fontSize:14,color:'var(--sub)',marginTop:5}}>
+          {mode==='choose'?(isLogin?'Sign in to your account':'Create your account'):mode==='otp'?'Enter verification code':mode==='email'?'Continue with email':'Continue with phone'}
         </div>
       </div>
 
-      {/* ── CHOOSE ── */}
+      {/* CHOOSE */}
       {mode==='choose'&&<div>
-        <button onClick={()=>setMode('email')} style={btnStyle} onMouseEnter={e=>e.currentTarget.style.borderColor='var(--accent)'} onMouseLeave={e=>e.currentTarget.style.borderColor='var(--border2)'}>
-          <div style={{width:46,height:46,borderRadius:13,background:'linear-gradient(135deg,#e8f4fd,#dbeeff)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>📧</div>
-          <div style={{flex:1}}>
-            <div style={{fontSize:15,fontWeight:700,color:'var(--text)'}}>Continue with Email</div>
-            <div style={{fontSize:12,color:'var(--sub)',marginTop:2}}>Receive a one-time code by email</div>
-          </div>
-          <span style={{color:'var(--muted)',fontSize:20,fontWeight:300}}>›</span>
-        </button>
-        <button onClick={()=>setMode('phone')} style={btnStyle} onMouseEnter={e=>e.currentTarget.style.borderColor='var(--green)'} onMouseLeave={e=>e.currentTarget.style.borderColor='var(--border2)'}>
-          <div style={{width:46,height:46,borderRadius:13,background:'linear-gradient(135deg,#edfaf3,#dcf5e8)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>📱</div>
-          <div style={{flex:1}}>
-            <div style={{fontSize:15,fontWeight:700,color:'var(--text)'}}>Continue with Phone</div>
-            <div style={{fontSize:12,color:'var(--sub)',marginTop:2}}>Receive a one-time code by SMS</div>
-          </div>
-          <span style={{color:'var(--muted)',fontSize:20,fontWeight:300}}>›</span>
-        </button>
-
-        <div style={{textAlign:'center',marginTop:8,marginBottom:28}}>
-          <span style={{fontSize:13,color:'var(--muted)'}}>{isLogin?'New to LedgrTrack? ':'Already have an account? '}</span>
+        {[{m:'email',icon:'📧',title:'Continue with Email',sub:'Receive a one-time code by email',border:'var(--border2)'},{m:'phone',icon:'📱',title:'Continue with Phone',sub:'Receive a one-time code by SMS',border:'var(--border2)'}].map(b=><button key={b.m} onClick={()=>setMode(b.m)} style={{width:'100%',padding:'16px 20px',borderRadius:18,border:'1px solid var(--border2)',background:'var(--card)',color:'var(--text)',display:'flex',alignItems:'center',gap:16,marginBottom:12,textAlign:'left',cursor:'pointer',transition:'border-color .2s'}} onMouseEnter={e=>e.currentTarget.style.borderColor='var(--accent)'} onMouseLeave={e=>e.currentTarget.style.borderColor='var(--border2)'}>
+          <div style={{width:44,height:44,borderRadius:12,background:'var(--a10)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>{b.icon}</div>
+          <div style={{flex:1}}><div style={{fontSize:15,fontWeight:700}}>{b.title}</div><div style={{fontSize:12,color:'var(--sub)',marginTop:2}}>{b.sub}</div></div>
+          <span style={{color:'var(--muted)',fontSize:20}}>›</span>
+        </button>)}
+        <div style={{textAlign:'center',margin:'8px 0 24px'}}>
+          <span style={{fontSize:13,color:'var(--muted)'}}>{isLogin?'New to LedgrTrack? ':'Have an account? '}</span>
           <span onClick={()=>setIsLogin(!isLogin)} style={{fontSize:13,color:'var(--accent)',fontWeight:700,cursor:'pointer'}}>{isLogin?'Create account':'Sign in'}</span>
         </div>
-
-        {/* Security badge */}
-        <div style={{background:'var(--card)',borderRadius:16,padding:'14px 16px',border:'1px solid var(--border)',display:'flex',gap:12,alignItems:'center'}}>
-          <div style={{fontSize:22,flexShrink:0}}>🔒</div>
-          <div style={{fontSize:12,color:'var(--sub)',lineHeight:1.6}}>
-            <strong style={{color:'var(--text)',fontSize:13}}>Secure, password-free login</strong><br/>
-            We use one-time codes — no password to forget or steal. Your data stays on your device.
-          </div>
+        <div style={{background:'var(--card)',borderRadius:14,padding:'14px 16px',border:'1px solid var(--border)',display:'flex',gap:12,alignItems:'flex-start'}}>
+          <span style={{fontSize:20}}>🔒</span>
+          <div style={{fontSize:12,color:'var(--sub)',lineHeight:1.6}}><strong style={{color:'var(--text)',display:'block',marginBottom:2}}>Secure, password-free login</strong>We use one-time codes only. No password to remember. Your data stays private on your device.</div>
         </div>
       </div>}
 
-      {/* ── EMAIL ── */}
+      {/* EMAIL */}
       {mode==='email'&&<div>
-        <button onClick={()=>setMode('choose')} style={{background:'none',border:'none',color:'var(--accent)',fontSize:14,fontWeight:700,marginBottom:24,display:'flex',alignItems:'center',gap:6,padding:0,cursor:'pointer'}}>
-          <span style={{fontSize:18}}>‹</span> Back
-        </button>
-        {!isLogin&&<div style={{background:'var(--card)',borderRadius:14,padding:'14px 16px',border:'1px solid var(--border)',marginBottom:14}}>
-          <div style={{fontSize:10,color:'var(--muted)',marginBottom:8,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>Full Name</div>
-          <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your full name" style={inputStyle} autoFocus/>
-        </div>}
-        <div style={{background:'var(--card)',borderRadius:14,padding:'14px 16px',border:'1px solid var(--border)',marginBottom:20}}>
-          <div style={{fontSize:10,color:'var(--muted)',marginBottom:8,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>Email Address</div>
-          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" style={inputStyle} autoFocus={isLogin} onKeyDown={e=>e.key==='Enter'&&handleEmailSubmit()}/>
-        </div>
-        <button onClick={handleEmailSubmit} disabled={loading} style={{width:'100%',padding:'16px',borderRadius:16,border:'none',background:loading?'var(--card2)':'var(--accent)',color:loading?'var(--muted)':'#000',fontSize:16,fontWeight:800,transition:'all .2s',cursor:loading?'default':'pointer'}}>
-          {loading?<span style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8}}><span style={{width:16,height:16,borderRadius:'50%',border:'2px solid rgba(0,0,0,.2)',borderTopColor:'#000',animation:'spin .7s linear infinite',display:'inline-block'}}/>Sending code…</span>:'Send Verification Code →'}
+        <button onClick={()=>setMode('choose')} style={{background:'none',border:'none',color:'var(--accent)',fontSize:14,fontWeight:700,marginBottom:20,display:'flex',alignItems:'center',gap:4,padding:0,cursor:'pointer'}}>‹ Back</button>
+        {!isLogin&&<div style={cardStyle}><div style={labelStyle}>Full Name</div><input value={name} onChange={e=>setName(e.target.value)} placeholder="Your full name" style={iStyle} autoFocus/></div>}
+        <div style={cardStyle}><div style={labelStyle}>Email Address</div><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" style={iStyle} autoFocus={isLogin} onKeyDown={e=>e.key==='Enter'&&submitEmail()}/></div>
+        <button onClick={submitEmail} disabled={loading} style={{width:'100%',padding:'15px',borderRadius:14,border:'none',background:loading?'var(--card2)':'var(--accent)',color:loading?'var(--muted)':'#000',fontSize:15,fontWeight:800,cursor:loading?'default':'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+          {loading?<><span style={{width:16,height:16,border:'2.5px solid rgba(0,0,0,.2)',borderTopColor:'#000',borderRadius:'50%',animation:'spin .7s linear infinite',display:'inline-block'}}/>Sending code…</>:'Send Verification Code →'}
         </button>
       </div>}
 
-      {/* ── PHONE ── */}
+      {/* PHONE */}
       {mode==='phone'&&<div>
-        <button onClick={()=>setMode('choose')} style={{background:'none',border:'none',color:'var(--accent)',fontSize:14,fontWeight:700,marginBottom:24,display:'flex',alignItems:'center',gap:6,padding:0,cursor:'pointer'}}>
-          <span style={{fontSize:18}}>‹</span> Back
-        </button>
-        {!isLogin&&<div style={{background:'var(--card)',borderRadius:14,padding:'14px 16px',border:'1px solid var(--border)',marginBottom:14}}>
-          <div style={{fontSize:10,color:'var(--muted)',marginBottom:8,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>Full Name</div>
-          <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your full name" style={inputStyle} autoFocus/>
-        </div>}
-        <div style={{fontSize:10,color:'var(--muted)',marginBottom:8,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>Phone Number</div>
-        <div style={{display:'flex',gap:10,marginBottom:20,position:'relative'}}>
-          <button onClick={()=>setShowCC(!showCC)} style={{padding:'14px 14px',borderRadius:14,border:'1px solid var(--border)',background:'var(--card)',color:'var(--text)',fontSize:15,fontWeight:700,display:'flex',alignItems:'center',gap:8,flexShrink:0,cursor:'pointer',whiteSpace:'nowrap'}}>
-            <span style={{fontSize:18}}>{cc.flag}</span>
-            <span>{cc.code}</span>
-            <span style={{fontSize:10,color:'var(--muted)'}}>{showCC?'▴':'▾'}</span>
+        <button onClick={()=>setMode('choose')} style={{background:'none',border:'none',color:'var(--accent)',fontSize:14,fontWeight:700,marginBottom:20,display:'flex',alignItems:'center',gap:4,padding:0,cursor:'pointer'}}>‹ Back</button>
+        {!isLogin&&<div style={cardStyle}><div style={labelStyle}>Full Name</div><input value={name} onChange={e=>setName(e.target.value)} placeholder="Your full name" style={iStyle} autoFocus/></div>}
+        <div style={labelStyle}>Phone Number</div>
+        <div style={{display:'flex',gap:10,marginBottom:14}}>
+          <button onClick={()=>setShowCC(!showCC)} style={{padding:'12px 14px',borderRadius:12,border:'1px solid var(--border)',background:'var(--card)',color:'var(--text)',display:'flex',alignItems:'center',gap:8,flexShrink:0,cursor:'pointer'}}>
+            <span style={{fontSize:18}}>{cc.flag}</span><span style={{fontWeight:700}}>{cc.code}</span><span style={{fontSize:10,color:'var(--muted)'}}>{showCC?'▴':'▾'}</span>
           </button>
-          <div style={{flex:1,background:'var(--card)',border:'1px solid var(--border)',borderRadius:14,padding:'14px 16px'}}>
-            <input type="tel" value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g,''))} placeholder="Phone number" style={inputStyle} autoFocus={isLogin} onKeyDown={e=>e.key==='Enter'&&handlePhoneSubmit()}/>
+          <div style={{flex:1,background:'var(--card)',border:'1px solid var(--border)',borderRadius:12,padding:'12px 14px'}}>
+            <input type="tel" value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g,''))} placeholder="Phone number" style={iStyle} onKeyDown={e=>e.key==='Enter'&&submitPhone()}/>
           </div>
         </div>
-        {/* Country picker */}
-        {showCC&&<div style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:16,padding:12,marginBottom:14,maxHeight:240,overflowY:'auto'}}>
-          <input value={ccSearch} onChange={e=>setCCS(e.target.value)} placeholder="Search country…" style={{width:'100%',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:10,color:'var(--text)',fontSize:14,padding:'10px 12px',outline:'none',marginBottom:8,boxSizing:'border-box'}}/>
-          {fCC.map(x=><div key={x.country} onClick={()=>{setCC(x);setShowCC(false);setCCS('');}} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:10,cursor:'pointer',transition:'background .1s'}} onMouseEnter={e=>e.currentTarget.style.background='var(--card2)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-            <span style={{fontSize:20}}>{x.flag}</span>
-            <span style={{flex:1,fontSize:14,fontWeight:600,color:'var(--text)'}}>{x.name}</span>
-            <span style={{fontSize:13,color:'var(--muted)',fontWeight:700}}>{x.code}</span>
+        {showCC&&<div style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:14,padding:12,marginBottom:12,maxHeight:200,overflowY:'auto'}}>
+          <input value={ccQ} onChange={e=>setCCQ(e.target.value)} placeholder="Search country..." style={{width:'100%',background:'var(--card2)',border:'1px solid var(--border)',borderRadius:8,color:'var(--text)',fontSize:13,padding:'8px 12px',outline:'none',marginBottom:8,boxSizing:'border-box'}}/>
+          {fCC.map(x=><div key={x.country} onClick={()=>{setCC(x);setShowCC(false);setCCQ('');}} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 10px',borderRadius:8,cursor:'pointer'}} onMouseEnter={e=>e.currentTarget.style.background='var(--card2)'} onMouseLeave={e=>e.currentTarget.style.background=''}>
+            <span style={{fontSize:18}}>{x.flag}</span><span style={{flex:1,fontSize:13,fontWeight:600}}>{x.name}</span><span style={{fontSize:12,color:'var(--muted)',fontWeight:700}}>{x.code}</span>
           </div>)}
         </div>}
-        <button onClick={handlePhoneSubmit} disabled={loading} style={{width:'100%',padding:'16px',borderRadius:16,border:'none',background:loading?'var(--card2)':'var(--green)',color:loading?'var(--muted)':'#000',fontSize:16,fontWeight:800,cursor:loading?'default':'pointer'}}>
-          {loading?'Sending code…':'Send Verification Code →'}
+        <button onClick={submitPhone} disabled={loading} style={{width:'100%',padding:'15px',borderRadius:14,border:'none',background:'var(--green)',color:'#000',fontSize:15,fontWeight:800,cursor:'pointer'}}>
+          {loading?'Sending…':'Send Verification Code →'}
         </button>
-        <p style={{fontSize:12,color:'var(--muted)',textAlign:'center',marginTop:12,lineHeight:1.6}}>Your SMS app will open pre-filled. Send it to yourself, then enter the code.</p>
+        <p style={{fontSize:12,color:'var(--muted)',textAlign:'center',marginTop:10,lineHeight:1.5}}>Your SMS app will open pre-filled. Send it to yourself then enter the code shown.</p>
       </div>}
 
-      {/* ── OTP ── */}
+      {/* OTP */}
       {mode==='otp'&&<div>
-        <button onClick={()=>{setMode(otpChannel);setOtpInput('');setOtpError(false);}} style={{background:'none',border:'none',color:'var(--accent)',fontSize:14,fontWeight:700,marginBottom:20,display:'flex',alignItems:'center',gap:6,padding:0,cursor:'pointer'}}>
-          <span style={{fontSize:18}}>‹</span> Back
-        </button>
-
-        {/* Email OTP — clean inbox instruction */}
-        {otpChannel==='email'&&<div style={{textAlign:'center',marginBottom:28}}>
-          <div style={{width:68,height:68,borderRadius:20,background:'linear-gradient(135deg,#e8f4fd,#dbeeff)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:32,margin:'0 auto 16px'}}>📧</div>
-          <div style={{fontSize:20,fontWeight:800,color:'var(--text)',marginBottom:8}}>Check your email</div>
-          <div style={{fontSize:14,color:'var(--sub)',lineHeight:1.6}}>We sent a 6-digit code to</div>
-          <div style={{fontSize:16,fontWeight:700,color:'var(--accent)',marginTop:4,marginBottom:4}}>{email}</div>
-          <div style={{fontSize:12,color:'var(--muted)'}}>Check spam if you don't see it · expires in 5 minutes</div>
-        </div>}
-
-        {/* Phone OTP — show code since user sends SMS to themselves */}
-        {otpChannel==='phone'&&<div style={{marginBottom:24}}>
-          <div style={{textAlign:'center',marginBottom:16}}>
-            <div style={{width:68,height:68,borderRadius:20,background:'linear-gradient(135deg,#edfaf3,#dcf5e8)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:32,margin:'0 auto 16px'}}>💬</div>
-            <div style={{fontSize:20,fontWeight:800,color:'var(--text)',marginBottom:8}}>Check your SMS app</div>
-            <div style={{fontSize:14,color:'var(--sub)',lineHeight:1.6}}>Send the pre-filled message to <strong style={{color:'var(--text)'}}>{cc.code} {phone}</strong><br/>then enter your code below.</div>
-          </div>
-          {/* Show code prominently for phone */}
-          <div style={{background:'var(--card)',borderRadius:18,padding:'20px',border:'1px solid var(--border)',textAlign:'center'}}>
-            <div style={{fontSize:11,color:'var(--muted)',textTransform:'uppercase',letterSpacing:2,fontWeight:700,marginBottom:10}}>Your verification code</div>
-            <div style={{fontSize:40,fontWeight:900,letterSpacing:10,color:'var(--accent)',fontFamily:'monospace'}}>{generatedOtp}</div>
-            <div style={{fontSize:12,color:'var(--muted)',marginTop:8}}>Valid for 5 minutes · do not share</div>
-          </div>
-        </div>}
-
-        {/* 6-box OTP input */}
-        <div style={{display:'flex',gap:8,justifyContent:'center',marginBottom:8}}>
-          {[0,1,2,3,4,5].map(i=>{
-            const val=otpInput[i]||'';
-            const isFilled=!!val;
-            const isActive=i===otpInput.length||(i===5&&otpInput.length===6);
-            return<input key={i} ref={otpRefs[i]} type="tel" inputMode="numeric" maxLength={6} value={val}
-              onChange={e=>handleOtpChange(i,e.target.value)}
-              onKeyDown={e=>{if(e.key==='Backspace'&&!val&&i>0){const ns=otpInput.slice(0,-1);setOtpInput(ns);otpRefs[i-1].current?.focus();}}}
-              style={{width:46,height:58,borderRadius:14,border:`2.5px solid ${otpError?'var(--red)':isFilled?'var(--accent)':isActive?'rgba(245,166,35,.4)':'var(--border2)'}`,background:otpError?'var(--r10)':isFilled?'var(--a10)':'var(--card)',color:'var(--text)',fontSize:26,fontWeight:900,textAlign:'center',outline:'none',caretColor:'var(--accent)',transition:'all .15s',animation:otpError?'shake .3s ease':'none'}}/>;
-          })}
+        <button onClick={()=>{setMode(channel);setOtp(['','','','','','']);setErr('');}} style={{background:'none',border:'none',color:'var(--accent)',fontSize:14,fontWeight:700,marginBottom:20,display:'flex',alignItems:'center',gap:4,padding:0,cursor:'pointer'}}>‹ Back</button>
+        <div style={{textAlign:'center',marginBottom:24}}>
+          <div style={{width:64,height:64,borderRadius:18,background:channel==='email'?'rgba(78,154,241,.15)':'var(--g10)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,margin:'0 auto 14px'}}>{channel==='email'?'📧':'💬'}</div>
+          <div style={{fontSize:18,fontWeight:800,marginBottom:6}}>Check your {channel==='email'?'email':'SMS app'}</div>
+          <div style={{fontSize:13,color:'var(--sub)',lineHeight:1.6}}>{channel==='email'?<>Code sent to <strong style={{color:'var(--accent)'}}>{email}</strong><br/>Check spam if not received</>:<>Send the pre-filled SMS to <strong style={{color:'var(--text)'}}>{cc.code} {phone}</strong>, then enter your code below</>}</div>
         </div>
-        {otpError&&<p style={{textAlign:'center',fontSize:13,color:'var(--red)',marginTop:0,marginBottom:12,fontWeight:600}}>Incorrect code — please try again</p>}
-
-        <button onClick={verifyOtp} disabled={otpInput.length<6} style={{width:'100%',padding:'16px',borderRadius:16,border:'none',background:otpInput.length===6?'var(--accent)':'var(--card2)',color:otpInput.length===6?'#000':'var(--muted)',fontSize:16,fontWeight:800,transition:'all .2s',cursor:otpInput.length===6?'pointer':'default',marginTop:4}}>
-          {otpInput.length===6?'Verify & Sign In ✓':'Enter 6-digit code'}
+        {channel==='phone'&&<div style={{background:'var(--card)',borderRadius:14,padding:'16px',border:'1px solid var(--border)',textAlign:'center',marginBottom:20}}>
+          <div style={{fontSize:10,color:'var(--muted)',textTransform:'uppercase',letterSpacing:2,fontWeight:700,marginBottom:8}}>Your verification code</div>
+          <div style={{fontSize:38,fontWeight:900,letterSpacing:10,color:'var(--accent)',fontFamily:'monospace'}}>{genOtp}</div>
+        </div>}
+        {/* 6 boxes */}
+        <div style={{display:'flex',gap:8,justifyContent:'center',marginBottom:8}}>
+          {[0,1,2,3,4,5].map(i=><input key={i} ref={refs[i]} type="tel" inputMode="numeric" maxLength={6} value={otp[i]||''}
+            onChange={e=>handleDigit(i,e.target.value)}
+            onKeyDown={e=>handleBackspace(i,e)}
+            style={{width:46,height:56,borderRadius:12,border:'2px solid '+(err?'var(--red)':otp[i]?'var(--accent)':'var(--border2)'),background:err?'var(--r10)':otp[i]?'var(--a10)':'var(--card)',color:'var(--text)',fontSize:24,fontWeight:900,textAlign:'center',outline:'none',transition:'all .15s',animation:err?'shake .3s':'none'}}/>)}
+        </div>
+        {err&&<p style={{color:'var(--red)',fontSize:13,textAlign:'center',fontWeight:600,margin:'4px 0 8px'}}>{err}</p>}
+        <button onClick={verify} disabled={entered.length<6} style={{width:'100%',padding:'15px',borderRadius:14,border:'none',background:entered.length===6?'var(--accent)':'var(--card2)',color:entered.length===6?'#000':'var(--muted)',fontSize:15,fontWeight:800,cursor:entered.length===6?'pointer':'default',marginTop:6,transition:'all .2s'}}>
+          {entered.length===6?'Verify & Sign In ✓':'Enter 6-digit code'}
         </button>
-
-        <div style={{textAlign:'center',marginTop:18}}>
-          <span style={{fontSize:13,color:'var(--muted)'}}>Didn't receive it? </span>
-          <span onClick={resend} style={{fontSize:13,color:resendTimer>0?'var(--muted)':'var(--accent)',fontWeight:700,cursor:resendTimer>0?'default':'pointer'}}>
-            {resendTimer>0?`Resend in ${resendTimer}s`:'Resend code'}
+        <div style={{textAlign:'center',marginTop:16,fontSize:13}}>
+          <span style={{color:'var(--muted)'}}>Didn't get it? </span>
+          <span onClick={resend} style={{color:timer>0?'var(--muted)':'var(--accent)',fontWeight:700,cursor:timer>0?'default':'pointer'}}>
+            {timer>0?'Resend in '+timer+'s':'Resend code'}
           </span>
         </div>
       </div>}
