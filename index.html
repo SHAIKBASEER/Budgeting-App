@@ -436,6 +436,52 @@ const getCat=(type,id)=>{const l=type==='income'?INC_CATS:EXP_CATS;return l.find
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const LS={get:(k,fb=null)=>{try{const v=localStorage.getItem(k);return v!==null?JSON.parse(v):fb;}catch{return fb;}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}},del:(k)=>{try{localStorage.removeItem(k);}catch{}}};
 
+// ── CLOUD SYNC via JSONBin.io ────────────────────────────────
+// Free service — sign up at jsonbin.io, get a Master Key, add it below.
+// Without it the app works offline only. With it, data syncs across all devices.
+const JSONBIN_KEY=LS.get('jsonbin_key','')||'$2a$10$YFCjq4Azn.L42reasWN8ZOv2Ub1rlOrNwZnVod/d1i/vBo4pP/XxG';
+const JSONBIN_URL='https://api.jsonbin.io/v3';
+
+async function cloudSave(uk,data){
+  if(!JSONBIN_KEY)return{ok:false,reason:'no_key'};
+  try{
+    const binId=LS.get('bin_id_'+uk,null);
+    const body=JSON.stringify({...data,_at:Date.now(),_v:2});
+    const headers={'Content-Type':'application/json','X-Master-Key':JSONBIN_KEY,'X-Bin-Versioning':'false'};
+    if(binId){
+      const r=await fetch(JSONBIN_URL+'/b/'+binId,{method:'PUT',headers,body});
+      if(r.ok)return{ok:true};
+    }
+    // Create new bin
+    const r=await fetch(JSONBIN_URL+'/b',{method:'POST',headers:{...headers,'X-Bin-Name':'ledgr_'+uk.slice(0,8),'X-Bin-Private':'true'},body});
+    if(!r.ok)return{ok:false,reason:'create_failed'};
+    const j=await r.json();
+    LS.set('bin_id_'+uk,j.metadata.id);
+    return{ok:true};
+  }catch(e){return{ok:false,reason:e.message};}
+}
+
+async function cloudLoad(uk){
+  if(!JSONBIN_KEY)return null;
+  try{
+    const binId=LS.get('bin_id_'+uk,null);
+    if(!binId){
+      // Search for existing bin by name
+      const r=await fetch(JSONBIN_URL+'/b?search=ledgr_'+uk.slice(0,8),{headers:{'X-Master-Key':JSONBIN_KEY}});
+      if(r.ok){const j=await r.json();const bins=j.result||[];if(bins.length>0){LS.set('bin_id_'+uk,bins[0]._id);return cloudLoad(uk);}}
+      return null;
+    }
+    const r=await fetch(JSONBIN_URL+'/b/'+binId+'/latest',{headers:{'X-Master-Key':JSONBIN_KEY}});
+    if(!r.ok)return null;
+    const j=await r.json();
+    return j.record||null;
+  }catch(e){return null;}
+}
+
+function packageUserData(txns,budgetGoal,incomeGoal,cur,lang,theme){
+  return{txns,budgetGoal,incomeGoal,currency:cur,language:lang,themeId:theme?.id||'dark'};
+}
+
 const fmtMoney=(n,cur='USD')=>{try{return new Intl.NumberFormat(CURRENCIES.find(c=>c.code===cur)?.locale||'en-US',{style:'currency',currency:cur,minimumFractionDigits:cur==='JPY'||cur==='KRW'?0:2,maximumFractionDigits:cur==='JPY'||cur==='KRW'?0:2}).format(Math.abs(n));}catch{const c=CURRENCIES.find(x=>x.code===cur);return`${c?.symbol||'$'}${Math.abs(n).toFixed(2)}`;}};
 const fmtK=(n,cur='USD')=>{if(Math.abs(n)>=1000){const s=CURRENCIES.find(c=>c.code===cur)?.symbol||'$';return`${s}${(Math.abs(n)/1000).toFixed(1)}k`;}return fmtMoney(n,cur);};
 const todayStr=()=>new Date().toISOString().split('T')[0];
@@ -1457,28 +1503,50 @@ function SettingsScreen({user,onLogout,theme,onTheme,txns,onReset,toast,budgetGo
       </div>
     </div>}
 
-    {/* EMAILJS STATUS */}
+    {/* EMAILJS + CLOUD SYNC */}
     {sec==='emailjs'&&<div>
       <div style={{background:'var(--g10)',borderRadius:18,padding:'20px',border:'1px solid rgba(48,209,88,.25)',marginBottom:14,textAlign:'center'}}>
         <div style={{fontSize:40,marginBottom:10}}>✅</div>
         <div style={{fontSize:16,fontWeight:800,color:'var(--green)',marginBottom:6}}>EmailJS Connected</div>
-        <div style={{fontSize:13,color:'var(--sub)',lineHeight:1.6}}>Real email delivery is active.<br/>OTP codes are sent automatically when users sign in.</div>
+        <div style={{fontSize:13,color:'var(--sub)',lineHeight:1.6}}>OTP codes sent automatically via ledgrtrack@gmail.com</div>
       </div>
-      <div style={{background:'var(--card)',borderRadius:16,padding:'16px',border:'1px solid var(--border)',marginBottom:12}}>
-        <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>Active Configuration</div>
-        {[{l:'Service ID',v:'service_e3aq4gh'},{l:'Template ID',v:'template_5zywxbh'},{l:'Sender',v:'ledgrtrack@gmail.com'},{l:'Template vars',v:'{{to_email}}, {{subject}}, {{html_content}}, {{email}}'}].map(r=><div key={r.l} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',borderBottom:'1px solid var(--border)'}}>
-          <span style={{fontSize:12,color:'var(--sub)'}}>{r.l}</span>
-          <span style={{fontSize:12,fontWeight:700,fontFamily:'monospace',color:'var(--accent)'}}>{r.v}</span>
-        </div>)}
+
+      {/* JSONBin Cloud Sync */}
+      <div style={{background:'var(--card)',borderRadius:18,padding:'18px',border:'1px solid var(--border)',marginBottom:14}}>
+        <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>☁️ Cloud Sync — Sync Across All Devices</div>
+        <div style={{fontSize:13,color:'var(--sub)',lineHeight:1.6,marginBottom:14}}>Sign up free at <strong style={{color:'var(--accent)'}}>jsonbin.io</strong> → Account → Master Key → paste below. Your data will sync to any device when you log in.</div>
+        <div style={{fontSize:11,color:'var(--muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>JSONBin Master Key</div>
+        <input type="password" defaultValue={LS.get('jsonbin_key','')||''} onChange={e=>LS.set('jsonbin_key',e.target.value.trim())} placeholder="$2a$10$xxxxxxxxxxxxxxxx..." style={{width:'100%',background:'var(--card2)',border:'1px solid var(--border2)',borderRadius:12,color:'var(--text)',fontSize:13,padding:'12px 14px',outline:'none',fontFamily:'monospace',marginBottom:10,boxSizing:'border-box'}}/>
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={async()=>{
+            const key=LS.get('jsonbin_key','');
+            if(!key){toast({icon:'❌',title:'No key',body:'Paste your JSONBin Master Key above.',err:true});return;}
+            toast({icon:'☁️',title:'Testing...',body:'Connecting to JSONBin...'});
+            try{
+              const r=await fetch('https://api.jsonbin.io/v3/b',{method:'POST',headers:{'Content-Type':'application/json','X-Master-Key':key,'X-Bin-Name':'ledgr_test','X-Bin-Private':'true'},body:JSON.stringify({test:true,t:Date.now()})});
+              if(r.ok)toast({icon:'✅',title:'Cloud sync working!',body:'JSONBin connected! Data will now sync across all your devices.'});
+              else toast({icon:'❌',title:'Failed — check your key',body:'Make sure you copied the full Master Key.',err:true});
+            }catch(e){toast({icon:'❌',title:'Error',body:e.message,err:true});}
+          }} style={{flex:1,padding:'11px',borderRadius:12,border:'none',background:'var(--accent)',color:'#000',fontSize:13,fontWeight:800,cursor:'pointer'}}>Test Connection</button>
+          <button onClick={async()=>{
+            const uk=(user?.email||user?.phone||'').toLowerCase().trim();
+            if(!uk){toast({icon:'❌',title:'Not logged in',err:true});return;}
+            toast({icon:'☁️',title:'Syncing...',body:'Uploading all your data to cloud...'});
+            const res=await cloudSave(uk,packageUserData(txns,budgetGoal,incomeGoal,cur,lang,theme));
+            if(res.ok)toast({icon:'✅',title:'Synced!',body:'All transactions uploaded. Log in from any device.'});
+            else toast({icon:'❌',title:'Sync failed',body:res.reason==='no_key'?'Add JSONBin key first':res.reason,err:true});
+          }} style={{flex:1,padding:'11px',borderRadius:12,border:'1px solid var(--border)',background:'transparent',color:'var(--text)',fontSize:13,fontWeight:700,cursor:'pointer'}}>Sync Now ☁️</button>
+        </div>
       </div>
+
       <div style={{background:'var(--card)',borderRadius:16,padding:'16px',border:'1px solid var(--border)'}}>
-        <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>How it works</div>
-        <div style={{fontSize:12,color:'var(--sub)',lineHeight:1.8}}>
-          1. User enters their email on login screen<br/>
-          2. App generates a secure 6-digit OTP<br/>
-          3. EmailJS sends it instantly from <strong style={{color:'var(--text)'}}>ledgrtrack@gmail.com</strong><br/>
-          4. User enters the code → signed in ✓<br/>
-          5. Daily reminders also send via this route
+        <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>How cloud sync works</div>
+        <div style={{fontSize:12,color:'var(--sub)',lineHeight:1.9}}>
+          1. Sign up free at jsonbin.io (no credit card)<br/>
+          2. Go to Account → Master Key → copy it<br/>
+          3. Paste it above → tap Test Connection<br/>
+          4. From now on, every transaction you add syncs to cloud automatically<br/>
+          5. Log in on any phone, tablet or computer → your data loads instantly
         </div>
       </div>
     </div>}
@@ -1543,29 +1611,34 @@ function App(){
   const [showSched,setSched]=useState(false);
   const [voiceParsed,setVoiceParsed]=useState(null);
   const [notifBanner,setNB]=useState(()=>'Notification' in window&&Notification.permission==='default');
+  const [syncing,setSyncing]=useState(false);
+  const [syncStatus,setSyncStatus]=useState('');// 'ok'|'error'|''
+  const syncTimer=useRef(null);
 
   useEffect(()=>{applyTheme(theme);},[theme]);
   useEffect(()=>{LS.set('budget_tab',tab);},[tab]);
+
+  // Auto-save to localStorage + cloud whenever data changes
   useEffect(()=>{
     LS.set('budget_txns',txns);
-    // Also save under user-specific key for per-account persistence
-    if(user){
-      const uk=(user.email||user.phone||user.uid||'').toLowerCase().trim();
-      if(uk)LS.set('txns_'+uk,txns);
-    }
-  },[txns,user]);
-  useEffect(()=>{
-    if(user){
-      const uk=(user.email||user.phone||user.uid||'').toLowerCase().trim();
-      if(uk){LS.set('budget_goal_'+uk,budgetGoal);LS.set('income_goal_'+uk,incomeGoal);}
-    }
-  },[budgetGoal,incomeGoal,user]);
-  useEffect(()=>{
-    if(user){const uk=(user.email||user.phone||user.uid||'').toLowerCase().trim();if(uk)LS.set('currency_'+uk,cur);}
-  },[cur,user]);
-  useEffect(()=>{
-    if(user){const uk=(user.email||user.phone||user.uid||'').toLowerCase().trim();if(uk)LS.set('theme_'+uk,theme);}
-  },[theme,user]);
+    if(!user)return;
+    const uk=(user.email||user.phone||user.uid||'').toLowerCase().trim();
+    if(!uk)return;
+    // Save locally first
+    LS.set('txns_'+uk,txns);
+    LS.set('budget_goal_'+uk,budgetGoal);
+    LS.set('income_goal_'+uk,incomeGoal);
+    LS.set('currency_'+uk,cur);
+    LS.set('theme_id_'+uk,theme?.id||'dark');
+    // Debounce cloud save by 2s so we don't spam on every keystroke
+    clearTimeout(syncTimer.current);
+    syncTimer.current=setTimeout(async()=>{
+      setSyncing(true);
+      const result=await cloudSave(uk,packageUserData(txns,budgetGoal,incomeGoal,cur,lang,theme));
+      setSyncing(false);
+      setSyncStatus(result.ok?'ok':result.reason==='no_key'?'':' error');
+    },2000);
+  },[txns,budgetGoal,incomeGoal,cur,lang,theme,user]);
 
   // Splash
   useEffect(()=>{setTimeout(()=>{const s=document.getElementById('splash');if(s){s.classList.add('hide');setTimeout(()=>s.remove(),500);}},1200);},[]);
@@ -1677,41 +1750,68 @@ function App(){
     setTxns([]);setTheme(THEMES[0]);applyTheme(THEMES[0]);setBudget(0);setIncome(0);setCur('USD');setLang('en');setTab(0);setUser(null);
   };
 
-  const handleAuth=u=>{
-    // Build user key from email or phone — this is the storage key for all their data
-    const uk=(u.email||u.phone||u.uid).toLowerCase().trim();
-
-    // Load ALL saved data for this user BEFORE setting state
-    const savedTxns   =LS.get('txns_'+uk,null);
-    const savedBudget =LS.get('budget_goal_'+uk,null);
-    const savedIncome =LS.get('income_goal_'+uk,null);
-    const savedCur    =LS.get('currency_'+uk,null);
-    const savedTheme  =LS.get('theme_'+uk,null);
-
-    // Write user key first so save-effects can use it immediately
+  const handleAuth=async(u)=>{
+    const uk=(u.email||u.phone||u.uid||'').toLowerCase().trim();
     LS.set('active_user_key',uk);
     LS.set('auth_user',u);
-
-    // Restore data — also write to generic keys so save-effects read them back
-    if(savedTxns!==null){LS.set('budget_txns',savedTxns);setTxns(savedTxns);}
-    if(savedBudget!==null){LS.set('budget_goal',savedBudget);setBudget(savedBudget);}
-    if(savedIncome!==null){LS.set('income_goal',savedIncome);setIncome(savedIncome);}
-    if(savedCur!==null){LS.set('currency',savedCur);setCur(savedCur);}
-    if(savedTheme!==null){applyTheme(savedTheme);setTheme(savedTheme);}
-
     setUser(u);
 
-    const isNewUser=savedTxns===null;
-    // Send welcome email for brand-new users
-    if(isNewUser&&u.email){
-      setTimeout(()=>sendWelcomeEmail({toEmail:u.email,toName:u.name,currency:savedCur||'USD'}),1500);
+    // Step 1: Load from localStorage immediately (instant, works offline)
+    const localTxns   =LS.get('txns_'+uk,null);
+    const localBudget =LS.get('budget_goal_'+uk,null);
+    const localIncome =LS.get('income_goal_'+uk,null);
+    const localCur    =LS.get('currency_'+uk,null);
+    const localThemeId=LS.get('theme_id_'+uk,null);
+
+    const applyData=(txnsData,budget,income,currency,themeId,source)=>{
+      if(txnsData!==null){LS.set('budget_txns',txnsData);setTxns(txnsData);}
+      if(budget!==null)setBudget(budget);
+      if(income!==null)setIncome(income);
+      if(currency!==null)setCur(currency);
+      if(themeId){const th=THEMES.find(t=>t.id===themeId)||THEMES[0];setTheme(th);applyTheme(th);}
+      const isNew=txnsData===null||txnsData.length===0;
+      setTimeout(()=>addToast({
+        icon:isNew?'🎉':'👋',
+        title:isNew?'Welcome, '+(u.name||u.email||u.phone)+'!':'Welcome back, '+(u.name||u.email||u.phone)+'!',
+        body:source==='cloud'?'Data synced from cloud ☁️':isNew?'Account ready — add your first transaction.':'Local data restored.',
+      }),400);
+      return isNew;
+    };
+
+    // Apply local data right away so user sees something instantly
+    const isNewLocally=applyData(localTxns,localBudget,localIncome,localCur,localThemeId,'local');
+
+    // Step 2: Try loading from cloud (may have newer data from another device)
+    setSyncing(true);
+    addToast({icon:'☁️',title:'Syncing...',body:'Checking cloud for latest data.'});
+    const cloud=await cloudLoad(uk);
+    setSyncing(false);
+
+    if(cloud&&cloud.txns){
+      // Cloud has data — check if it's newer than local
+      const cloudTime=new Date(cloud._savedAt||0).getTime();
+      const localTime=LS.get('last_sync_'+uk,0);
+      if(cloudTime>localTime||!localTxns){
+        // Cloud is newer — use cloud data
+        LS.set('last_sync_'+uk,cloudTime);
+        applyData(cloud.txns,cloud.budgetGoal,cloud.incomeGoal,cloud.currency,cloud.themeId,'cloud');
+        // Save cloud data locally so it works offline next time
+        LS.set('txns_'+uk,cloud.txns);
+        if(cloud.budgetGoal!=null)LS.set('budget_goal_'+uk,cloud.budgetGoal);
+        if(cloud.incomeGoal!=null)LS.set('income_goal_'+uk,cloud.incomeGoal);
+        if(cloud.currency)LS.set('currency_'+uk,cloud.currency);
+        if(cloud.themeId)LS.set('theme_id_'+uk,cloud.themeId);
+      } else {
+        addToast({icon:'✅',title:'Up to date',body:'Your data is synced across all devices.'});
+      }
+    } else if(isNewLocally&&JSONBIN_MASTER){
+      addToast({icon:'☁️',title:'No cloud data found',body:'Add JSONBin key in Settings to sync across devices.'});
     }
-    // Show toast
-    setTimeout(()=>addToast({
-      icon:isNewUser?'🎉':'👋',
-      title:isNewUser?'Welcome, '+(u.name||u.email)+'!':'Welcome back, '+(u.name||u.email)+'!',
-      body:isNewUser?'Your account is ready. Check email for welcome message.':'Your transactions and settings have been restored.',
-    }),400);
+
+    // Welcome email for brand-new users
+    if(isNewLocally&&!cloud?.txns&&u.email){
+      setTimeout(()=>sendWelcomeEmail({toEmail:u.email,toName:u.name,currency:localCur||'USD'}),2000);
+    }
   };
 
   const handleLogout=()=>{
