@@ -220,7 +220,7 @@ async function sendScheduledEmail({toEmail,toName,tx,monthIncome,monthExpense,ba
     +'</td></tr></table>'
     +'<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px"><tr>'
     +'<td style="background:#f9fafb;border-radius:14px;padding:20px;border:1px solid #f3f4f6">'
-    +'<p style="margin:0 0 14px;font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:1.5px">&#x1F4CA; This Month's Summary</p>'
+    +'<p style="margin:0 0 14px;font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:1.5px">&#x1F4CA; Monthly Summary</p>'
     +'<table width="100%" cellpadding="0" cellspacing="0" border="0">'
     +sRow('&#x1F49A;','Income',fmtAmt(monthIncome,currency),'#059669')
     +sRow('&#x2764;&#xFE0F;','Expenses',fmtAmt(monthExpense,currency),'#dc2626')
@@ -811,7 +811,7 @@ function AuthScreen({onAuth,toast}){
           {entered.length===6?'Verify & Sign In ✓':'Enter 6-digit code'}
         </button>
         <div style={{textAlign:'center',marginTop:16,fontSize:13}}>
-          <span style={{color:'var(--muted)'}}>Didn't get it? </span>
+          <span style={{color:'var(--muted)'}}>No code? </span>
           <span onClick={resend} style={{color:timer>0?'var(--muted)':'var(--accent)',fontWeight:700,cursor:timer>0?'default':'pointer'}}>
             {timer>0?'Resend in '+timer+'s':'Resend code'}
           </span>
@@ -1512,7 +1512,7 @@ function SettingsScreen({user,onLogout,theme,onTheme,txns,onReset,toast,budgetGo
       <div style={{background:'var(--r10)',borderRadius:20,padding:'20px',border:'1px solid rgba(255,69,58,.2)',marginBottom:14}}>
         <div style={{fontSize:28,marginBottom:8}}>⚠️</div>
         <div style={{fontSize:17,fontWeight:800,color:'var(--red)',marginBottom:8}}>Danger Zone</div>
-        <div style={{fontSize:13,color:'var(--sub)',lineHeight:1.6,marginBottom:16}}>Currently showing <strong style={{color:'var(--text)'}}>demo data</strong>. Reset when you're ready to start with your real finances.</div>
+        <div style={{fontSize:13,color:'var(--sub)',lineHeight:1.6,marginBottom:16}}>Currently showing <strong style={{color:'var(--text)'}}>demo data</strong>. Reset when ready to use your real finances.</div>
         <button onClick={()=>setSR(true)} style={{width:'100%',padding:'14px',borderRadius:14,border:'none',background:'var(--red)',color:'#fff',fontSize:15,fontWeight:800}}>🗑️ Hard Reset — Delete Everything</button>
       </div>
       <div style={{background:'var(--card)',borderRadius:16,padding:'16px',border:'1px solid var(--border)'}}>
