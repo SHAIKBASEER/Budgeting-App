@@ -93,6 +93,130 @@ const EMAILJS_PUBLIC_KEY='Edku-DGDzomlJreV6';
 
 // Initialize EmailJS immediately with real credentials
 (function initEJS(){try{emailjs.init(EMAILJS_PUBLIC_KEY);}catch(e){}})();
+
+// ━━ RICH EMAIL HTML BUILDER ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Builds a beautiful plain-text OTP payload that maps to {{otp}}
+// The actual HTML styling is in the EmailJS template on the server
+// For reminder emails we send rich content in the otp field
+function buildReminderEmailBody({userName,type,amount,note,category,dueDate,remindType,monthIncome,monthExpense,balance,currency}){
+  const sym=CURRENCIES.find(c=>c.code===currency)?.symbol||'$';
+  const fmt2=n=>`${sym}${Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  const cat=type==='income'?INC_CATS.find(c=>c.id===category):EXP_CATS.find(c=>c.id===category);
+  const icon=cat?.icon||'💰';
+  const typeLabel=type==='income'?'Income':'Expense';
+  const amtStr=`${type==='income'?'+':'-'}${fmt2(amount)}`;
+  const dateStr=new Date(dueDate+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  const urgency=remindType==='today'?'⚠️ DUE TODAY':'📅 Due Tomorrow';
+
+  // This goes into {{otp}} field — formatted as readable plain-text
+  // EmailJS wraps it in the styled template
+  return `${urgency}: ${icon} ${note||cat?.label||typeLabel}
+
+Amount: ${amtStr}
+Due: ${dateStr}
+Category: ${cat?.label||typeLabel}
+
+─── Your Financial Summary ───
+Monthly Income:   ${fmt2(monthIncome)}
+Monthly Expenses: ${fmt2(monthExpense)}
+Net This Month:   ${fmt2(monthIncome-monthExpense)}
+Total Balance:    ${fmt2(balance)}
+
+Open LedgrTrack to mark as paid or collect.
+
+─────────────────────────────
+LedgrTrack · Personal Finance Tracker
+This is an automated reminder. Do not reply.`;
+}
+
+function buildDailyReminderBody({userName,monthIncome,monthExpense,balance,currency,upcomingList}){
+  const sym=CURRENCIES.find(c=>c.code===currency)?.symbol||'$';
+  const fmt2=n=>`${sym}${Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  const upcomingText=upcomingList.length>0
+    ?`\n─── Upcoming Transactions ───\n${upcomingList.map(x=>`${x.emoji} ${x.note} · ${x.amtStr} · Due ${x.dateStr}`).join('\n')}`
+    :'';
+  return `Hi ${userName||'there'} 👋
+
+Time to log your transactions for today!
+
+─── This Month So Far ───
+Income:   ${fmt2(monthIncome)}
+Expenses: ${fmt2(monthExpense)}
+Net:      ${monthIncome>=monthExpense?'+':''}${fmt2(monthIncome-monthExpense)}
+Balance:  ${fmt2(balance)}${upcomingText}
+
+Open LedgrTrack → Add Transaction to keep your budget on track.
+
+─────────────────────────────
+LedgrTrack · Personal Finance Tracker
+This is an automated reminder. Do not reply.`;
+}
+
+// ━━ SEND EMAIL VIA EMAILJS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function sendLedgrEmail({toEmail,subject,body,expiryLabel}){
+  try{
+    await emailjs.send(EMAILJS_SERVICE,EMAILJS_TEMPLATE,{
+      to_email:toEmail,
+      otp:body,
+      expiry_minutes:expiryLabel||'—',
+    });
+    return{ok:true};
+  }catch(e){
+    return{ok:false,err:e?.text||e?.message||'EmailJS error'};
+  }
+}
+
+// ━━ SCHEDULED TRANSACTION REMINDER ENGINE ━━━━━━━━━━━━━━━━━━━
+// Checks scheduled transactions and fires email at their remindTime
+function useScheduledReminders(txns,user,cur){
+  const fired=useRef(new Set());
+  useEffect(()=>{
+    if(!user?.email)return;
+    const check=()=>{
+      const now=new Date();
+      const todayStr2=now.toISOString().split('T')[0];
+      const tomorrowStr=new Date(now.getTime()+864e5).toISOString().split('T')[0];
+      txns.filter(x=>x.scheduled&&x.notifyWhenDue&&x.remindTime).forEach(async x=>{
+        const isToday=x.date===todayStr2;
+        const isTomorrow=x.date===tomorrowStr;
+        if(!isToday&&!isTomorrow)return;
+        // Parse reminder time
+        const[rh,rm]=x.remindTime.split(':').map(Number);
+        const fireAt=new Date(now);
+        fireAt.setHours(rh,rm,0,0);
+        // Fire within a 1-minute window
+        const diff=Math.abs(now-fireAt);
+        const key=`sched_email_${x.id}_${todayStr2}_${x.remindTime}`;
+        if(diff<60000&&!fired.current.has(key)){
+          fired.current.add(key);
+          const live=txns.filter(t=>!t.scheduled);
+          const mnow=new Date();
+          const monthLive=live.filter(t=>{const d=new Date(t.date+'T12:00:00');return d.getMonth()===mnow.getMonth()&&d.getFullYear()===mnow.getFullYear();});
+          const monthIncome=monthLive.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+          const monthExpense=monthLive.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+          const balance=live.reduce((s,t)=>t.type==='income'?s+t.amount:s-t.amount,0);
+          const body=buildReminderEmailBody({
+            userName:user.name,type:x.type,amount:x.amount,note:x.note,
+            category:x.category,dueDate:x.date,
+            remindType:isToday?'today':'tomorrow',
+            monthIncome,monthExpense,balance,currency:cur,
+          });
+          const remindType=isToday?'Due Today':'Due Tomorrow';
+          const cat=x.type==='income'?INC_CATS.find(c=>c.id===x.category):EXP_CATS.find(c=>c.id===x.category);
+          await sendLedgrEmail({
+            toEmail:user.email,
+            subject:`${remindType}: ${cat?.icon||''} ${x.note||cat?.label} — ${x.type==='income'?'+':'-'}${fmtMoney(x.amount,cur)}`,
+            body,
+            expiryLabel:remindType,
+          });
+        }
+      });
+    };
+    check();
+    const iv=setInterval(check,30000);// check every 30s
+    return()=>clearInterval(iv);
+  },[txns,user,cur]);
+}
 const CURRENCIES=[
   {code:'USD',symbol:'$',name:'US Dollar',locale:'en-US'},
   {code:'EUR',symbol:'€',name:'Euro',locale:'de-DE'},
@@ -387,6 +511,66 @@ const Icons={
 };
 const TABS=['Home','Add','Charts','History','Settings'];
 
+// ━━ VOICE COMMAND PARSER ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function parseVoice(text){
+  const t=text.toLowerCase();
+  const amtMatch=text.match(/\$?(\d+(?:\.\d{1,2})?)/);
+  const amount=amtMatch?parseFloat(amtMatch[1]):null;
+  const type=/earn|receiv|got paid|income|salary|deposit|freelan|invest|dividend|gift/i.test(t)?'income':'expense';
+  const catMap=[
+    {id:'food',      words:['food','lunch','dinner','breakfast','restaurant','eat','coffee','pizza','burger','snack','café','cafe','meal','grocery','grocer','chipotle','starbucks','doordash','uber eat']},
+    {id:'transport', words:['uber','lyft','taxi','bus','metro','subway','gas','fuel','parking','toll','train','flight','ride','transport']},
+    {id:'bills',     words:['bill','electric','water','internet','wifi','phone bill','utility','rent','netflix','spotify','subscri','amazon prime']},
+    {id:'shopping',  words:['shop','cloth','amazon','online','store','mall','purchase','bought','buy']},
+    {id:'health',    words:['doctor','pharmacy','medicine','gym','health','medical','dentist','hospital','drug','vitamin']},
+    {id:'entertainment',words:['movie','concert','game','fun','show','ticket','club','entertain']},
+    {id:'education', words:['course','book','school','tuition','class','learn','study','udemy','coursera']},
+    {id:'travel',    words:['travel','hotel','flight','vacation','trip','airbnb']},
+    {id:'salary',    words:['salary','paycheck','wage','pay']},
+    {id:'freelance', words:['freelance','project','client','invoice','contract']},
+    {id:'investment',words:['dividend','stock','crypto','interest','invest']},
+    {id:'gift',      words:['gift','present','birthday money']},
+  ];
+  let category='other';
+  for(const c of catMap){if(c.words.some(w=>t.includes(w))){category=c.id;break;}}
+  const note=text.replace(/\$?\d+(?:\.\d{1,2})?\s*(?:dollars?|bucks?|usd)?/gi,'').replace(/\b(spent|paid|bought|received|earned|got|on|for|at|the|a|an|i|my|just)\b/gi,'').replace(/\s+/g,' ').trim().slice(0,40)||null;
+  return{amount,type,category,note};
+}
+
+function VoiceButton({onResult,toast}){
+  const [listening,setListening]=useState(false);
+  const [supported]=useState(()=>'webkitSpeechRecognition' in window||'SpeechRecognition' in window);
+  const recRef=useRef(null);
+
+  const start=()=>{
+    if(!supported){toast({icon:'❌',title:'Voice not supported',body:'Your browser does not support voice input. Try Chrome.',err:true});return;}
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    const rec=new SR();
+    recRef.current=rec;
+    rec.lang='en-US';rec.interimResults=false;rec.maxAlternatives=1;
+    rec.onstart=()=>setListening(true);
+    rec.onend=()=>setListening(false);
+    rec.onerror=e=>{setListening(false);toast({icon:'❌',title:'Voice error',body:e.error==='not-allowed'?'Microphone permission denied — check browser settings.':e.error,err:true});};
+    rec.onresult=e=>{
+      const transcript=e.results[0][0].transcript;
+      toast({icon:'🎤',title:'Heard: "'+transcript+'"',body:'Parsing your transaction…'});
+      const parsed=parseVoice(transcript);
+      onResult(parsed,transcript);
+    };
+    rec.start();
+  };
+  const stop=()=>{recRef.current?.stop();setListening(false);};
+
+  if(!supported)return null;
+  return(
+    <button onClick={listening?stop:start} style={{width:'100%',padding:'14px',borderRadius:16,border:`1.5px solid ${listening?'var(--red)':'var(--border2)'}`,background:listening?'var(--r10)':'var(--card)',color:listening?'var(--red)':'var(--sub)',fontSize:14,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',gap:10,transition:'all .2s',animation:listening?'pulse 1s infinite':undefined}}>
+      {listening
+        ?<><span style={{width:10,height:10,borderRadius:'50%',background:'var(--red)',animation:'pulse 1s infinite',display:'inline-block'}}/>Listening… tap to stop</>
+        :<>🎤 Add by Voice — speak naturally</>}
+    </button>
+  );
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // AUTH SCREEN — Email + Phone OTP login/signup
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -595,13 +779,14 @@ function AuthScreen({onAuth,toast}){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // TX SHEET (Add/Edit)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function TxSheet({tx,onSave,onClose,defSched=false,toast,cur='USD',lang='en'}){
+function TxSheet({tx,onSave,onClose,defSched=false,toast,cur='USD',lang='en',voiceDefaults=null}){
   const ed=!!tx;
-  const [type,setType]=useState(tx?.type||'expense');
-  const [amt,setAmt]=useState(tx?String(tx.amount):'');
-  const [cat,setCat]=useState(tx?.category||'');
-  const [note,setNote]=useState(tx?.note||'');
+  const [type,setType]=useState(tx?.type||voiceDefaults?.type||'expense');
+  const [amt,setAmt]=useState(tx?String(tx.amount):voiceDefaults?.amount?String(voiceDefaults.amount):'');
+  const [cat,setCat]=useState(tx?.category||voiceDefaults?.category||'');
+  const [note,setNote]=useState(tx?.note||voiceDefaults?.note||'');
   const [date,setDate]=useState(tx?.date||todayStr());
+  const [remindTime,setRemindTime]=useState(tx?.remindTime||'09:00');
   const [sched,setSched]=useState(tx?.scheduled||defSched);
   const [notify,setNotify]=useState(tx?.notifyWhenDue!==false);
   const cats=type==='income'?INC_CATS:EXP_CATS;
@@ -610,7 +795,7 @@ function TxSheet({tx,onSave,onClose,defSched=false,toast,cur='USD',lang='en'}){
   const save=()=>{
     const n=parseFloat(amt);if(!n||n<=0){toast({icon:'⚠️',title:'Enter amount',body:'Please type an amount.',warn:true});return;}
     if(!cat){toast({icon:'⚠️',title:'Pick category',body:'Select a category below.',warn:true});return;}
-    onSave({...(tx||{}),id:tx?.id||Date.now(),type,amount:n,category:cat,note:note.trim(),date,scheduled:sched,notifyWhenDue:sched&&notify});
+    onSave({...(tx||{}),id:tx?.id||Date.now(),type,amount:n,category:cat,note:note.trim(),date,remindTime,scheduled:sched,notifyWhenDue:sched&&notify});
     onClose();
   };
   const cs=CURRENCIES.find(c=>c.code===cur)?.symbol||'$';
@@ -654,9 +839,18 @@ function TxSheet({tx,onSave,onClose,defSched=false,toast,cur='USD',lang='en'}){
         {f.el}
       </div>)}
     </div>
-    {sched&&<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px 12px'}}>
-      <div><div style={{fontSize:14,fontWeight:700}}>🔔 Notify when due</div><div style={{fontSize:12,color:'var(--sub)',marginTop:1}}>Reminder on due date</div></div>
-      <Tog on={notify} fn={()=>setNotify(!notify)}/>
+    {sched&&<div style={{padding:'0 16px 12px'}}>
+      <div style={{background:'var(--card2)',borderRadius:14,padding:'12px 14px',border:'1px solid var(--border)'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:notify?12:0}}>
+          <div><div style={{fontSize:14,fontWeight:700}}>🔔 Email reminder when due</div><div style={{fontSize:11,color:'var(--sub)',marginTop:2}}>Get an email notification on due date</div></div>
+          <Tog on={notify} fn={()=>setNotify(!notify)}/>
+        </div>
+        {notify&&<div>
+          <div style={{fontSize:10,color:'var(--muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>⏰ Reminder time on due date</div>
+          <input type="time" value={remindTime} onChange={e=>setRemindTime(e.target.value)} style={{width:'100%',background:'var(--card)',border:'1px solid var(--border2)',borderRadius:10,color:'var(--text)',fontSize:15,padding:'10px 14px',outline:'none',fontWeight:700}}/>
+          <div style={{fontSize:11,color:'var(--muted)',marginTop:6}}>You'll receive an email at this time on {date?new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}):'the due date'}</div>
+        </div>}
+      </div>
     </div>}
     <div style={{padding:'4px 16px 12px'}}>
       <button onClick={save} style={{width:'100%',padding:'16px',borderRadius:16,border:'none',background:!amt||!cat?'var(--card2)':'var(--accent)',color:!amt||!cat?'var(--muted)':'#000',fontSize:16,fontWeight:800,transition:'all .2s'}}>{ed?'Update':'Save Transaction'}</button>
@@ -955,109 +1149,80 @@ function SettingsScreen({user,onLogout,theme,onTheme,txns,onReset,toast,budgetGo
     const live2=txns.filter(x=>!x.scheduled);
     const now2=new Date();
     const mn=live2.filter(x=>{const d=new Date(x.date+'T12:00:00');return d.getMonth()===now2.getMonth()&&d.getFullYear()===now2.getFullYear();});
-    const inc=mn.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
-    const exp=mn.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
-    const bal=live2.reduce((s,x)=>x.type==='income'?s+x.amount:s-x.amount,0);
-    const upcoming2=txns.filter(x=>x.scheduled).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,3);
-    const upcomingText=upcoming2.length>0?`\n\nUpcoming:\n${upcoming2.map(x=>`• ${x.note||x.category}: ${x.type==='income'?'+':'-'}${fmtMoney(x.amount,cur)} (${dayStr(x.date)})`).join('\n')}`:'';
-    return{
-      subject:`💰 Ledgr Reminder — ${ts}`,
-      text:`Hi ${user?.name||'there'},\n\nThis is your ${ts} Ledgr reminder!\n\n📊 This Month:\n• Income: ${fmtMoney(inc,cur)}\n• Expenses: ${fmtMoney(exp,cur)}\n• Net: ${fmtMoney(inc-exp,cur)}\n\n💰 Total Balance: ${fmtMoney(bal,cur)}${upcomingText}\n\nOpen Ledgr to log new transactions.\n\n— Ledgr`,
-      sms:`💰 Ledgr ${ts}: Income ${fmtMoney(inc,cur)} | Expenses ${fmtMoney(exp,cur)} | Balance ${fmtMoney(bal,cur)}. Open app to log! 📱`,
-    };
+    const monthIncome=mn.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
+    const monthExpense=mn.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
+    const balance=live2.reduce((s,x)=>x.type==='income'?s+x.amount:s-x.amount,0);
+    const upcoming2=txns.filter(x=>x.scheduled).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,4);
+    const sym=CURRENCIES.find(c=>c.code===cur)?.symbol||'$';
+    const fmt2=n=>`${sym}${Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2})}`;
+    const upcomingList=upcoming2.map(x=>{const cat=getCat(x.type,x.category);return{emoji:cat.icon,note:x.note||cat.label,amtStr:`${x.type==='income'?'+':'-'}${fmt2(x.amount)}`,dateStr:new Date(x.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})};});
+    const emailBody=buildDailyReminderBody({userName:user?.name,monthIncome,monthExpense,balance,currency:cur,upcomingList});
+    const smsText=`\u{1F4B0} LedgrTrack ${ts}: Income ${fmt2(monthIncome)} | Expenses ${fmt2(monthExpense)} | Balance ${fmt2(balance)}. Open app!`;
+    const subject=`\u{1F4CA} LedgrTrack Daily Reminder \u2014 ${ts}`;
+    return{emailBody,smsText,subject};
   };
 
-  // ── Send via EmailJS ─────────────────────────────────────────
-  const sendViaEmailJS=async(addr,subject,body,ts)=>{
-    try{
-      await emailjs.send(EMAILJS_SERVICE,EMAILJS_TEMPLATE,{to_email:addr,otp:body,expiry_minutes:ts});
-      toast({icon:'📧',title:`${ts} — Email sent!`,body:`Reminder delivered to ${addr}`});
-    }catch(e){
-      // Graceful fallback to mailto
-      window.open(`mailto:${addr}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
-      toast({icon:'📧',title:`${ts} Email`,body:`Mail app opened (EmailJS: ${e?.text||e?.message||'error'})`,warn:true});
-    }
-  };
-
-  // ── Send via SMS (opens SMS app pre-filled) ──────────────────
-  const sendViaSMS=(phone,body,ts)=>{
-    window.open(`sms:${phone}?body=${encodeURIComponent(body)}`);
-    toast({icon:'💬',title:`${ts} — SMS Opened`,body:`Reminder ready to send to ${phone}`});
-  };
-
-  // ── Fire all enabled channels ────────────────────────────────
   const fireAllChannels=async(ts)=>{
-    const{subject,text,sms}=buildReminderBody(ts);
-    // 1. On-screen push
+    const{emailBody,smsText,subject}=buildReminderBody(ts);
     if(notifEn.push){
-      toast({icon:'🔔',title:`💰 Budget Reminder — ${ts}`,body:text.split('\n').slice(0,4).join(' ')});
-      if('Notification' in window&&Notification.permission==='granted'){
-        try{new Notification(`💰 Ledgr — ${ts}`,{body:`Tap to open Ledgr and log your transactions!`,tag:`ledgr-${ts}`});}catch(e){}
-      }
+      toast({icon:'\uD83D\uDD14',title:`\u{1F4B0} LedgrTrack \u2014 ${ts}`,body:'Time to log your transactions!'});
+      if('Notification' in window&&Notification.permission==='granted'){try{new Notification(`\u{1F4B0} LedgrTrack \u2014 ${ts}`,{body:'Tap to open and log your transactions!',tag:`ledgr-${ts}`});}catch(e){}}
     }
-    // 2. Email
     if(notifEn.email&&notifEmail){
-      await sendViaEmailJS(notifEmail,subject,text,ts);
+      const res=await sendLedgrEmail({toEmail:notifEmail,subject,body:emailBody,expiryLabel:ts});
+      if(res.ok)toast({icon:'\uD83D\uDCE7',title:`${ts} \u2014 Email sent!`,body:`Reminder delivered to ${notifEmail}`});
+      else{window.open(`mailto:${notifEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`);toast({icon:'\uD83D\uDCE7',title:'Email opened',body:'Mail app opened as fallback',warn:true});}
     }
-    // 3. SMS
     if(notifEn.sms&&notifPhone){
-      sendViaSMS(notifPhone,sms,ts);
+      window.open(`sms:${notifPhone}?body=${encodeURIComponent(smsText)}`);
+      toast({icon:'\uD83D\uDCAC',title:`${ts} \u2014 SMS opened`,body:`Reminder ready for ${notifPhone}`});
     }
   };
 
-  // ── Schedule all reminder times ──────────────────────────────
   const scheduleAll=()=>{
     timerRef.current.forEach(x=>{clearTimeout(x);clearInterval(x);});timerRef.current=[];
-    if(!activeTimes.length){toast({icon:'⚠️',title:'No times selected',body:'Pick at least one reminder time below.',warn:true});return;}
+    if(!activeTimes.length){toast({icon:'\u26A0\uFE0F',title:'No times selected',body:'Pick at least one reminder time below.',warn:true});return;}
     const enabledChannels=[];
-    if(notifEn.push)enabledChannels.push('📱 Push');
-    if(notifEn.email&&notifEmail)enabledChannels.push('📧 Email');
-    if(notifEn.sms&&notifPhone)enabledChannels.push('💬 SMS');
-    if(!enabledChannels.length){toast({icon:'⚠️',title:'No channels active',body:'Enable Push, Email, or SMS above — and make sure email/phone are set.',warn:true});return;}
-
+    if(notifEn.push)enabledChannels.push('\uD83D\uDCF1 Push');
+    if(notifEn.email&&notifEmail)enabledChannels.push('\uD83D\uDCE7 Email');
+    if(notifEn.sms&&notifPhone)enabledChannels.push('\uD83D\uDCAC SMS');
+    if(!enabledChannels.length){toast({icon:'\u26A0\uFE0F',title:'No channels active',body:'Enable at least one channel and set email/phone.',warn:true});return;}
     activeTimes.forEach(ts=>{
-      const{h,m}=parseT(ts);
-      const now2=new Date();const nxt=new Date(now2);
+      const{h,m}=parseT(ts);const now2=new Date();const nxt=new Date(now2);
       nxt.setHours(h,m,0,0);if(nxt<=now2)nxt.setDate(nxt.getDate()+1);
-      const delay=nxt-now2;
       const tid=setTimeout(async()=>{
         await fireAllChannels(ts);
-        // Repeat every 24h
         const iv=setInterval(()=>fireAllChannels(ts),86400000);
         timerRef.current.push(iv);
-      },delay);
+      },nxt-now2);
       timerRef.current.push(tid);
     });
-
-    LS.set('notif_times',activeTimes);
-    LS.set('notif_email',notifEmail);
-    LS.set('notif_phone',notifPhone);
-    LS.set('notif_en',notifEn);
+    LS.set('notif_times',activeTimes);LS.set('notif_email',notifEmail);LS.set('notif_phone',notifPhone);LS.set('notif_en',notifEn);
     setSaving(true);setTimeout(()=>setSaving(false),2000);
-
-    const minStr=activeTimes.length===1?activeTimes[0]:`${activeTimes[0]} – ${activeTimes[activeTimes.length-1]}`;
-    toast({icon:'✅',title:'Reminders scheduled!',body:`${activeTimes.length} time${activeTimes.length>1?'s':''} · Channels: ${enabledChannels.join(', ')}`});
+    toast({icon:'\u2705',title:'Reminders scheduled!',body:`${activeTimes.length} time${activeTimes.length>1?'s':''} \u00B7 ${enabledChannels.join(', ')}`});
   };
 
-  // ── Test each channel individually ───────────────────────────
   const testPush=()=>{
-    toast({icon:'🔔',title:'Test — Push Notification',body:`Ledgr has ${txns.filter(x=>!x.scheduled).length} transactions. Reminders will fire at your chosen times.`});
-    if('Notification' in window&&Notification.permission==='granted'){try{new Notification('💰 Ledgr Test',{body:'Push notifications are working! ✓',tag:'ledgr-test'});}catch(e){}}
+    toast({icon:'\uD83D\uDD14',title:'\u2705 Push Working',body:`LedgrTrack has ${txns.filter(x=>!x.scheduled).length} transactions logged.`});
+    if('Notification' in window&&Notification.permission==='granted'){try{new Notification('\uD83D\uDCB0 LedgrTrack Test',{body:'Push working! \u2713',tag:'ledgr-test'});}catch(e){}}
     setTS('push');setTimeout(()=>setTS(''),3000);
   };
   const testEmail=async()=>{
     const addr=notifEmail||user?.email;
-    if(!addr){toast({icon:'❌',title:'No email set',body:'Enter your email below first.',err:true});return;}
+    if(!addr){toast({icon:'\u274C',title:'No email set',body:'Enter your email in the Email field above.',err:true});return;}
     setTS('email');
-    const{subject,text}=buildReminderBody('Test');
-    await sendViaEmailJS(addr,`[TEST] ${subject}`,`This is a TEST reminder.\n\n${text}`,'Test');
+    const{emailBody,subject}=buildReminderBody('Test Run');
+    const res=await sendLedgrEmail({toEmail:addr,subject:`[TEST] ${subject}`,body:`THIS IS A TEST EMAIL\n\n${emailBody}`,expiryLabel:'Test'});
+    if(res.ok)toast({icon:'\uD83D\uDCE7',title:'\u2705 Test email sent!',body:`Check ${addr} for your test reminder.`});
+    else{window.open(`mailto:${addr}?subject=${encodeURIComponent('[TEST] LedgrTrack Reminder')}&body=${encodeURIComponent(emailBody)}`);toast({icon:'\uD83D\uDCE7',title:'Mail app opened',body:'EmailJS fallback.',warn:true});}
     setTimeout(()=>setTS(''),4000);
   };
   const testSMS=()=>{
     const ph=notifPhone||user?.phone;
-    if(!ph){toast({icon:'❌',title:'No phone set',body:'Enter your phone number below first.',err:true});return;}
-    const{sms}=buildReminderBody('Test');
-    sendViaSMS(ph,`[TEST] ${sms}`,'Test');
+    if(!ph){toast({icon:'\u274C',title:'No phone set',body:'Enter your phone number above.',err:true});return;}
+    const{smsText}=buildReminderBody('Test');
+    window.open(`sms:${ph}?body=${encodeURIComponent('[TEST] '+smsText)}`);
+    toast({icon:'\uD83D\uDCAC',title:'\u2705 SMS app opened',body:`Test message ready for ${ph}`});
     setTS('sms');setTimeout(()=>setTS(''),3000);
   };
 
@@ -1331,11 +1496,31 @@ function App(){
   const [toasts,setToasts]=useState([]);
   const [showAdd,setAdd]=useState(false);
   const [showSched,setSched]=useState(false);
+  const [voiceParsed,setVoiceParsed]=useState(null);
   const [notifBanner,setNB]=useState(()=>'Notification' in window&&Notification.permission==='default');
 
   useEffect(()=>{applyTheme(theme);},[theme]);
+  // Use scheduled transaction reminder engine
+  useScheduledReminders(txns,user,cur);
   useEffect(()=>{LS.set('budget_tab',tab);},[tab]);
-  useEffect(()=>{LS.set('budget_txns',txns);},[txns]);
+  useEffect(()=>{
+    LS.set('budget_txns',txns);
+    // Also save under user key for persistence across logins
+    const uk=LS.get('active_user_key','');
+    if(uk)LS.set(`txns_${uk}`,txns);
+  },[txns]);
+  useEffect(()=>{
+    const uk=LS.get('active_user_key','');
+    if(uk){LS.set(`budget_goal_${uk}`,budgetGoal);LS.set(`income_goal_${uk}`,incomeGoal);}
+  },[budgetGoal,incomeGoal]);
+  useEffect(()=>{
+    const uk=LS.get('active_user_key','');
+    if(uk)LS.set(`currency_${uk}`,cur);
+  },[cur]);
+  useEffect(()=>{
+    const uk=LS.get('active_user_key','');
+    if(uk)LS.set(`theme_${uk}`,theme);
+  },[theme]);
 
   // Splash
   useEffect(()=>{setTimeout(()=>{const s=document.getElementById('splash');if(s){s.classList.add('hide');setTimeout(()=>s.remove(),500);}},1200);},[]);
@@ -1387,7 +1572,26 @@ function App(){
     setTxns([]);setTheme(THEMES[0]);applyTheme(THEMES[0]);setBudget(0);setIncome(0);setCur('USD');setLang('en');setTab(0);setUser(null);
   };
 
-  const handleAuth=u=>{setUser(u);};
+  const handleAuth=u=>{
+    // Load this user's saved data by their email/phone key
+    const userKey=u.email||u.phone||u.uid;
+    const savedTxns=LS.get(`txns_${userKey}`,null);
+    const savedBudget=LS.get(`budget_goal_${userKey}`,null);
+    const savedIncome=LS.get(`income_goal_${userKey}`,null);
+    const savedCur=LS.get(`currency_${userKey}`,null);
+    const savedTheme=LS.get(`theme_${userKey}`,null);
+    // Restore saved data or keep seed
+    if(savedTxns!==null){setTxns(savedTxns);}
+    if(savedBudget!==null){setBudget(savedBudget);LS.set('budget_goal',savedBudget);}
+    if(savedIncome!==null){setIncome(savedIncome);LS.set('income_goal',savedIncome);}
+    if(savedCur!==null){setCur(savedCur);LS.set('currency',savedCur);}
+    if(savedTheme!==null){setTheme(savedTheme);applyTheme(savedTheme);LS.set('budget_theme',savedTheme);}
+    LS.set('auth_user',u);
+    LS.set('active_user_key',userKey);
+    setUser(u);
+    const isReturning=savedTxns!==null&&savedTxns.length>0;
+    addToast({icon:isReturning?'👋':'🎉',title:isReturning?`Welcome back, ${u.name||''}!`:`Welcome, ${u.name||''}!`,body:isReturning?'Your budget data has been restored.':'Your account is ready. Demo data loaded to explore.'});
+  };
   const handleLogout=()=>{LS.del('auth_user');setUser(null);setTab(0);addToast({icon:'👋',title:'Signed out',body:'See you next time!'});};
 
   const t=k=>T(lang,k);
@@ -1403,7 +1607,7 @@ function App(){
 
   return<>
     <Toast toasts={toasts}/>
-    {showAdd&&<TxSheet onSave={addTx} onClose={()=>setAdd(false)} toast={addToast} {...sharedProps}/>}
+    {showAdd&&<TxSheet onSave={addTx} onClose={()=>{setAdd(false);setVoiceParsed(null);}} toast={addToast} voiceDefaults={voiceParsed} {...sharedProps}/>}
     {showSched&&<TxSheet onSave={addTx} onClose={()=>setSched(false)} defSched toast={addToast} {...sharedProps}/>}
 
     {/* Tablet sidebar */}
@@ -1440,12 +1644,24 @@ function App(){
         {tab===0&&<HomeScreen txns={txns} onNav={setTab} onAdd={()=>setAdd(true)} onSched={()=>setSched(true)} user={user} budgetGoal={budgetGoal} incomeGoal={incomeGoal} {...sharedProps}/>}
         {tab===1&&<div style={{color:'var(--text)',padding:`var(--hdr) 16px`,paddingBottom:`calc(var(--tab-h) + env(safe-area-inset-bottom,0px) + 20px)`}}>
           <div style={{fontSize:26,fontWeight:900,letterSpacing:-.5,marginBottom:20}}>{t('add')}</div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
             {[{icon:'➕',title:t('addTransaction'),sub:'Record now',accent:false,fn:()=>setAdd(true)},{icon:'📅',title:t('schedule'),sub:'Plan ahead',accent:true,fn:()=>setSched(true)}].map((b,i)=><button key={i} onClick={b.fn} style={{padding:'22px 16px',borderRadius:22,border:`1.5px solid ${b.accent?'var(--accent)':'var(--border)'}`,background:b.accent?'var(--a10)':'var(--card)',display:'flex',flexDirection:'column',alignItems:'center',gap:8,textAlign:'center'}}>
               <span style={{fontSize:34}}>{b.icon}</span>
               <div style={{fontSize:14,fontWeight:800,color:b.accent?'var(--accent)':'var(--text)'}}>{b.title}</div>
               <div style={{fontSize:11,color:'var(--sub)'}}>{b.sub}</div>
             </button>)}
+          </div>
+          {/* Voice button */}
+          <VoiceButton toast={addToast} onResult={(parsed,raw)=>{
+            if(!parsed.amount){addToast({icon:'⚠️',title:'Could not detect amount',body:`Heard: "${raw}". Try saying "spent $50 on groceries"`,warn:true});return;}
+            setVoiceParsed(parsed);setAdd(true);
+          }}/>
+          <div style={{marginTop:8,padding:'10px 14px',borderRadius:12,background:'var(--card2)',border:'1px solid var(--border)'}}>
+            <div style={{fontSize:11,color:'var(--muted)',lineHeight:1.7}}>
+              💡 <strong style={{color:'var(--sub)'}}>Try saying:</strong><br/>
+              "Spent $45 on groceries" · "Paid $120 for electricity"<br/>
+              "Got paid $3000 salary" · "Received $200 freelance"
+            </div>
           </div>
         </div>}
         {tab===2&&<ChartsScreen txns={txns} {...sharedProps}/>}
