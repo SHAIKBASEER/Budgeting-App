@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>LedgrTrack — User Registry</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a12;color:#f0f0f8;min-height:100vh;padding:0}
+.header{background:linear-gradient(135deg,#0a0a12,#1a1530);padding:24px 32px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:16px}
+.logo{width:44px;height:44px;background:linear-gradient(135deg,#f5a623,#c8720a);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#fff;flex-shrink:0}
+.header h1{font-size:22px;font-weight:900;letter-spacing:-.5px}
+.header p{font-size:13px;color:#7070a0;margin-top:2px}
+.container{padding:24px 32px;max-width:1100px;margin:0 auto}
+.key-setup{background:#15151e;border-radius:18px;padding:20px 24px;border:1px solid rgba(245,166,35,.25);margin-bottom:24px}
+.key-setup h2{font-size:15px;font-weight:800;color:#f5a623;margin-bottom:8px}
+.key-setup p{font-size:13px;color:#8080a0;line-height:1.6;margin-bottom:12px}
+.key-row{display:flex;gap:10px}
+.key-row input{flex:1;background:#0a0a12;border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#f0f0f8;font-size:13px;padding:10px 14px;outline:none;font-family:monospace}
+.key-row input:focus{border-color:#f5a623}
+.btn{padding:10px 20px;border-radius:10px;border:none;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s}
+.btn-primary{background:#f5a623;color:#000}
+.btn-primary:hover{background:#e09420}
+.btn-secondary{background:#1c1c28;color:#a0a0c0;border:1px solid rgba(255,255,255,.1)}
+.btn-secondary:hover{background:#252535}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+.stat-card{background:#15151e;border-radius:16px;padding:16px 18px;border:1px solid rgba(255,255,255,.07)}
+.stat-label{font-size:11px;color:#6060a0;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:6px}
+.stat-value{font-size:24px;font-weight:900;color:#f5a623}
+.stat-sub{font-size:11px;color:#6060a0;margin-top:3px}
+.table-wrap{background:#15151e;border-radius:18px;border:1px solid rgba(255,255,255,.07);overflow:hidden}
+.table-header{padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:space-between}
+.table-header h2{font-size:15px;font-weight:800}
+.search-bar{background:#0a0a12;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:7px 12px;color:#f0f0f8;font-size:13px;outline:none;width:200px}
+.search-bar:focus{border-color:#f5a623}
+table{width:100%;border-collapse:collapse}
+th{padding:11px 20px;text-align:left;font-size:11px;color:#6060a0;text-transform:uppercase;letter-spacing:.8px;font-weight:700;border-bottom:1px solid rgba(255,255,255,.06);background:#0f0f1a}
+td{padding:13px 20px;font-size:13px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700}
+.badge-new{background:rgba(48,209,88,.15);color:#30d158;border:1px solid rgba(48,209,88,.25)}
+.badge-active{background:rgba(245,166,35,.15);color:#f5a623;border:1px solid rgba(245,166,35,.25)}
+.badge-inactive{background:rgba(255,255,255,.05);color:#6060a0;border:1px solid rgba(255,255,255,.08)}
+.hash{font-family:monospace;font-size:11px;color:#4040a0;background:#0a0a12;padding:2px 8px;border-radius:4px}
+.status{display:flex;align-items:center;justify-content:center;padding:60px 20px;color:#4040a0;flex-direction:column;gap:12px}
+.status-icon{font-size:40px}
+.loading{animation:spin .8s linear infinite;display:inline-block;width:24px;height:24px;border:3px solid rgba(245,166,35,.2);border-top-color:#f5a623;border-radius:50%}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error{background:rgba(255,69,58,.1);border:1px solid rgba(255,69,58,.2);border-radius:12px;padding:14px 18px;color:#ff453a;font-size:13px;margin-bottom:16px;display:none}
+.export-bar{display:flex;gap:8px;align-items:center}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">$</div>
+  <div>
+    <h1>LedgrTrack — User Registry</h1>
+    <p>View all registered users and their activity</p>
+  </div>
+</div>
+
+<div class="container">
+
+  <div class="key-setup">
+    <h2>🔑 JSONBin Configuration</h2>
+    <p>Enter your JSONBin Master Key to load the user registry. This is the same key used in the app.<br/>
+    <strong style="color:#f5a623">Note:</strong> To enable user tracking, you need to create a registry bin once and paste its ID into the app code (REGISTRY_BIN constant).</p>
+    <div class="key-row">
+      <input type="password" id="apiKey" placeholder="$2a$10$YFCjq4Azn.L42reasWN8ZOv2Ub1rlOrNwZnVod/d1i/vBo4pP/XxG" value="$2a$10$YFCjq4Azn.L42reasWN8ZOv2Ub1rlOrNwZnVod/d1i/vBo4pP/XxG"/>
+      <input type="text" id="registryBin" placeholder="Registry Bin ID (e.g. 64abc123def456)" style="max-width:240px"/>
+      <button class="btn btn-primary" onclick="loadRegistry()">Load Registry</button>
+      <button class="btn btn-secondary" onclick="createRegistry()">Create Registry Bin</button>
+      <button class="btn btn-secondary" onclick="scanAllBins()">Scan All Bins</button>
+    </div>
+    <div id="error" class="error"></div>
+  </div>
+
+  <div class="stats" id="stats" style="display:none">
+    <div class="stat-card"><div class="stat-label">Total Users</div><div class="stat-value" id="statTotal">0</div><div class="stat-sub">registered accounts</div></div>
+    <div class="stat-card"><div class="stat-label">This Week</div><div class="stat-value" id="statWeek">0</div><div class="stat-sub">new signups</div></div>
+    <div class="stat-card"><div class="stat-label">Today</div><div class="stat-value" id="statToday">0</div><div class="stat-sub">new signups</div></div>
+    <div class="stat-card"><div class="stat-label">With Email</div><div class="stat-value" id="statEmail">0</div><div class="stat-sub">email accounts</div></div>
+  </div>
+
+  <div class="table-wrap" id="tableWrap">
+    <div class="status">
+      <div class="status-icon">☁️</div>
+      <div style="font-size:15px;font-weight:700;color:#4040a0">Enter your JSONBin key and click Load Registry</div>
+      <div style="font-size:12px;color:#303060">Or click "Scan All Bins" to discover users from existing data</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const BASE='https://api.jsonbin.io/v3';
+let users=[];
+let searchQ='';
+
+function getKey(){return document.getElementById('apiKey').value.trim();}
+function getRegBin(){return document.getElementById('registryBin').value.trim();}
+
+function showError(msg){
+  const e=document.getElementById('error');
+  e.textContent=msg;e.style.display='block';
+  setTimeout(()=>e.style.display='none',5000);
+}
+
+async function createRegistry(){
+  const key=getKey();
+  if(!key){showError('Enter your Master Key first.');return;}
+  try{
+    const r=await fetch(BASE+'/b',{method:'POST',headers:{'Content-Type':'application/json','X-Master-Key':key,'X-Bin-Name':'ledgrtrack-user-registry','X-Bin-Private':'true'},body:JSON.stringify({users:{},createdAt:new Date().toISOString()})});
+    if(!r.ok){showError('Failed: '+await r.text());return;}
+    const j=await r.json();
+    const id=j.metadata?.id;
+    document.getElementById('registryBin').value=id;
+    alert('Registry bin created!\nBin ID: '+id+'\n\nNow add this to index.html:\nconst REGISTRY_BIN = "'+id+'";');
+  }catch(e){showError(e.message);}
+}
+
+async function loadRegistry(){
+  const key=getKey(),binId=getRegBin();
+  if(!key){showError('Enter your Master Key first.');return;}
+  if(!binId){showError('Enter the Registry Bin ID. Create one first if needed.');return;}
+  showLoading();
+  try{
+    const r=await fetch(BASE+'/b/'+binId+'/latest',{headers:{'X-Master-Key':key}});
+    if(!r.ok){showError('Failed to load: HTTP '+r.status+'. Check your bin ID.');showEmpty();return;}
+    const j=await r.json();
+    const record=j.record||{};
+    users=Object.entries(record.users||record).filter(([k,v])=>typeof v==='object'&&v.registeredAt).map(([k,v])=>({key:k,...v}));
+    renderTable(users);
+  }catch(e){showError(e.message);showEmpty();}
+}
+
+async function scanAllBins(){
+  const key=getKey();
+  if(!key){showError('Enter your Master Key first.');return;}
+  showLoading('Scanning all bins for user data...');
+  try{
+    const r=await fetch(BASE+'/b',{headers:{'X-Master-Key':key}});
+    if(!r.ok){showError('Failed to list bins: '+r.status);showEmpty();return;}
+    const list=await r.json();
+    const bins=list.result||list||[];
+    const ledgrBins=bins.filter(b=>(b.metadata?.name||b.name||'').toLowerCase().startsWith('ledgr'));
+    users=[];
+    for(const bin of ledgrBins){
+      const id=bin.metadata?.id||bin._id||bin.id;
+      const name=bin.metadata?.name||bin.name||'';
+      if(!id||name==='ledgrtrack-user-registry')continue;
+      try{
+        const br=await fetch(BASE+'/b/'+id+'/latest',{headers:{'X-Master-Key':key}});
+        if(!br.ok)continue;
+        const bj=await br.json();
+        const rec=bj.record;
+        if(rec&&rec._uk){
+          users.push({
+            key:rec._uk,
+            binId:id,
+            binName:name,
+            registeredAt:new Date(rec._savedAt||0).toISOString(),
+            lastSeen:new Date(rec._savedAt||0).toISOString(),
+            txnCount:rec.txns?.length||0,
+            currency:rec.currency||'USD',
+            email:rec._uk.includes('@')?rec._uk:'',
+          });
+        }
+      }catch(e){}
+    }
+    renderTable(users);
+  }catch(e){showError(e.message);showEmpty();}
+}
+
+function showLoading(msg){
+  document.getElementById('tableWrap').innerHTML='<div class="status"><div class="loading"></div><div style="font-size:13px;color:#6060a0">'+(msg||'Loading...')+'</div></div>';
+  document.getElementById('stats').style.display='none';
+}
+function showEmpty(){
+  document.getElementById('tableWrap').innerHTML='<div class="status"><div class="status-icon">📭</div><div style="font-size:15px;font-weight:700;color:#4040a0">No users found</div></div>';
+}
+
+function renderTable(data){
+  const now=new Date();
+  const filtered=searchQ?data.filter(u=>(u.key||'').toLowerCase().includes(searchQ)||(u.email||'').toLowerCase().includes(searchQ)||(u.binId||'').toLowerCase().includes(searchQ)):data;
+
+  // Stats
+  const weekAgo=new Date(now-7*864e5);
+  const todayStr=now.toISOString().split('T')[0];
+  document.getElementById('statTotal').textContent=data.length;
+  document.getElementById('statWeek').textContent=data.filter(u=>new Date(u.registeredAt)>weekAgo).length;
+  document.getElementById('statToday').textContent=data.filter(u=>u.registeredAt?.startsWith(todayStr)).length;
+  document.getElementById('statEmail').textContent=data.filter(u=>u.email||u.key?.includes('@')).length;
+  document.getElementById('stats').style.display='grid';
+
+  if(!filtered.length){showEmpty();return;}
+
+  const daysSince=d=>{const diff=Math.floor((now-new Date(d))/864e5);return diff===0?'Today':diff===1?'Yesterday':diff+' days ago';};
+  const badge=u=>{
+    const reg=new Date(u.registeredAt);
+    const weekA=new Date(now-7*864e5);
+    if(reg>weekA)return'<span class="badge badge-new">New</span>';
+    const lastS=new Date(u.lastSeen||u.registeredAt);
+    if(lastS>weekA)return'<span class="badge badge-active">Active</span>';
+    return'<span class="badge badge-inactive">Inactive</span>';
+  };
+
+  document.getElementById('tableWrap').innerHTML=`
+    <div class="table-header">
+      <h2>Users (${filtered.length}${searchQ?' matching':''})</h2>
+      <div class="export-bar">
+        <input class="search-bar" placeholder="Search..." oninput="search(this.value)" value="${searchQ}"/>
+        <button class="btn btn-secondary" onclick="exportCSV()">Export CSV</button>
+        <button class="btn btn-secondary" onclick="loadRegistry()">Refresh</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+    <table>
+      <thead><tr>
+        <th>#</th>
+        <th>User Identifier</th>
+        <th>Status</th>
+        <th>Registered</th>
+        <th>Last Seen</th>
+        <th>Transactions</th>
+        <th>Currency</th>
+        <th>Bin ID</th>
+      </tr></thead>
+      <tbody>
+        ${filtered.map((u,i)=>`<tr>
+          <td style="color:var(--muted,#606080);font-size:12px">${i+1}</td>
+          <td>
+            <div style="font-size:13px;font-weight:700;color:#e0e0f8">${u.email||u.key?.split('@')[0]||u.key?.slice(0,16)+'...'||'—'}</div>
+            <div style="font-size:11px;color:#4040a0;margin-top:2px">${u.key?.includes('@')?u.key:(u.key?.slice(0,20)||'phone user')}</div>
+          </td>
+          <td>${badge(u)}</td>
+          <td style="font-size:12px;color:#a0a0c0">${u.registeredAt?daysSince(u.registeredAt):'—'}<div style="font-size:10px;color:#505080">${u.registeredAt?new Date(u.registeredAt).toLocaleDateString():'—'}</div></td>
+          <td style="font-size:12px;color:#a0a0c0">${u.lastSeen?daysSince(u.lastSeen):'—'}</td>
+          <td style="font-size:14px;font-weight:800;color:#f5a623">${u.txnCount||0}</td>
+          <td style="font-size:12px;color:#a0a0c0">${u.currency||'—'}</td>
+          <td><span class="hash">${(u.binId||'—').slice(0,12)}...</span></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    </div>`;
+}
+
+function search(q){searchQ=q.toLowerCase();renderTable(users);}
+
+function exportCSV(){
+  if(!users.length)return;
+  const header='#,Email/Identifier,Status,Registered Date,Last Seen,Transactions,Currency,Bin ID';
+  const now=new Date();
+  const rows=users.map((u,i)=>{
+    const weekAgo=new Date(now-7*864e5);const reg=new Date(u.registeredAt);
+    const status=reg>weekAgo?'New':new Date(u.lastSeen||u.registeredAt)>weekAgo?'Active':'Inactive';
+    return[i+1,u.email||u.key||'—',status,u.registeredAt?new Date(u.registeredAt).toLocaleDateString():'—',u.lastSeen?new Date(u.lastSeen).toLocaleDateString():'—',u.txnCount||0,u.currency||'—',u.binId||'—'].join(',');
+  });
+  const csv=[header,...rows].join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='ledgrtrack_users_'+new Date().toISOString().split('T')[0]+'.csv';
+  a.click();
+}
+
+// Auto-load if bin ID is prefilled
+window.onload=()=>{if(getRegBin())loadRegistry();};
+</script>
+</body>
+</html>
