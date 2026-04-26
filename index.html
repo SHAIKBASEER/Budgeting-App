@@ -444,12 +444,10 @@ const getCat=(type,id)=>{const l=type==='income'?INC_CATS:EXP_CATS;return l.find
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const LS={get:(k,fb=null)=>{try{const v=localStorage.getItem(k);return v!==null?JSON.parse(v):fb;}catch{return fb;}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}},del:(k)=>{try{localStorage.removeItem(k);}catch{}}};
 
-// ── CLOUD SYNC via Firebase Realtime Database ──────────────
-// Free tier: 1GB storage, no credit card needed
-// Data stored at: JSONBin.io keyed by hashed user email
-// Protected by: only the app reads/writes, path contains hashed email
+// ── CLOUD SYNC via JSONBin.io ──────────────────────────────
+// Each user gets their own private bin keyed by hashed email/phone
+// Data syncs instantly across all devices on login
 
-// Simple hash so emails are not stored as plain text in the URL
 function hashKey(str){
   let h=5381;
   for(let i=0;i<str.length;i++)h=((h<<5)+h)+str.charCodeAt(i)>>>0;
@@ -458,13 +456,6 @@ function hashKey(str){
 
 const JSONBIN_KEY='$2a$10$YFCjq4Azn.L42reasWN8ZOv2Ub1rlOrNwZnVod/d1i/vBo4pP/XxG';
 const JSONBIN_URL='https://api.jsonbin.io/v3';
-
-// Hash the user key so email is not exposed in bin name
-function hashKey(str){
-  let h=5381;
-  for(let i=0;i<str.length;i++)h=((h<<5)+h)+str.charCodeAt(i)>>>0;
-  return h.toString(36).padStart(8,'0');
-}
 
 async function cloudSave(uk,data){
   if(!JSONBIN_KEY)return{ok:false,reason:'no_key'};
