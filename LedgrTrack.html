@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no"/>
+<title>LedgrTrack — Personal Finance</title>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="LedgrTrack"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="theme-color" content="#0a0a12"/>
+<meta name="description" content="LedgrTrack — Track income, expenses and reach your financial goals"/>
+
+<!--
+  ╔══════════════════════════════════════════════════════╗
+  ║  SECURITY CONFIG — DO NOT PUT REAL KEYS HERE        ║
+  ║  Move these to a backend environment (.env):        ║
+  ║    EMAILJS_PUBLIC_KEY=your_key_here                 ║
+  ║    EMAILJS_SERVICE_ID=your_service_id               ║
+  ║    EMAILJS_TEMPLATE_ID=your_template_id             ║
+  ║    JSONBIN_MASTER_KEY=your_jsonbin_key              ║
+  ║  Use a serverless function (Netlify/Vercel) to      ║
+  ║  proxy email and SMS sends — never expose secrets   ║
+  ║  in client-side JavaScript.                         ║
+  ╚══════════════════════════════════════════════════════╝
+-->
+
+<!-- EmailJS SDK (public key only — safe to expose) -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{height:100%;height:-webkit-fill-available;overflow:hidden}
+body{height:100%;height:-webkit-fill-available;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif;-webkit-font-smoothing:antialiased;background:#0a0a12;color:#f0f0f8;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px)}
+#root{height:100%;height:-webkit-fill-available;display:flex;flex-direction:column;overflow:hidden}
+:root{
+  --accent:#f5a623;--a10:rgba(245,166,35,.1);--a20:rgba(245,166,35,.2);
+  --bg:#0a0a12;--card:#15151e;--card2:#1c1c28;--card3:#232333;
+  --text:#f0f0f8;--sub:#a0a0c0;--muted:#606080;--muted2:#303048;
+  --border:rgba(255,255,255,.07);--border2:rgba(255,255,255,.13);
+  --green:#30d158;--g10:rgba(48,209,88,.1);--g20:rgba(48,209,88,.2);
+  --red:#ff453a;--r10:rgba(255,69,58,.1);
+  --blue:#4e9af1;--b10:rgba(78,154,241,.1);
+  --tab-h:62px;--safe-b:env(safe-area-inset-bottom,0px);--safe-t:env(safe-area-inset-top,0px);
+  --hdr:calc(env(safe-area-inset-top,0px) + 56px);
+  --radius:22px;
+}
+::-webkit-scrollbar{display:none}
+input,select,textarea,button{font-family:inherit;-webkit-appearance:none;appearance:none}
+button:active{transform:scale(.96);transition:transform .08s}
+input::placeholder{color:var(--muted2)}
+input[type=date],input[type=time]{color-scheme:dark}
+input[type=date]::-webkit-calendar-picker-indicator,input[type=time]::-webkit-calendar-picker-indicator{filter:invert(.5) brightness(2);opacity:.7}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{transform:translateY(48px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes popIn{from{transform:scale(.93);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes toastIn{from{transform:translateY(-14px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes barGrow{from{transform:scaleY(0);transform-origin:bottom}to{transform:scaleY(1);transform-origin:bottom}}
+@keyframes waveBar{0%{transform:scaleY(.4)}100%{transform:scaleY(1.2)}}
+@keyframes voiceRipple{0%{opacity:1;transform:scale(.8)}100%{opacity:0;transform:scale(2.2)}}
+#splash{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;background:#0a0a12;transition:opacity .6s ease}
+#splash.hide{opacity:0;pointer-events:none}
+/* Tooltip base */
+.chart-tip{position:absolute;background:var(--card3);border:1px solid var(--border2);border-radius:12px;padding:10px 14px;font-size:12px;font-family:-apple-system,sans-serif;color:var(--text);pointer-events:none;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:200;animation:popIn .15s ease;transition:opacity .15s}
+</style>
+</head>
+<body>
+<div id="splash">
+  <svg width="96" height="96" viewBox="0 0 96 96" style="margin-bottom:18px;border-radius:22px;filter:drop-shadow(0 16px 40px rgba(245,166,35,.35))">
+    <rect width="96" height="96" rx="22" fill="#0a0a12"/>
+    <rect x="7" y="7" width="82" height="82" rx="16" fill="url(#splashG)"/>
+    <defs><linearGradient id="splashG" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f5a623"/><stop offset="100%" stop-color="#c8720a"/></linearGradient></defs>
+    <text x="48" y="66" text-anchor="middle" font-size="46" font-weight="900" fill="white" font-family="-apple-system,sans-serif">$</text>
+  </svg>
+  <div style="font-size:30px;font-weight:900;letter-spacing:-.5px;color:#f0f0f8">LedgrTrack</div>
+  <div style="font-size:13px;color:#606080;margin-top:6px;margin-bottom:32px">Personal Finance Tracker</div>
+  <div style="width:30px;height:30px;border-radius:50%;border:2.5px solid rgba(245,166,35,.2);border-top-color:#f5a623;animation:spin .7s linear infinite"></div>
+</div>
+<div id="root"></div>
+
+<script type="text/babel">
+const {useState,useEffect,useRef,useMemo,useCallback}=React;
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECURE CONFIG — Replace with your actual keys
+// In production: use environment variables or a backend proxy
+// NEVER commit real secrets to version control
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const CONFIG = {
+  // EmailJS — sign up at emailjs.com, create a service & template
+  // Public key is safe to expose; service/template IDs are low-risk
+  EMAILJS_PUBLIC_KEY:   'Edku-DGDzomlJreV6', // replace with process.env.EMAILJS_PUBLIC_KEY
+  EMAILJS_SERVICE_ID:   'service_e3aq4gh',   // replace with process.env.EMAILJS_SERVICE_ID
+  EMAILJS_TEMPLATE_ID:  'template_5zywxbh',  // replace with process.env.EMAILJS_TEMPLATE_ID
+
+  // JSONBin.io — for cross-device sync (low-sensitivity; still, prefer backend proxy)
+  JSONBIN_KEY:          '$2a$10$YFCjq4Azn.L42reasWN8ZOv2Ub1rlOrNwZnVod/d1i/vBo4pP/XxG',
+
+  // App URL (used in emails)
+  APP_URL: 'https://shaikbaseer.github.io/Budgeting-App/LedgrTrack.html',
+};
+
+// Init EmailJS safely
+try { emailjs.init(CONFIG.EMAILJS_PUBLIC_KEY); } catch(e) {}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CONSTANTS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const THEMES=[
+  {id:'dark',  name:'Midnight',  isDark:true, bg:'#0a0a12',card:'#15151e',card2:'#1c1c28',text:'#f0f0f8',sub:'#a0a0c0',muted:'#606080',muted2:'#303048',accent:'#f5a623',heroA:'#1a1530',heroB:'#10101e'},
+  {id:'navy',  name:'Deep Navy', isDark:true, bg:'#040c1a',card:'#091828',card2:'#0e2035',text:'#e8f0ff',sub:'#7090c0',muted:'#405880',muted2:'#203048',accent:'#4e9af1',heroA:'#091828',heroB:'#050f1e'},
+  {id:'forest',name:'Forest',    isDark:true, bg:'#060d08',card:'#0c1c10',card2:'#122218',text:'#e0f0e8',sub:'#60a070',muted:'#408060',muted2:'#204030',accent:'#30d158',heroA:'#0c1c10',heroB:'#08140b'},
+  {id:'cosmos',name:'Cosmos',    isDark:true, bg:'#0b0710',card:'#150e22',card2:'#1c142e',text:'#ece8ff',sub:'#9070c0',muted:'#7050a0',muted2:'#402860',accent:'#bf5af2',heroA:'#150e22',heroB:'#0d0918'},
+  {id:'ember', name:'Ember',     isDark:true, bg:'#100804',card:'#1c1008',card2:'#281608',text:'#fff0e5',sub:'#c08060',muted:'#906040',muted2:'#602010',accent:'#ff6b35',heroA:'#1c1008',heroB:'#140a05'},
+  {id:'light', name:'Daylight',  isDark:false,bg:'#f0f0f8',card:'#ffffff',card2:'#e8e8f5',text:'#0c0c20',sub:'#5050a0',muted:'#808090',muted2:'#c0c0d8',accent:'#5856d6',heroA:'#ffffff',heroB:'#f0f0fc'},
+];
+
+const EXP_CATS=[
+  {id:'food',          label:'Food',        icon:'🍔',color:'#ff6b35'},
+  {id:'transport',     label:'Transport',   icon:'🚗',color:'#4e9af1'},
+  {id:'bills',         label:'Bills',       icon:'⚡',color:'#f5a623'},
+  {id:'shopping',      label:'Shopping',    icon:'🛍️',color:'#af52de'},
+  {id:'health',        label:'Health',      icon:'❤️',color:'#ff2d55'},
+  {id:'entertainment', label:'Fun',         icon:'🎮',color:'#30d158'},
+  {id:'education',     label:'Education',   icon:'📚',color:'#5ac8fa'},
+  {id:'travel',        label:'Travel',      icon:'✈️',color:'#34aadc'},
+  {id:'other',         label:'Other',       icon:'📦',color:'#888'},
+];
+const INC_CATS=[
+  {id:'salary',    label:'Salary',     icon:'💼',color:'#30d158'},
+  {id:'freelance', label:'Freelance',  icon:'💻',color:'#4e9af1'},
+  {id:'investment',label:'Investment', icon:'📈',color:'#f5a623'},
+  {id:'gift',      label:'Gift',       icon:'🎁',color:'#af52de'},
+  {id:'other',     label:'Other',      icon:'💰',color:'#888'},
+];
+const getCat=(type,id)=>{const l=type==='income'?INC_CATS:EXP_CATS;return l.find(c=>c.id===id)||l[l.length-1];};
+
+const TABS=['Home','Add','Charts','History','Settings'];
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// HELPERS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const LS={
+  get:(k,fb=null)=>{try{const v=localStorage.getItem(k);return v!==null?JSON.parse(v):fb;}catch{return fb;}},
+  set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}},
+};
+const fmt=(n,cur='USD')=>{try{return new Intl.NumberFormat('en-US',{style:'currency',currency:cur,minimumFractionDigits:2,maximumFractionDigits:2}).format(Math.abs(n));}catch{return '$'+Math.abs(n).toFixed(2);}};
+const fmtK=(n,cur='USD')=>Math.abs(n)>=1000?'$'+(Math.abs(n)/1000).toFixed(1)+'k':fmt(n,cur);
+const todayStr=()=>new Date().toISOString().split('T')[0];
+const dayStr=d=>{try{return new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});}catch{return d;}};
+const monthLbl=(y,m)=>new Date(y,m,1).toLocaleString('default',{month:'long',year:'numeric'});
+
+// Apply theme to CSS vars
+function applyTheme(th){
+  const s=document.documentElement.style;
+  [['--bg',th.bg],['--card',th.card],['--card2',th.card2],['--text',th.text],
+   ['--sub',th.sub||'#a0a0c0'],['--muted',th.muted],['--muted2',th.muted2],
+   ['--accent',th.accent],['--hero-a',th.heroA],['--hero-b',th.heroB],
+   ['--border',th.isDark?'rgba(255,255,255,.07)':'rgba(0,0,0,.08)'],
+   ['--border2',th.isDark?'rgba(255,255,255,.13)':'rgba(0,0,0,.14)'],
+   ['--green',th.isDark?'#30d158':'#1a8040'],['--red',th.isDark?'#ff453a':'#cc1010']
+  ].forEach(([k,v])=>s.setProperty(k,v));
+  const hex=th.accent.replace('#','');
+  const[r,g,b]=[0,2,4].map(i=>parseInt(hex.slice(i,i+2),16));
+  s.setProperty('--a10',`rgba(${r},${g},${b},.10)`);
+  s.setProperty('--a20',`rgba(${r},${g},${b},.22)`);
+  s.setProperty('--g10','rgba(48,209,88,.10)');
+  s.setProperty('--r10','rgba(255,69,58,.10)');
+  document.body.style.background=th.bg;
+  const mc=document.querySelector('meta[name=theme-color]');
+  if(mc) mc.content=th.bg;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// EMAIL
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function sendEmail(to,subject,html){
+  // In production: POST to your backend /api/send-email instead
+  try{
+    const res=await emailjs.send(CONFIG.EMAILJS_SERVICE_ID,CONFIG.EMAILJS_TEMPLATE_ID,{
+      to_email:to, subject, html_content:html,
+      email:to, from_name:'LedgrTrack', app_name:'LedgrTrack',
+    });
+    return{ok:true};
+  }catch(e){
+    console.warn('EmailJS error:',e);
+    return{ok:false,err:e?.text||'Email send failed'};
+  }
+}
+async function sendOTPEmail({toEmail,toName,otp,isNewUser}){
+  const nm=toName||(toEmail.split('@')[0])||'there';
+  const subj=(isNewUser?'Welcome to LedgrTrack! ':'Sign in to LedgrTrack — ')+'Code: '+otp;
+  const body=`
+    <div style="font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;background:#0a0a12;border-radius:20px;overflow:hidden">
+      <div style="background:linear-gradient(135deg,#f5a623,#c8720a);padding:28px 32px;text-align:center">
+        <div style="font-size:36px;font-weight:900;color:#000">$</div>
+        <div style="font-size:24px;font-weight:900;color:#000;letter-spacing:-0.5px">LedgrTrack</div>
+        <div style="font-size:13px;color:rgba(0,0,0,.65);margin-top:4px">${isNewUser?'Create your account':'Welcome back'}</div>
+      </div>
+      <div style="background:#15151e;padding:32px">
+        <p style="color:#a0a0c0;font-size:15px;margin:0 0 24px">Hi <strong style="color:#f0f0f8">${nm}</strong> 👋 Your verification code is:</p>
+        <div style="background:#1c1c28;border-radius:16px;padding:28px;text-align:center;border:1px solid rgba(255,255,255,.07)">
+          <div style="font-size:11px;letter-spacing:3px;color:#606080;text-transform:uppercase;margin-bottom:10px">Verification Code</div>
+          <div style="font-size:54px;font-weight:900;letter-spacing:12px;color:#f5a623;font-family:monospace">${otp}</div>
+          <div style="font-size:12px;color:#606080;margin-top:12px">Expires in 5 minutes · Do not share</div>
+        </div>
+        <div style="margin-top:20px;background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2);border-radius:12px;padding:14px">
+          <p style="margin:0;font-size:13px;color:#a0a0c0;line-height:1.6">🔒 LedgrTrack will never ask for your code by phone or chat.</p>
+        </div>
+      </div>
+    </div>`;
+  return sendEmail(toEmail,subj,body);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SEED DATA
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function buildSeed(){
+  const now=new Date();const y=now.getFullYear();const mo=now.getMonth();
+  const D=(m,d)=>new Date(y,m,Math.min(d,new Date(y,m+1,0).getDate())).toISOString().split('T')[0];
+  const F=days=>{const d=new Date(y,mo,now.getDate()+days);return d.toISOString().split('T')[0];};
+  let id=1;
+  return[
+    {id:id++,type:'income', amount:4800,category:'salary',     note:'Monthly salary',        date:D(mo,1)},
+    {id:id++,type:'income', amount:750, category:'freelance',  note:'UI design project',     date:D(mo,4)},
+    {id:id++,type:'expense',amount:1300,category:'bills',      note:'Rent payment',          date:D(mo,2)},
+    {id:id++,type:'expense',amount:94,  category:'food',       note:'Groceries',             date:D(mo,3)},
+    {id:id++,type:'expense',amount:62,  category:'transport',  note:'Gas station',           date:D(mo,5)},
+    {id:id++,type:'expense',amount:16,  category:'bills',      note:'Netflix',               date:D(mo,6)},
+    {id:id++,type:'expense',amount:248, category:'shopping',   note:'Nike shoes',            date:D(mo,7)},
+    {id:id++,type:'income', amount:220, category:'investment', note:'ETF dividend',          date:D(mo,8)},
+    {id:id++,type:'expense',amount:48,  category:'food',       note:'Chipotle',              date:D(mo,9)},
+    {id:id++,type:'expense',amount:88,  category:'health',     note:'Pharmacy',              date:D(mo,10)},
+    {id:id++,type:'expense',amount:128, category:'bills',      note:'Electric + water',      date:D(mo,11)},
+    {id:id++,type:'expense',amount:36,  category:'entertainment',note:'Spotify + Hulu',     date:D(mo,12)},
+    {id:id++,type:'expense',amount:312, category:'shopping',   note:'Amazon haul',           date:D(mo,13)},
+    {id:id++,type:'expense',amount:78,  category:'food',       note:'Date night dinner',     date:D(mo,14)},
+    {id:id++,type:'income', amount:480, category:'freelance',  note:'Brand kit project',     date:D(mo,15)},
+    {id:id++,type:'expense',amount:34,  category:'transport',  note:'Uber rides',            date:D(mo,16)},
+    {id:id++,type:'expense',amount:145, category:'health',     note:'Gym membership',        date:D(mo,17)},
+    {id:id++,type:'expense',amount:80,  category:'education',  note:'Udemy course',          date:D(mo,18)},
+    {id:id++,type:'expense',amount:185, category:'bills',      note:'Phone bill',            date:D(mo,20)},
+    // Last month
+    {id:id++,type:'income', amount:4800,category:'salary',     note:'Monthly salary',        date:D(mo-1,1)},
+    {id:id++,type:'income', amount:420, category:'freelance',  note:'Web dev contract',      date:D(mo-1,6)},
+    {id:id++,type:'expense',amount:1300,category:'bills',      note:'Rent payment',          date:D(mo-1,2)},
+    {id:id++,type:'expense',amount:112, category:'food',       note:'Trader Joe\'s',         date:D(mo-1,4)},
+    {id:id++,type:'expense',amount:295, category:'shopping',   note:'IKEA desk setup',       date:D(mo-1,9)},
+    {id:id++,type:'income', amount:175, category:'investment', note:'Stock dividends',       date:D(mo-1,12)},
+    {id:id++,type:'expense',amount:96,  category:'entertainment',note:'Concert tickets',     date:D(mo-1,14)},
+    {id:id++,type:'expense',amount:155, category:'bills',      note:'Utilities bundle',      date:D(mo-1,18)},
+    // Scheduled (future)
+    {id:id++,type:'expense',amount:1300,category:'bills',      note:'Rent — next month',     date:F(10), scheduled:true,notifyWhenDue:true,remindTime:'09:00'},
+    {id:id++,type:'income', amount:4800,category:'salary',     note:'Salary — next month',   date:F(11), scheduled:true,notifyWhenDue:true,remindTime:'08:00'},
+    {id:id++,type:'expense',amount:185, category:'bills',      note:'Phone bill due',        date:F(5),  scheduled:true,notifyWhenDue:true,remindTime:'09:00'},
+  ];
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SHARED COMPONENTS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function Tog({on,fn,col='var(--accent)'}){
+  return <div onClick={fn} style={{width:46,height:28,borderRadius:14,background:on?col:'var(--muted2)',position:'relative',cursor:'pointer',transition:'all .25s',flexShrink:0,boxShadow:on?`0 0 16px ${col}55`:'none'}}>
+    <div style={{position:'absolute',top:3,left:on?20:3,width:22,height:22,borderRadius:11,background:'#fff',transition:'left .25s',boxShadow:'0 2px 8px rgba(0,0,0,.3)'}}/>
+  </div>;
+}
+function Modal({onBg,ch}){
+  return <div onClick={e=>{if(e.target===e.currentTarget&&onBg)onBg();}} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.72)',zIndex:8000,display:'flex',alignItems:'flex-end',animation:'fadeIn .2s'}}>
+    <div style={{background:'var(--card)',borderRadius:'28px 28px 0 0',width:'100%',maxHeight:'94dvh',maxHeight:'94vh',overflowY:'auto',animation:'slideUp .3s ease',paddingBottom:'calc(env(safe-area-inset-bottom,0px) + 12px)'}}>{ch}</div>
+  </div>;
+}
+function Confirm({title,body,ok='Confirm',danger,onOk,onCancel}){
+  return <div onClick={e=>{if(e.target===e.currentTarget)onCancel();}} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.78)',zIndex:9500,display:'flex',alignItems:'center',justifyContent:'center',padding:24,animation:'fadeIn .15s'}}>
+    <div style={{background:'var(--card)',borderRadius:26,padding:'28px 22px',width:'100%',maxWidth:340,animation:'popIn .2s'}}>
+      <div style={{fontSize:20,fontWeight:800,color:'var(--text)',textAlign:'center',marginBottom:8}}>{title}</div>
+      <div style={{fontSize:14,color:'var(--sub)',textAlign:'center',lineHeight:1.6,marginBottom:24}}>{body}</div>
+      <div style={{display:'flex',gap:10}}>
+        <button onClick={onCancel} style={{flex:1,padding:'13px',borderRadius:14,border:'1px solid var(--border2)',background:'transparent',color:'var(--sub)',fontSize:14,fontWeight:700,cursor:'pointer'}}>Cancel</button>
+        <button onClick={onOk} style={{flex:1,padding:'13px',borderRadius:14,border:'none',background:danger?'var(--red)':'var(--accent)',color:danger?'#fff':'#000',fontSize:14,fontWeight:700,cursor:'pointer'}}>{ok}</button>
+      </div>
+    </div>
+  </div>;
+}
+function Toast({toasts}){
+  if(!toasts.length)return null;
+  return <div style={{position:'fixed',top:'calc(var(--safe-t) + 12px)',left:'50%',transform:'translateX(-50%)',zIndex:9800,display:'flex',flexDirection:'column',gap:8,width:'min(calc(100% - 24px),400px)',pointerEvents:'none'}}>
+    {toasts.map(t=><div key={t.id} style={{background:t.err?'#1e0808':t.warn?'#1a1200':'var(--card)',border:`1px solid ${t.err?'rgba(255,58,58,.4)':t.warn?'rgba(245,166,35,.35)':'var(--border2)'}`,borderRadius:18,padding:'13px 16px',display:'flex',alignItems:'flex-start',gap:10,boxShadow:'0 12px 40px rgba(0,0,0,.5)',animation:'toastIn .3s ease'}}>
+      <span style={{fontSize:20,flexShrink:0,lineHeight:1.3}}>{t.icon||'ℹ️'}</span>
+      <div style={{flex:1}}>{t.title&&<div style={{fontSize:13,fontWeight:700,color:t.err?'var(--red)':t.warn?'var(--accent)':'var(--text)',marginBottom:3}}>{t.title}</div>}<div style={{fontSize:12,color:'var(--sub)',lineHeight:1.5}}>{t.body}</div></div>
+    </div>)}
+  </div>;
+}
+const TabIcons={
+  Home:a=><svg width={22} height={22} viewBox="0 0 24 24" fill="none"><path d="M3 12L12 3l9 9" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2" strokeLinecap="round"/></svg>,
+  Add:a=><svg width={22} height={22} viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2"/><path d="M12 8v8M8 12h8" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2.5" strokeLinecap="round"/></svg>,
+  Charts:a=><svg width={22} height={22} viewBox="0 0 24 24" fill="none"><rect x="2" y="3" width="20" height="18" rx="3" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2"/><path d="M7 14v3M11 10v7M15 7v10" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2" strokeLinecap="round"/></svg>,
+  History:a=><svg width={22} height={22} viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2"/><path d="M12 7v5l3 3" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2" strokeLinecap="round"/></svg>,
+  Settings:a=><svg width={22} height={22} viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" stroke={a?'var(--accent)':'var(--muted)'} strokeWidth="2" strokeLinecap="round"/></svg>,
+};
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// VOICE INPUT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function parseVoice(text){
+  const t=text.toLowerCase();
+  const am=text.match(/\$?(\d+(?:\.\d{1,2})?)/);
+  const amount=am?parseFloat(am[1]):null;
+  const isInc=/earn|receiv|got paid|income|salary|deposit|freelan|invest|dividend|gift/i.test(t);
+  const type=isInc?'income':'expense';
+  const cm=[
+    {id:'food',     w:['food','lunch','dinner','breakfast','restaurant','coffee','pizza','grocery','groceries','chipotle','starbucks','burger','eat','meal','snack']},
+    {id:'transport',w:['uber','lyft','bus','metro','gas','fuel','parking','train','cab','taxi','flight','commute']},
+    {id:'bills',    w:['bill','electric','water','internet','rent','netflix','spotify','subscription','phone bill','electricity']},
+    {id:'shopping', w:['shop','shopping','cloth','amazon','online','store','bought','purchase','mall','shoes','shirt']},
+    {id:'health',   w:['doctor','pharmacy','medicine','gym','health','dental','hospital','vitamin','medical']},
+    {id:'entertainment',w:['movie','concert','game','fun','show','ticket','bar','club','party']},
+    {id:'education',w:['course','book','school','tuition','study','udemy','class','workshop']},
+    {id:'travel',   w:['travel','hotel','flight','vacation','trip','airbnb']},
+    {id:'salary',   w:['salary','paycheck','wage','payday','got paid']},
+    {id:'freelance',w:['freelance','project','client','invoice','contract','consulting']},
+    {id:'investment',w:['dividend','stock','crypto','invest','profit','returns']},
+    {id:'gift',     w:['gift','present','birthday money']},
+  ];
+  let category='other';
+  for(const c of cm){if(c.w.some(w=>t.includes(w))){category=c.id;break;}}
+  const note=text.replace(/\$?\d+(?:\.\d{1,2})?\s*(?:dollars?|bucks?)?/gi,'').replace(/\b(spent|paid|bought|received|earned|got|on|for|at|the|a|an|i|my|just)\b/gi,'').replace(/\s+/g,' ').trim().slice(0,40)||null;
+  return{amount,type,category,note};
+}
+
+function VoiceButton({onResult,toast}){
+  const [state,setState]=useState('idle');
+  const [transcript,setTranscript]=useState('');
+  const recRef=useRef(null);
+  const sup=typeof window!=='undefined'&&('webkitSpeechRecognition' in window||'SpeechRecognition' in window);
+
+  const start=()=>{
+    if(!sup){toast({icon:'🎤',title:'Not supported',body:'Voice works in Chrome (Android/desktop) or Safari.',warn:true});return;}
+    try{
+      const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+      const r=new SR();
+      recRef.current=r;
+      r.lang='en-US';r.interimResults=true;r.maxAlternatives=1;
+      r.onstart=()=>{setState('listening');setTranscript('');};
+      r.onerror=e=>{
+        setState('error');
+        const msg=e.error==='not-allowed'?'Microphone blocked — allow access in browser settings':e.error==='no-speech'?'No speech detected — try again':'Voice error: '+e.error;
+        toast({icon:'🎤',title:'Voice error',body:msg,err:true});
+        setTimeout(()=>setState('idle'),3000);
+      };
+      r.onresult=e=>{
+        const txt=Array.from(e.results).map(r=>r[0].transcript).join('');
+        setTranscript(txt);
+        if(e.results[e.results.length-1].isFinal){
+          setState('processing');
+          const parsed=parseVoice(txt);
+          setTimeout(()=>{
+            if(!parsed.amount){
+              setState('error');
+              toast({icon:'🎤',title:'No amount detected',body:'Try: "spent $50 on groceries"',warn:true});
+              setTimeout(()=>setState('idle'),3000);
+            }else{
+              setState('success');
+              setTimeout(()=>{setState('idle');setTranscript('');onResult(parsed,txt);},900);
+            }
+          },350);
+        }
+      };
+      r.start();
+    }catch(e){
+      toast({icon:'❌',title:'Voice unavailable',body:'Could not start microphone: '+e.message,err:true});
+    }
+  };
+  const stop=()=>{try{recRef.current?.stop();}catch{}setState('idle');};
+  useEffect(()=>()=>{try{recRef.current?.stop();}catch{}},[]);
+  if(!sup)return null;
+
+  const isListening=state==='listening';
+  const isProcessing=state==='processing';
+  const isSuccess=state==='success';
+  const isError=state==='error';
+  const isActive=isListening||isProcessing;
+
+  return <div style={{width:'100%'}}>
+    <button onClick={isActive?stop:start} style={{width:'100%',padding:'18px 20px',borderRadius:20,border:`1.5px solid ${isError?'var(--red)':isSuccess?'var(--green)':isActive?'var(--accent)':'var(--border2)'}`,background:isError?'var(--r10)':isSuccess?'var(--g10)':isActive?'var(--a10)':'var(--card)',display:'flex',alignItems:'center',gap:14,cursor:'pointer',position:'relative',overflow:'hidden',transition:'all .25s'}}>
+      {isActive&&<div style={{position:'absolute',inset:0,borderRadius:20,animation:'voiceRipple 1.5s ease-out infinite',background:'radial-gradient(circle at center,rgba(245,166,35,.15) 0%,transparent 70%)',pointerEvents:'none'}}/>}
+      <div style={{width:48,height:48,borderRadius:16,background:isActive?'var(--accent)':isSuccess?'var(--green)':isError?'var(--red)':'var(--card2)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all .25s',boxShadow:isActive?'0 0 20px rgba(245,166,35,.4)':'none'}}>
+        {isProcessing?<div style={{width:20,height:20,border:'2.5px solid rgba(0,0,0,.2)',borderTopColor:'#000',borderRadius:'50%',animation:'spin .6s linear infinite'}}/>
+        :isSuccess?<span style={{fontSize:22}}>✓</span>
+        :isError?<span style={{fontSize:22}}>✕</span>
+        :<svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <rect x="9" y="2" width="6" height="12" rx="3" fill={isActive?'#000':'var(--sub)'}/>
+          <path d="M5 10a7 7 0 0014 0" stroke={isActive?'#000':'var(--sub)'} strokeWidth="2" strokeLinecap="round"/>
+          <line x1="12" y1="17" x2="12" y2="21" stroke={isActive?'#000':'var(--sub)'} strokeWidth="2" strokeLinecap="round"/>
+          <line x1="9" y1="21" x2="15" y2="21" stroke={isActive?'#000':'var(--sub)'} strokeWidth="2" strokeLinecap="round"/>
+        </svg>}
+      </div>
+      <div style={{flex:1,textAlign:'left'}}>
+        <div style={{fontSize:15,fontWeight:800,color:isError?'var(--red)':isSuccess?'var(--green)':isActive?'var(--accent)':'var(--sub)',marginBottom:3}}>
+          {isListening?'Listening…':isProcessing?'Processing…':isSuccess?'Got it! Entry filled.':isError?'Try again':'Add by Voice'}
+        </div>
+        <div style={{fontSize:12,color:'var(--muted)',lineHeight:1.4}}>
+          {transcript?<span style={{color:'var(--text)',fontStyle:'italic'}}>"{transcript}"</span>
+          :isListening?<span style={{color:'var(--accent)'}}>Speak your transaction now…</span>
+          :'Say "spent $50 on groceries" to auto-fill'}
+        </div>
+      </div>
+      {isListening&&<div style={{display:'flex',alignItems:'center',gap:3,flexShrink:0}}>
+        {[1,2,3,4,3].map((h,i)=><div key={i} style={{width:3,borderRadius:2,background:'var(--accent)',height:6*h+'px',animation:`waveBar .8s ease-in-out ${i*.1}s infinite alternate`}}/>)}
+      </div>}
+    </button>
+  </div>;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// AUTH — Email only (phone hidden for now)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function AuthScreen({onAuth,toast}){
+  const [step,setStep]=useState('form'); // form | otp
+  const [isLogin,setIsLogin]=useState(true);
+  const [name,setName]=useState('');
+  const [email,setEmail]=useState('');
+  const [otp,setOtp]=useState(['','','','','','']);
+  const [genOtp,setGenOtp]=useState('');
+  const [loading,setLoading]=useState(false);
+  const [err,setErr]=useState('');
+  const [timer,setTimer]=useState(0);
+  const refs=[useRef(),useRef(),useRef(),useRef(),useRef(),useRef()];
+  const tiRef=useRef(null);
+
+  const startTimer=()=>{clearInterval(tiRef.current);setTimer(30);tiRef.current=setInterval(()=>setTimer(t=>{if(t<=1){clearInterval(tiRef.current);return 0;}return t-1;}),1000);};
+
+  // PHONE AUTH IS TEMPORARILY HIDDEN — enable by setting SHOW_PHONE=true
+  const SHOW_PHONE=false; // set to true when SMS backend is ready
+
+  const doSend=async(addr,code)=>{
+    const res=await sendOTPEmail({toEmail:addr,toName:name,otp:code,isNewUser:!isLogin});
+    if(!res.ok){
+      // Fallback: show code on screen if email fails
+      toast({icon:'💡',title:'Email failed — your code is: '+code,body:'Copy this code and enter it below. Check spam too.',warn:true});
+    }else{
+      toast({icon:'📧',title:'Code sent!',body:'Check '+addr+' (and spam folder).'});
+    }
+  };
+
+  const submit=async()=>{
+    setErr('');
+    if(!email.includes('@')||!email.includes('.')){setErr('Enter a valid email address.');return;}
+    if(!isLogin&&!name.trim()){setErr('Please enter your full name.');return;}
+    setLoading(true);
+    const code=(Math.floor(100000+Math.random()*900000)).toString();
+    setGenOtp(code);setOtp(['','','','','','']);
+    await doSend(email,code);
+    setStep('otp');setLoading(false);startTimer();
+    setTimeout(()=>refs[0].current?.focus(),400);
+  };
+
+  const handleDigit=(i,val)=>{
+    setErr('');
+    const d=val.replace(/\D/g,'');
+    if(d.length>1){const digits=d.slice(0,6).split('');const no=[...otp];digits.forEach((x,j)=>{no[j]=x;});setOtp(no);refs[Math.min(digits.length,5)].current?.focus();return;}
+    const no=[...otp];no[i]=d;setOtp(no);
+    if(d&&i<5)refs[i+1].current?.focus();
+  };
+  const handleBs=(i,e)=>{if(e.key==='Backspace'&&!otp[i]&&i>0){const no=[...otp];no[i-1]='';setOtp(no);refs[i-1].current?.focus();}};
+
+  const verify=()=>{
+    const entered=otp.join('');
+    if(entered!==genOtp){setErr('Incorrect code — please try again.');setOtp(['','','','','','']);refs[0].current?.focus();return;}
+    const nm=name||(email.split('@')[0]);
+    onAuth({name:nm,email,verified:true,uid:'user_'+Date.now()});
+  };
+
+  const resend=async()=>{if(timer>0)return;const code=(Math.floor(100000+Math.random()*900000)).toString();setGenOtp(code);setOtp(['','','','','','']);setErr('');startTimer();await doSend(email,code);setTimeout(()=>refs[0].current?.focus(),300);};
+
+  return <div style={{minHeight:'100dvh',minHeight:'-webkit-fill-available',background:'var(--bg)',color:'var(--text)',overflowY:'auto',display:'flex',alignItems:'center',justifyContent:'center'}}>
+    <div style={{width:'100%',maxWidth:400,padding:'48px 24px',boxSizing:'border-box'}}>
+      {/* Logo */}
+      <div style={{textAlign:'center',marginBottom:40}}>
+        <svg width="72" height="72" viewBox="0 0 96 96" style={{borderRadius:20,display:'block',margin:'0 auto 14px',filter:'drop-shadow(0 8px 28px rgba(245,166,35,.35))'}}>
+          <rect width="96" height="96" rx="22" fill="#0a0a12"/>
+          <rect x="7" y="7" width="82" height="82" rx="16" fill="url(#aG)"/>
+          <defs><linearGradient id="aG" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#f5a623"/><stop offset="100%" stopColor="#c8720a"/></linearGradient></defs>
+          <text x="48" y="66" textAnchor="middle" fontSize="46" fontWeight="900" fill="white">$</text>
+        </svg>
+        <div style={{fontSize:30,fontWeight:900,letterSpacing:-.5,marginBottom:4}}>LedgrTrack</div>
+        <div style={{fontSize:14,color:'var(--sub)'}}>{step==='otp'?'Enter verification code':isLogin?'Sign in to your account':'Create your account'}</div>
+      </div>
+
+      {step==='form'&&<div>
+        <div style={{background:'var(--card)',borderRadius:14,padding:'14px 16px',border:'1px solid var(--border)',marginBottom:12}}>
+          <div style={{fontSize:10,color:'var(--muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>📧 Email Address</div>
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" style={{background:'none',border:'none',color:'var(--text)',fontSize:16,width:'100%',outline:'none'}} onKeyDown={e=>e.key==='Enter'&&submit()} autoFocus/>
+        </div>
+        {!isLogin&&<div style={{background:'var(--card)',borderRadius:14,padding:'14px 16px',border:'1px solid var(--border)',marginBottom:12}}>
+          <div style={{fontSize:10,color:'var(--muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>👤 Full Name</div>
+          <input type="text" value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={{background:'none',border:'none',color:'var(--text)',fontSize:16,width:'100%',outline:'none'}}/>
+        </div>}
+        {err&&<div style={{background:'var(--r10)',border:'1px solid rgba(255,69,58,.3)',borderRadius:10,padding:'10px 14px',fontSize:13,color:'var(--red)',marginBottom:12}}>{err}</div>}
+        <button onClick={submit} disabled={loading} style={{width:'100%',padding:'15px',borderRadius:14,border:'none',background:loading?'var(--card2)':'var(--accent)',color:loading?'var(--muted)':'#000',fontSize:15,fontWeight:800,cursor:loading?'default':'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8,transition:'all .2s'}}>
+          {loading?<><div style={{width:16,height:16,border:'2.5px solid rgba(0,0,0,.2)',borderTopColor:'#000',borderRadius:'50%',animation:'spin .7s linear infinite'}}/> Sending code…</>:'Send Verification Code →'}
+        </button>
+        <div style={{textAlign:'center',marginTop:16,fontSize:13}}>
+          <span style={{color:'var(--muted)'}}>{isLogin?'New here? ':'Already have an account? '}</span>
+          <span onClick={()=>{setIsLogin(!isLogin);setErr('');}} style={{color:'var(--accent)',fontWeight:700,cursor:'pointer'}}>{isLogin?'Create account':'Sign in'}</span>
+        </div>
+        <div style={{marginTop:20,background:'var(--card)',borderRadius:12,padding:'12px 14px',border:'1px solid var(--border)',display:'flex',gap:10,alignItems:'flex-start'}}>
+          <span style={{fontSize:18}}>🔒</span>
+          <div style={{fontSize:12,color:'var(--sub)',lineHeight:1.6}}>No passwords needed. We send a 6-digit code to your email every time you sign in. Your data stays private on your device.</div>
+        </div>
+        {/* PHONE AUTH — hidden until SMS backend is ready */}
+        {SHOW_PHONE&&<div style={{display:'none'}}>Phone auth placeholder</div>}
+      </div>}
+
+      {step==='otp'&&<div>
+        <button onClick={()=>{setStep('form');setOtp(['','','','','','']);setErr('');}} style={{background:'none',border:'none',color:'var(--accent)',fontSize:14,fontWeight:700,marginBottom:20,display:'flex',alignItems:'center',gap:4,padding:0,cursor:'pointer'}}>‹ Back</button>
+        <div style={{textAlign:'center',marginBottom:24}}>
+          <div style={{width:64,height:64,borderRadius:18,background:'var(--b10)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,margin:'0 auto 14px'}}>📧</div>
+          <div style={{fontSize:18,fontWeight:800,marginBottom:6}}>Check your email</div>
+          <div style={{fontSize:13,color:'var(--sub)',lineHeight:1.6}}>Code sent to <strong style={{color:'var(--accent)'}}>{email}</strong><br/>Check spam if not received within 1 min</div>
+        </div>
+        <div style={{display:'flex',gap:8,justifyContent:'center',marginBottom:10}}>
+          {[0,1,2,3,4,5].map(i=><input key={i} ref={refs[i]} type="tel" inputMode="numeric" maxLength={6} value={otp[i]||''}
+            onChange={e=>handleDigit(i,e.target.value)} onKeyDown={e=>handleBs(i,e)}
+            style={{width:46,height:56,borderRadius:12,border:`2px solid ${err?'var(--red)':otp[i]?'var(--accent)':'var(--border2)'}`,background:err?'var(--r10)':otp[i]?'var(--a10)':'var(--card)',color:'var(--text)',fontSize:26,fontWeight:900,textAlign:'center',outline:'none',transition:'all .15s',animation:err?'shake .3s':'none'}}/>)}
+        </div>
+        {err&&<p style={{color:'var(--red)',fontSize:13,textAlign:'center',fontWeight:600,marginBottom:8}}>{err}</p>}
+        <button onClick={verify} disabled={otp.join('').length<6} style={{width:'100%',padding:'15px',borderRadius:14,border:'none',background:otp.join('').length===6?'var(--accent)':'var(--card2)',color:otp.join('').length===6?'#000':'var(--muted)',fontSize:15,fontWeight:800,cursor:otp.join('').length===6?'pointer':'default',marginTop:4,transition:'all .2s'}}>
+          {otp.join('').length===6?'Verify & Sign In ✓':'Enter 6-digit code'}
+        </button>
+        <div style={{textAlign:'center',marginTop:14,fontSize:13}}>
+          <span style={{color:'var(--muted)'}}>Didn't receive it? </span>
+          <span onClick={resend} style={{color:timer>0?'var(--muted)':'var(--accent)',fontWeight:700,cursor:timer>0?'default':'pointer'}}>{timer>0?`Resend in ${timer}s`:'Resend code'}</span>
+        </div>
+      </div>}
+    </div>
+  </div>;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TX SHEET
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function TxSheet({tx,onSave,onClose,defSched=false,toast,cur='USD',voiceDefaults=null}){
+  const ed=!!tx;
+  const [type,setType]=useState(tx?.type||voiceDefaults?.type||'expense');
+  const [amt,setAmt]=useState(tx?String(tx.amount):voiceDefaults?.amount?String(voiceDefaults.amount):'');
+  const [cat,setCat]=useState(tx?.category||voiceDefaults?.category||'');
+  const [note,setNote]=useState(tx?.note||voiceDefaults?.note||'');
+  const [date,setDate]=useState(tx?.date||todayStr());
+  const [remindTime,setRemindTime]=useState(tx?.remindTime||'09:00');
+  const [sched,setSched]=useState(tx?.scheduled||defSched);
+  const [notify,setNotify]=useState(tx?.notifyWhenDue!==false);
+  const cats=type==='income'?INC_CATS:EXP_CATS;
+  const numK=[['7','8','9'],['4','5','6'],['1','2','3'],['.',  '0','⌫']];
+  const tap=v=>{if(v==='⌫'){setAmt(a=>a.slice(0,-1));return;}if(v==='.'&&amt.includes('.'))return;if(amt.replace('.','').length>=9)return;setAmt(a=>a===''&&v==='.'?'0.':a+v);};
+  const save=()=>{
+    const n=parseFloat(amt);
+    if(!n||n<=0){toast({icon:'⚠️',title:'Enter an amount',body:'Please type a dollar amount.',warn:true});return;}
+    if(!cat){toast({icon:'⚠️',title:'Pick a category',body:'Select a category to save.',warn:true});return;}
+    onSave({...(tx||{}),id:tx?.id||Date.now(),type,amount:n,category:cat,note:note.trim(),date,remindTime,scheduled:sched,notifyWhenDue:sched&&notify});
+    onClose();
+  };
+  const sym=cur==='EUR'?'€':cur==='GBP'?'£':'$';
+  const disp=amt?`${sym}${parseFloat(amt).toLocaleString('en-US',{minimumFractionDigits:amt.includes('.')&&amt.split('.')[1]?.length>0?Math.min(amt.split('.')[1].length,2):0})}`:`${sym}0.00`;
+
+  return <Modal onBg={onClose} ch={<>
+    <div style={{display:'flex',justifyContent:'center',padding:'10px 0 2px'}}><div style={{width:36,height:4,borderRadius:2,background:'var(--muted2)'}}/></div>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 20px 10px'}}>
+      <div style={{fontSize:19,fontWeight:800}}>{ed?'Edit':'Add'} Transaction</div>
+      <div style={{display:'flex',gap:8}}>
+        <button onClick={()=>setSched(!sched)} style={{padding:'6px 12px',borderRadius:10,border:`1px solid ${sched?'var(--accent)':'var(--border2)'}`,background:sched?'var(--a10)':'transparent',color:sched?'var(--accent)':'var(--muted)',fontSize:12,fontWeight:700,cursor:'pointer'}}>📅 {sched?'Scheduled':'Future'}</button>
+        <button onClick={onClose} style={{width:30,height:30,borderRadius:15,background:'var(--card2)',border:'none',color:'var(--muted)',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>×</button>
+      </div>
+    </div>
+    <div style={{display:'flex',background:'var(--card2)',borderRadius:14,padding:4,gap:4,margin:'0 16px 12px'}}>
+      {['expense','income'].map(tp=><button key={tp} onClick={()=>{setType(tp);setCat('');}} style={{flex:1,padding:'11px',borderRadius:10,border:'none',background:type===tp?(tp==='income'?'var(--green)':'var(--red)'):'transparent',color:type===tp?'#fff':'var(--muted)',fontSize:15,fontWeight:800,cursor:'pointer',transition:'all .18s'}}>{tp==='income'?'💚 Income':'❤️ Expense'}</button>)}
+    </div>
+    <div style={{textAlign:'center',padding:'4px 16px 8px'}}>
+      <div style={{fontSize:amt.length>8?32:50,fontWeight:900,letterSpacing:-2,color:amt?(type==='income'?'var(--green)':'var(--red)'):'var(--muted2)',minHeight:58,display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>{disp}</div>
+    </div>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,padding:'0 16px 10px'}}>
+      {numK.flat().map(k=><button key={k} onClick={()=>tap(k)} style={{height:50,borderRadius:14,border:'1px solid var(--border)',background:k==='⌫'?'var(--card2)':'var(--card)',color:'var(--text)',fontSize:k==='⌫'?16:22,fontWeight:700,cursor:'pointer',transition:'transform .08s'}}>{k}</button>)}
+    </div>
+    <div style={{padding:'0 16px 10px'}}>
+      <div style={{fontSize:10,color:'var(--muted)',marginBottom:8,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>Category</div>
+      <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(cats.length,5)},1fr)`,gap:6}}>
+        {cats.map(c=><button key={c.id} onClick={()=>setCat(c.id)} style={{padding:'7px 4px',borderRadius:12,border:`1.5px solid ${cat===c.id?c.color:'var(--border)'}`,background:cat===c.id?c.color+'22':'var(--card2)',display:'flex',flexDirection:'column',alignItems:'center',gap:2,cursor:'pointer',transition:'all .15s'}}>
+          <span style={{fontSize:18}}>{c.icon}</span>
+          <span style={{fontSize:9,color:cat===c.id?c.color:'var(--muted)',fontWeight:700,whiteSpace:'nowrap'}}>{c.label}</span>
+        </button>)}
+      </div>
+    </div>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,padding:'0 16px 10px'}}>
+      {[{label:'Note',el:<input value={note} onChange={e=>setNote(e.target.value)} placeholder="Optional…" style={{background:'none',border:'none',color:'var(--text)',fontSize:14,width:'100%',outline:'none'}}/>},{label:sched?'Due Date':'Date',el:<input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{background:'none',border:'none',color:'var(--text)',fontSize:13,width:'100%',outline:'none'}}/>}].map((f,i)=><div key={i} style={{background:'var(--card2)',borderRadius:12,padding:'10px 14px',border:'1px solid var(--border)'}}>
+        <div style={{fontSize:9,color:'var(--muted)',marginBottom:5,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>{f.label}</div>
+        {f.el}
+      </div>)}
+    </div>
+    {sched&&<div style={{padding:'0 16px 10px'}}>
+      <div style={{background:'var(--card2)',borderRadius:14,padding:'12px 14px',border:'1px solid var(--border)'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:notify?12:0}}>
+          <div><div style={{fontSize:14,fontWeight:700}}>Email reminder when due</div><div style={{fontSize:11,color:'var(--sub)',marginTop:2}}>Send email on the due date</div></div>
+          <Tog on={notify} fn={()=>setNotify(!notify)}/>
+        </div>
+        {notify&&<div>
+          <div style={{fontSize:10,color:'var(--muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>Remind at time</div>
+          <input type="time" value={remindTime} onChange={e=>setRemindTime(e.target.value)} style={{width:'100%',background:'var(--card)',border:'1px solid var(--border2)',borderRadius:10,color:'var(--text)',fontSize:16,padding:'10px 14px',outline:'none',fontWeight:700}}/>
+        </div>}
+      </div>
+    </div>}
+    <div style={{padding:'4px 16px 8px'}}>
+      <button onClick={save} style={{width:'100%',padding:'16px',borderRadius:16,border:'none',background:!amt||!cat?'var(--card2)':'var(--accent)',color:!amt||!cat?'var(--muted)':'#000',fontSize:16,fontWeight:800,cursor:'pointer',transition:'all .2s'}}>{ed?'Update Transaction':'Save Transaction'}</button>
+    </div>
+  </>}/>;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// HOME SCREEN
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function HomeScreen({txns,onNav,onAdd,onSched,onEditTx,user,budgetGoal,incomeGoal,cur}){
+  const now=new Date();
+  const live=txns.filter(x=>!x.scheduled);
+  const mn=live.filter(x=>{const d=new Date(x.date+'T12:00:00');return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
+  const inc=mn.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
+  const exp=mn.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
+  const bal=live.reduce((s,x)=>x.type==='income'?s+x.amount:s-x.amount,0);
+  const recent=[...live].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,6);
+  const upcoming=txns.filter(x=>x.scheduled).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,3);
+  const hr=now.getHours();
+  const greet=hr<5?'Good night':hr<12?'Good morning':hr<17?'Good afternoon':'Good evening';
+
+  return <div style={{color:'var(--text)',padding:'0 16px',paddingBottom:'calc(var(--tab-h) + env(safe-area-inset-bottom,0px) + 24px)'}}>
+    <div style={{paddingTop:'var(--hdr)',paddingBottom:6}}>
+      <div style={{fontSize:13,color:'var(--sub)',marginBottom:2}}>{greet}{user?.name?`, ${user.name}`:''} 👋</div>
+      <div style={{fontSize:28,fontWeight:900,letterSpacing:-.5}}>Dashboard</div>
+    </div>
+    {/* Hero balance */}
+    <div style={{background:'linear-gradient(135deg,var(--hero-a),var(--hero-b))',borderRadius:26,padding:'22px',marginBottom:12,position:'relative',overflow:'hidden',border:'1px solid var(--border)'}}>
+      <div style={{position:'absolute',top:-50,right:-50,width:160,height:160,borderRadius:'50%',background:'var(--a10)'}}/>
+      <div style={{position:'absolute',bottom:-70,left:-20,width:140,height:140,borderRadius:'50%',background:'var(--a10)',opacity:.4}}/>
+      <div style={{fontSize:11,color:'var(--sub)',textTransform:'uppercase',letterSpacing:.8,fontWeight:700,marginBottom:6}}>Total Balance</div>
+      <div style={{fontSize:44,fontWeight:900,letterSpacing:-2,color:bal>=0?'var(--text)':'var(--red)',lineHeight:1}}>{bal<0?'-':''}{fmt(Math.abs(bal),cur)}</div>
+      <div style={{fontSize:12,color:'var(--sub)',marginTop:6}}>{monthLbl(now.getFullYear(),now.getMonth())}</div>
+    </div>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+      {[{label:'Income',val:inc,col:'var(--green)',goal:incomeGoal},{label:'Expenses',val:exp,col:'var(--red)',goal:budgetGoal}].map(s=><div key={s.label} style={{background:'var(--card)',borderRadius:18,padding:'14px 16px',border:'1px solid var(--border)'}}>
+        <div style={{fontSize:10,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.8,fontWeight:700,marginBottom:6}}>{s.label}</div>
+        <div style={{fontSize:22,fontWeight:900,color:s.col}}>{fmtK(s.val,cur)}</div>
+        {s.goal>0&&<div style={{marginTop:8}}><div style={{height:4,borderRadius:2,background:'var(--card2)',overflow:'hidden'}}><div style={{height:'100%',width:`${Math.min(100,s.val/s.goal*100)}%`,background:s.label==='Expenses'&&s.val/s.goal>.85?'var(--red)':s.col,borderRadius:2,transition:'width .6s ease'}}/></div><div style={{fontSize:10,color:'var(--muted)',marginTop:3}}>{Math.round(s.val/s.goal*100)}% of goal</div></div>}
+      </div>)}
+    </div>
+    <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:10,marginBottom:20}}>
+      <button onClick={onAdd} style={{padding:'14px',borderRadius:16,background:'var(--accent)',border:'none',display:'flex',alignItems:'center',justifyContent:'center',gap:8,fontSize:15,fontWeight:800,color:'#000',cursor:'pointer'}}>＋ Add Transaction</button>
+      <button onClick={onSched} style={{padding:'14px',borderRadius:16,background:'var(--card)',border:'1px solid var(--accent)',fontSize:13,fontWeight:700,color:'var(--accent)',cursor:'pointer'}}>📅 Schedule</button>
+    </div>
+    {upcoming.length>0&&<div style={{marginBottom:20}}>
+      <div style={{fontSize:15,fontWeight:800,marginBottom:10}}>📅 Upcoming</div>
+      <div style={{background:'var(--card)',borderRadius:20,border:'1px solid var(--border)',padding:'4px 0'}}>
+        {upcoming.map((x,i)=>{const cat=getCat(x.type,x.category);const days=Math.ceil((new Date(x.date+'T12:00:00')-now)/86400000);return<div key={x.id} onClick={()=>onEditTx(x)} style={{display:'flex',alignItems:'center',padding:'12px 16px',borderBottom:i<upcoming.length-1?'1px solid var(--border)':'none',cursor:'pointer'}}>
+          <div style={{width:38,height:38,borderRadius:12,background:cat.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,marginRight:12,flexShrink:0}}>{cat.icon}</div>
+          <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700}}>{x.note||cat.label}</div><div style={{fontSize:11,color:'var(--sub)',marginTop:1}}>{days<=0?'Due today':days===1?'Tomorrow':`In ${days} days`}</div></div>
+          <div style={{textAlign:'right'}}><div style={{fontSize:14,fontWeight:800,color:x.type==='income'?'var(--green)':'var(--red)'}}>{x.type==='income'?'+':'-'}{fmt(x.amount,cur)}</div>{x.notifyWhenDue&&<div style={{fontSize:10,color:'var(--accent)',marginTop:1}}>🔔 reminder set</div>}</div>
+        </div>;})}
+      </div>
+    </div>}
+    {recent.length>0&&<div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+        <div style={{fontSize:15,fontWeight:800}}>Recent</div>
+        <button onClick={()=>onNav(3)} style={{background:'none',border:'none',color:'var(--accent)',fontSize:13,fontWeight:700,cursor:'pointer'}}>See all →</button>
+      </div>
+      <div style={{background:'var(--card)',borderRadius:20,border:'1px solid var(--border)',padding:'4px 0'}}>
+        {recent.map((x,i)=>{const cat=getCat(x.type,x.category);return<div key={x.id} onClick={()=>onEditTx(x)} style={{display:'flex',alignItems:'center',padding:'12px 16px',borderBottom:i<recent.length-1?'1px solid var(--border)':'none',cursor:'pointer'}}>
+          <div style={{width:38,height:38,borderRadius:12,background:cat.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,marginRight:12,flexShrink:0}}>{cat.icon}</div>
+          <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700}}>{x.note||cat.label}</div><div style={{fontSize:11,color:'var(--sub)',marginTop:1}}>{dayStr(x.date)}</div></div>
+          <div style={{fontSize:15,fontWeight:800,color:x.type==='income'?'var(--green)':'var(--red)',marginLeft:8}}>{x.type==='income'?'+':'-'}{fmt(x.amount,cur)}</div>
+        </div>;})}
+      </div>
+    </div>}
+    {txns.length===0&&<div style={{textAlign:'center',padding:'60px 0',color:'var(--muted)'}}>
+      <div style={{fontSize:48,marginBottom:12}}>💰</div>
+      <div style={{fontSize:18,fontWeight:700,marginBottom:6}}>No transactions yet</div>
+      <div style={{fontSize:14}}>Tap Add Transaction to get started</div>
+    </div>}
+  </div>;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ADD SCREEN (with voice)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function AddScreen({onAdd,toast,cur,defSched}){
+  const [showSheet,setShowSheet]=useState(false);
+  const [voiceDefaults,setVD]=useState(null);
+  const [schedSheet,setSchedSheet]=useState(false);
+
+  return <div style={{color:'var(--text)',padding:'var(--hdr) 16px',paddingBottom:'calc(var(--tab-h) + env(safe-area-inset-bottom,0px) + 24px)'}}>
+    <div style={{fontSize:28,fontWeight:900,letterSpacing:-.5,marginBottom:20}}>Add Transaction</div>
+    <VoiceButton toast={toast} onResult={(parsed,transcript)=>{setVD(parsed);setShowSheet(true);toast({icon:'🎤',title:'Voice parsed!',body:`"${transcript}"`,});}}/>
+    <div style={{height:16}}/>
+    <button onClick={()=>{setVD(null);setShowSheet(true);}} style={{width:'100%',padding:'16px',borderRadius:18,background:'var(--accent)',border:'none',fontSize:16,fontWeight:800,color:'#000',marginBottom:12,cursor:'pointer'}}>＋ Add Expense / Income</button>
+    <button onClick={()=>setSchedSheet(true)} style={{width:'100%',padding:'16px',borderRadius:18,background:'var(--card)',border:'1px solid var(--border)',fontSize:15,fontWeight:700,color:'var(--text)',cursor:'pointer'}}>📅 Schedule Future Transaction</button>
+    {showSheet&&<TxSheet cur={cur} toast={toast} voiceDefaults={voiceDefaults} onClose={()=>{setShowSheet(false);setVD(null);}} onSave={tx=>{onAdd(tx);toast({icon:'✅',title:'Saved!',body:`${tx.type==='income'?'+':'-'}${fmt(tx.amount,cur)} · ${tx.note||getCat(tx.type,tx.category).label}`,});}}/>}
+    {schedSheet&&<TxSheet cur={cur} toast={toast} defSched={true} onClose={()=>setSchedSheet(false)} onSave={tx=>{onAdd(tx);toast({icon:'📅',title:'Scheduled!',body:`${tx.note||'Transaction'} due ${dayStr(tx.date)}`,});}}/>}
+  </div>;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CHARTS — Fixed overflow, interactive tooltips
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function Tooltip({tip}){
+  if(!tip)return null;
+  return <div className="chart-tip" style={{left:tip.x,top:tip.y,transform:'translateX(-50%)'}}>
+    {tip.lines.map((l,i)=><div key={i} style={{color:l.c||'var(--text)',fontWeight:l.bold?700:400,marginBottom:i<tip.lines.length-1?3:0}}>{l.t}</div>)}
+  </div>;
+}
+
+function ChartsScreen({txns,cur}){
+  const now=new Date();
+  const [vm,setVm]=useState(now.getMonth());
+  const [vy,setVy]=useState(now.getFullYear());
+  const [activeChart,setActiveChart]=useState('overview');
+  const [selCat,setSelCat]=useState(null);
+  const [selDay,setSelDay]=useState(null);
+  const [tip,setTip]=useState(null);
+  const chartRef=useRef(null);
+
+  const nav=d=>{let m=vm+d,y=vy;if(m<0){m=11;y--;}if(m>11){m=0;y++;}setVm(m);setVy(y);setSelCat(null);setSelDay(null);setTip(null);};
+
+  const live=txns.filter(x=>!x.scheduled);
+  const mn=live.filter(x=>{const d=new Date(x.date+'T12:00:00');return d.getMonth()===vm&&d.getFullYear()===vy;});
+  let pm=vm-1,py=vy;if(pm<0){pm=11;py--;}
+  const prevMn=live.filter(x=>{const d=new Date(x.date+'T12:00:00');return d.getMonth()===pm&&d.getFullYear()===py;});
+  const inc=mn.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
+  const exp=mn.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
+  const net=inc-exp;
+  const prevExp=prevMn.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
+  const prevInc=prevMn.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
+  const isCurrentMonth=vm===now.getMonth()&&vy===now.getFullYear();
+
+  const weeks=useMemo(()=>['W1','W2','W3','W4'].map((l,wi)=>{
+    const w=mn.filter(x=>{const d=new Date(x.date+'T12:00:00').getDate();return Math.floor((d-1)/7)===wi;});
+    return{l,i:w.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0),e:w.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0),count:w.length};
+  }),[mn]);
+
+  const cats=useMemo(()=>EXP_CATS.map(cat=>({...cat,v:mn.filter(x=>x.type==='expense'&&x.category===cat.id).reduce((s,x)=>s+x.amount,0),txns:mn.filter(x=>x.type==='expense'&&x.category===cat.id)})).filter(c=>c.v>0).sort((a,b)=>b.v-a.v),[mn]);
+
+  const dim=new Date(vy,vm+1,0).getDate();
+  const fd=new Date(vy,vm,1).getDay();
+  const days=useMemo(()=>Array.from({length:dim},(_,i)=>{
+    const d=i+1,dt=mn.filter(x=>new Date(x.date+'T12:00:00').getDate()===d);
+    const ni=dt.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
+    const ne=dt.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
+    return{d,net:ni-ne,inc:ni,exp:ne,count:dt.length,txns:dt};
+  }),[mn,dim]);
+
+  // Running balance — ALL time, not just this month (fix for high values)
+  const sortedAll=useMemo(()=>[...live].sort((a,b)=>new Date(a.date)-new Date(b.date)),[live]);
+  let runBal=0;
+  const balPts=useMemo(()=>{let r=0;return sortedAll.map(x=>{r+=x.type==='income'?x.amount:-x.amount;return{y:r,date:x.date,note:x.note||getCat(x.type,x.category).label};});},[sortedAll]);
+
+  // 6-month trend
+  const sixMonths=useMemo(()=>Array.from({length:6},(_,i)=>{
+    let m=vm-5+i,y=vy;while(m<0){m+=12;y--;}while(m>11){m-=12;y++;}
+    const mt=live.filter(x=>{const d=new Date(x.date+'T12:00:00');return d.getMonth()===m&&d.getFullYear()===y;});
+    const mi=mt.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
+    const me=mt.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
+    return{l:new Date(y,m,1).toLocaleString('default',{month:'short'}),m,y,i:mi,e:me,net:mi-me,isCur:m===vm&&y===vy};
+  }),[live,vm,vy]);
+
+  // Chart dimensions — responsive
+  const W=320,BH=120,pad=8;
+
+  // Weekly bars — FIXED: proper clip and bounded heights
+  const maxW=Math.max(...weeks.map(w=>Math.max(w.i,w.e)),1);
+  const barW=28;const barGap=6;const slotW=W/4;
+
+  // Running balance — FIXED: proper y-axis scaling with padding
+  const balVals=balPts.map(p=>p.y);
+  const balMin=balVals.length?Math.min(...balVals):0;
+  const balMax=balVals.length?Math.max(...balVals):1;
+  const balRange=balMax-balMin||1;
+  const balH=90;
+  const balPad=12;
+  // y normalizer — maps value to pixel y within [balPad, balH-balPad]
+  const balY=v=>balPad+(1-(v-balMin)/balRange)*(balH-balPad*2);
+  const balLine=balPts.map((p,i)=>(i===0?'M':'L')+(balPad+i*(W-balPad*2)/Math.max(balPts.length-1,1)).toFixed(1)+','+balY(p.y).toFixed(1)).join(' ');
+  const balArea=balLine+(balPts.length?' L'+(balPad+((balPts.length-1)*(W-balPad*2)/Math.max(balPts.length-1,1))).toFixed(1)+','+balH+' L'+balPad+','+balH+' Z':'');
+  const balZeroY=balY(Math.max(balMin,0));
+  // grid lines for running balance
+  const balGridVals=[balMin,balMin+(balRange*.25),balMin+(balRange*.5),balMin+(balRange*.75),balMax];
+
+  // 6-month trend
+  const maxSix=Math.max(...sixMonths.flatMap(m=>[m.i,m.e]),1);
+  const trendBH=100;
+  const sixBarW=Math.floor((W-20)/sixMonths.length/2-4);
+
+  // Net savings line
+  const netVals=sixMonths.map(m=>m.net);
+  const netMin=Math.min(...netVals);const netMax=Math.max(...netVals);const netRange=netMax-netMin||1;
+  const NH=80;
+  const netY=v=>balPad+(1-(v-netMin)/netRange)*(NH-balPad*2);
+  const netLine=sixMonths.map((m,i)=>{const cx=balPad+i*(W-balPad*2)/5;const cy=netY(m.net);return(i===0?'M':'L')+cx.toFixed(1)+','+cy.toFixed(1);}).join(' ');
+  const netZeroY=netY(Math.max(netMin,0));
+
+  const handleTip=(e,lines)=>{
+    const rect=e.currentTarget.getBoundingClientRect();
+    const parentRect=chartRef.current?.getBoundingClientRect()||{left:0,top:0};
+    const cx=rect.left-parentRect.left+rect.width/2;
+    const cy=rect.top-parentRect.top-10;
+    setTip({x:Math.max(60,Math.min(cx,260)),y:Math.max(0,cy),lines});
+  };
+
+  const CHARTS=[{id:'overview',icon:'📊',l:'Overview'},{id:'spending',icon:'🍩',l:'Spending'},{id:'trends',icon:'📈',l:'Trends'},{id:'calendar',icon:'📅',l:'Calendar'}];
+
+  const kpiCards=[
+    {l:'Income',v:inc,prev:prevInc,c:'var(--green)',icon:'💚'},
+    {l:'Expenses',v:exp,prev:prevExp,c:'var(--red)',icon:'❤️'},
+    {l:'Net',v:net,prev:prevInc-prevExp,c:net>=0?'var(--green)':'var(--red)',icon:net>=0?'📈':'📉'},
+    {l:'Savings %',v:inc>0?Math.round(net/inc*100)+'%':'—',prev:null,c:'var(--accent)',icon:'💰'},
+  ];
+
+  const pStyle={paddingBottom:'calc(var(--tab-h) + env(safe-area-inset-bottom,0px) + 24px)'};
+
+  const selDayData=selDay?days.find(d=>d.d===selDay):null;
+  const selCatData=selCat?cats.find(c=>c.id===selCat):null;
+
+  return <div style={{color:'var(--text)',...pStyle}}>
+    {/* Sticky header */}
+    <div style={{padding:'var(--hdr) 16px 0',background:'var(--bg)',position:'sticky',top:0,zIndex:10,backdropFilter:'blur(10px)'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+        <div style={{fontSize:26,fontWeight:900,letterSpacing:-.5}}>Charts</div>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <button onClick={()=>nav(-1)} style={{width:32,height:32,borderRadius:10,background:'var(--card)',border:'1px solid var(--border)',color:'var(--text)',fontSize:18,cursor:'pointer'}}>‹</button>
+          <span style={{fontSize:12,color:'var(--sub)',minWidth:96,textAlign:'center',fontWeight:700}}>{monthLbl(vy,vm)}</span>
+          <button onClick={()=>nav(1)} disabled={isCurrentMonth} style={{width:32,height:32,borderRadius:10,background:'var(--card)',border:'1px solid var(--border)',color:isCurrentMonth?'var(--muted2)':'var(--text)',fontSize:18,cursor:isCurrentMonth?'default':'pointer'}}>›</button>
+        </div>
+      </div>
+      <div style={{display:'flex',gap:6,overflowX:'auto',paddingBottom:12}}>
+        {CHARTS.map(ch=><button key={ch.id} onClick={()=>{setActiveChart(ch.id);setTip(null);}} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:99,border:`1px solid ${activeChart===ch.id?'var(--accent)':'var(--border)'}`,background:activeChart===ch.id?'var(--a10)':'var(--card)',color:activeChart===ch.id?'var(--accent)':'var(--muted)',fontSize:13,fontWeight:700,whiteSpace:'nowrap',flexShrink:0,cursor:'pointer',transition:'all .2s'}}>{ch.icon} {ch.l}</button>)}
+      </div>
+    </div>
+
+    <div style={{padding:'0 16px',position:'relative'}} ref={chartRef} onClick={e=>{if(e.target===chartRef.current)setTip(null);}}>
+
+    {/* ── OVERVIEW ── */}
+    {activeChart==='overview'&&<div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+        {kpiCards.map(s=>{const diff=s.prev!=null?s.v-s.prev:null;return<div key={s.l} style={{background:'var(--card)',borderRadius:18,padding:'14px',border:'1px solid var(--border)'}}>
+          <div style={{fontSize:20,marginBottom:6}}>{s.icon}</div>
+          <div style={{fontSize:10,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.8,fontWeight:700,marginBottom:4}}>{s.l}</div>
+          <div style={{fontSize:17,fontWeight:900,color:s.c}}>{typeof s.v==='string'?s.v:fmtK(s.v,cur)}</div>
+          {diff!=null&&<div style={{fontSize:10,color:diff>=0?'var(--green)':'var(--red)',marginTop:3,fontWeight:700}}>{diff>=0?'▲':'▼'} {fmtK(Math.abs(diff),cur)} vs last mo</div>}
+        </div>;})}
+      </div>
+
+      {/* Weekly bar chart — FIXED: proper clipping, bounded bars */}
+      <div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)',marginBottom:12}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+          <span style={{fontSize:14,fontWeight:800}}>Weekly Breakdown</span>
+          <div style={{display:'flex',gap:12,fontSize:11}}>
+            <span style={{color:'var(--green)',fontWeight:700}}>● Income</span>
+            <span style={{color:'var(--red)',fontWeight:700}}>● Expense</span>
+          </div>
+        </div>
+        {weeks.every(w=>w.i===0&&w.e===0)?
+          <div style={{textAlign:'center',padding:'24px 0',color:'var(--muted)',fontSize:13}}>No data for this month</div>:
+          <div style={{position:'relative'}}>
+            <svg width="100%" viewBox={`0 0 ${W} ${BH+28}`} style={{overflow:'visible',display:'block'}}>
+              <clipPath id="barClip"><rect x="0" y="0" width={W} height={BH}/></clipPath>
+              {/* Grid lines inside clip */}
+              {[.25,.5,.75,1].map(f=><line key={f} x1="0" y1={BH*(1-f)} x2={W} y2={BH*(1-f)} stroke="rgba(255,255,255,.07)" strokeWidth=".5" strokeDasharray="3,3"/>)}
+              {/* Bars — clipped */}
+              <g clipPath="url(#barClip)">
+                {weeks.map((w,wi)=>{
+                  const slotX=wi*slotW;
+                  const cx=slotX+(slotW-barW*2-barGap)/2;
+                  const ih=Math.min(Math.round((w.i/maxW)*BH),BH);
+                  const eh=Math.min(Math.round((w.e/maxW)*BH),BH);
+                  return<g key={wi}>
+                    <rect x={cx} y={BH-ih} width={barW} height={Math.max(ih,2)} rx="5" fill="#30d158" opacity=".8">
+                      <animate attributeName="height" from="0" to={Math.max(ih,2)} dur=".5s" fill="freeze"/>
+                      <animate attributeName="y" from={BH} to={BH-ih} dur=".5s" fill="freeze"/>
+                    </rect>
+                    <rect x={cx+barW+barGap} y={BH-eh} width={barW} height={Math.max(eh,2)} rx="5" fill="#ff453a" opacity=".8">
+                      <animate attributeName="height" from="0" to={Math.max(eh,2)} dur=".5s" fill="freeze"/>
+                      <animate attributeName="y" from={BH} to={BH-eh} dur=".5s" fill="freeze"/>
+                    </rect>
+                    {/* Invisible hit targets for tooltip */}
+                    <rect x={cx-4} y="0" width={barW*2+barGap+8} height={BH} fill="transparent" style={{cursor:'pointer'}}
+                      onMouseMove={e=>handleTip(e,[{t:w.l+' — '+w.count+' txns',bold:true},{t:'Income: '+fmt(w.i,cur),c:'var(--green)'},{t:'Expense: '+fmt(w.e,cur),c:'var(--red)'},{t:'Net: '+fmt(w.i-w.e,cur),c:w.i-w.e>=0?'var(--green)':'var(--red)'}])}
+                      onTouchStart={e=>handleTip(e,[{t:w.l+' — '+w.count+' txns',bold:true},{t:'Income: '+fmt(w.i,cur),c:'var(--green)'},{t:'Expense: '+fmt(w.e,cur),c:'var(--red)'},{t:'Net: '+fmt(w.i-w.e,cur),c:w.i-w.e>=0?'var(--green)':'var(--red)'}])}
+                      onMouseLeave={()=>setTip(null)}/>
+                  </g>;
+                })}
+              </g>
+              {/* X-axis labels (outside clip) */}
+              {weeks.map((w,wi)=>{const cx=wi*slotW+(slotW-barW*2-barGap)/2;return<text key={wi} x={cx+barW+barGap/2} y={BH+18} textAnchor="middle" fontSize="11" fill="#888" fontWeight="700">{w.l}</text>;})}
+            </svg>
+            <Tooltip tip={tip}/>
+          </div>
+        }
+      </div>
+
+      {/* Running balance — FIXED: proper y-axis with grid labels */}
+      <div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)',marginBottom:12}}>
+        <div style={{fontSize:14,fontWeight:800,marginBottom:4}}>Running Balance</div>
+        <div style={{fontSize:12,color:'var(--sub)',marginBottom:10}}>All-time · Current: <strong style={{color:balPts.length&&balPts[balPts.length-1].y>=0?'var(--green)':'var(--red)'}}>{balPts.length?fmt(balPts[balPts.length-1].y,cur):fmt(0,cur)}</strong></div>
+        {balPts.length<2?<div style={{textAlign:'center',padding:'24px 0',color:'var(--muted)',fontSize:13}}>Add more transactions to see trend</div>:<div style={{position:'relative'}}>
+          {/* Y-axis labels */}
+          <div style={{display:'flex',flexDirection:'column',justifyContent:'space-between',position:'absolute',left:0,top:balPad,bottom:balPad,pointerEvents:'none'}}>
+            {[balMax,balMin+(balRange*.5),balMin].map((v,i)=><div key={i} style={{fontSize:9,color:'var(--muted)',lineHeight:1,fontWeight:700}}>{fmtK(v,cur)}</div>)}
+          </div>
+          <div style={{paddingLeft:36}}>
+            <svg width="100%" viewBox={`0 0 ${W} ${balH}`} style={{overflow:'visible',display:'block'}}>
+              <defs>
+                <linearGradient id="bGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#f5a623" stopOpacity=".35"/>
+                  <stop offset="100%" stopColor="#f5a623" stopOpacity="0"/>
+                </linearGradient>
+                <clipPath id="balClip"><rect x="0" y="0" width={W} height={balH}/></clipPath>
+              </defs>
+              {/* Grid lines */}
+              {balGridVals.map((v,i)=>{const y=balY(v);return<line key={i} x1="0" y1={y.toFixed(1)} x2={W} y2={y.toFixed(1)} stroke="rgba(255,255,255,.07)" strokeWidth=".5" strokeDasharray="3,3"/>;}).filter((_,i)=>i>0&&i<4)}
+              {/* Zero line */}
+              {balMin<0&&balMax>0&&<line x1="0" y1={balZeroY.toFixed(1)} x2={W} y2={balZeroY.toFixed(1)} stroke="rgba(255,255,255,.13)" strokeWidth="1" strokeDasharray="4,3"/>}
+              <g clipPath="url(#balClip)">
+                <path d={balArea} fill="url(#bGrad)"/>
+                <path d={balLine} fill="none" stroke="#f5a623" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </g>
+              {/* Interactive dots */}
+              {balPts.filter((_,i)=>i%Math.max(1,Math.floor(balPts.length/8))===0||i===balPts.length-1).map((p,i,arr)=>{
+                const idx=balPts.indexOf(p);
+                const cx=balPad+idx*(W-balPad*2)/Math.max(balPts.length-1,1);
+                const cy=balY(p.y);
+                return<circle key={i} cx={cx.toFixed(1)} cy={cy.toFixed(1)} r="5" fill="#f5a623" stroke="#15151e" strokeWidth="2" style={{cursor:'pointer'}}
+                  onMouseMove={e=>handleTip(e,[{t:dayStr(p.date),bold:true},{t:'Balance: '+fmt(p.y,cur),c:p.y>=0?'var(--green)':'var(--red)'},{t:'Last: '+p.note}])}
+                  onTouchStart={e=>handleTip(e,[{t:dayStr(p.date),bold:true},{t:'Balance: '+fmt(p.y,cur),c:p.y>=0?'var(--green)':'var(--red)'},{t:'Last: '+p.note}])}
+                  onMouseLeave={()=>setTip(null)}/>;
+              })}
+            </svg>
+          </div>
+          <Tooltip tip={tip}/>
+        </div>}
+      </div>
+    </div>}
+
+    {/* ── SPENDING ── */}
+    {activeChart==='spending'&&<div>
+      {cats.length===0?<div style={{textAlign:'center',padding:'80px 0',color:'var(--muted)'}}>
+        <div style={{fontSize:48,marginBottom:12}}>🍩</div>
+        <div style={{fontSize:16,fontWeight:700}}>No expenses this month</div>
+        <div style={{fontSize:13,marginTop:6}}>Add some transactions to see breakdown</div>
+      </div>:<div>
+        <div style={{background:'var(--card)',borderRadius:20,padding:'20px',border:'1px solid var(--border)',marginBottom:12}}>
+          <div style={{fontSize:14,fontWeight:800,marginBottom:14}}>Expense Breakdown — tap to drill down</div>
+          <div style={{display:'flex',gap:16,alignItems:'center'}}>
+            <div style={{flexShrink:0}}>
+              <svg width="130" height="130" viewBox="0 0 130 130">
+                {(()=>{let a=-Math.PI/2;return cats.map((cat,i)=>{const sweep=(cat.v/exp)*2*Math.PI;const r=54,cx=65,cy=65;const x1=cx+r*Math.cos(a),y1=cy+r*Math.sin(a);const x2=cx+r*Math.cos(a+sweep),y2=cy+r*Math.sin(a+sweep);const large=sweep>Math.PI?1:0;const path=`M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r},0,${large},1,${x2.toFixed(2)},${y2.toFixed(2)} Z`;a+=sweep;return<path key={i} d={path} fill={cat.color||'var(--accent)'} opacity={selCat&&selCat!==cat.id?.35:1} onClick={()=>setSelCat(selCat===cat.id?null:cat.id)} style={{cursor:'pointer',transition:'opacity .2s'}}/>;});})()}
+                <circle cx="65" cy="65" r="36" fill="#15151e"/>
+                <text x="65" y="61" textAnchor="middle" fontSize="10" fill="#888" fontWeight="700">TOTAL</text>
+                <text x="65" y="77" textAnchor="middle" fontSize="13" fill="#f0f0f8" fontWeight="900">{fmtK(exp,cur)}</text>
+              </svg>
+            </div>
+            <div style={{flex:1}}>
+              {cats.map(cat=><div key={cat.id} onClick={()=>setSelCat(selCat===cat.id?null:cat.id)} style={{marginBottom:10,cursor:'pointer',opacity:selCat&&selCat!==cat.id?.4:1,transition:'opacity .2s'}}>
+                <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
+                  <span style={{fontSize:14}}>{cat.icon}</span>
+                  <span style={{flex:1,fontSize:11,color:'var(--sub)',fontWeight:600}}>{cat.label}</span>
+                  <span style={{fontSize:12,fontWeight:800,color:'var(--red)'}}>{fmtK(cat.v,cur)}</span>
+                </div>
+                <div style={{height:4,borderRadius:2,background:'var(--card2)',overflow:'hidden'}}>
+                  <div style={{height:'100%',width:`${exp>0?Math.round(cat.v/exp*100):0}%`,background:cat.color,borderRadius:2,transition:'width .5s ease'}}/>
+                </div>
+              </div>)}
+            </div>
+          </div>
+        </div>
+        {selCatData&&<div style={{background:'var(--card)',borderRadius:18,padding:'14px',border:'1px solid var(--border)',marginBottom:12}}>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+            <span style={{fontSize:22}}>{selCatData.icon}</span>
+            <div><div style={{fontSize:14,fontWeight:800}}>{selCatData.label}</div><div style={{fontSize:12,color:'var(--sub)'}}>{selCatData.txns.length} transactions · {fmt(selCatData.v,cur)}</div></div>
+          </div>
+          {selCatData.txns.map(x=><div key={x.id} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderTop:'1px solid var(--border)'}}>
+            <div><div style={{fontSize:13,fontWeight:600}}>{x.note||selCatData.label}</div><div style={{fontSize:11,color:'var(--muted)'}}>{dayStr(x.date)}</div></div>
+            <span style={{fontSize:14,fontWeight:800,color:'var(--red)'}}>-{fmt(x.amount,cur)}</span>
+          </div>)}
+        </div>}
+      </div>}
+    </div>}
+
+    {/* ── TRENDS ── */}
+    {activeChart==='trends'&&<div>
+      <div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)',marginBottom:12,position:'relative'}}>
+        <div style={{fontSize:14,fontWeight:800,marginBottom:4}}>6-Month Income vs Expenses</div>
+        <div style={{fontSize:12,color:'var(--sub)',marginBottom:12}}>Tap bars to see values</div>
+        <div style={{position:'relative'}}>
+          <svg width="100%" viewBox={`0 0 ${W} ${trendBH+28}`} style={{overflow:'visible',display:'block'}}>
+            <clipPath id="trendClip"><rect x="0" y="0" width={W} height={trendBH}/></clipPath>
+            {[.25,.5,.75,1].map(f=><line key={f} x1="0" y1={trendBH*(1-f)} x2={W} y2={trendBH*(1-f)} stroke="rgba(255,255,255,.07)" strokeWidth=".5" strokeDasharray="3,3"/>)}
+            <g clipPath="url(#trendClip)">
+              {sixMonths.map((mo,i)=>{
+                const slotX=i*(W/6);const cx=slotX+(W/6-sixBarW*2-4)/2;
+                const ih=Math.min(Math.round((mo.i/maxSix)*trendBH),trendBH);
+                const eh=Math.min(Math.round((mo.e/maxSix)*trendBH),trendBH);
+                return<g key={i}>
+                  {mo.isCur&&<rect x={slotX} y="0" width={W/6} height={trendBH} fill="#f5a623" opacity=".06" rx="4"/>}
+                  <rect x={cx} y={trendBH-ih} width={sixBarW} height={Math.max(ih,2)} rx="4" fill="#30d158" opacity={mo.isCur?1:.6}/>
+                  <rect x={cx+sixBarW+4} y={trendBH-eh} width={sixBarW} height={Math.max(eh,2)} rx="4" fill="#ff453a" opacity={mo.isCur?1:.6}/>
+                  {/* Hit area with tooltip */}
+                  <rect x={slotX} y="0" width={W/6} height={trendBH} fill="transparent" style={{cursor:'pointer'}}
+                    onMouseMove={e=>handleTip(e,[{t:mo.l+(mo.isCur?' (current)':''),bold:true},{t:'Income: '+fmt(mo.i,cur),c:'var(--green)'},{t:'Expenses: '+fmt(mo.e,cur),c:'var(--red)'},{t:'Net: '+fmt(mo.net,cur),c:mo.net>=0?'var(--green)':'var(--red)'}])}
+                    onTouchStart={e=>handleTip(e,[{t:mo.l+(mo.isCur?' (current)':''),bold:true},{t:'Income: '+fmt(mo.i,cur),c:'var(--green)'},{t:'Expenses: '+fmt(mo.e,cur),c:'var(--red)'},{t:'Net: '+fmt(mo.net,cur),c:mo.net>=0?'var(--green)':'var(--red)'}])}
+                    onMouseLeave={()=>setTip(null)}/>
+                </g>;
+              })}
+            </g>
+            {sixMonths.map((mo,i)=>{const cx=i*(W/6)+(W/6)/2;return<text key={i} x={cx} y={trendBH+18} textAnchor="middle" fontSize="10" fill={mo.isCur?'var(--accent)':'var(--muted)'} fontWeight={mo.isCur?'900':'400'}>{mo.l}</text>;})}
+          </svg>
+          <Tooltip tip={tip}/>
+        </div>
+      </div>
+
+      {/* Net savings line with tooltips */}
+      <div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)',position:'relative'}}>
+        <div style={{fontSize:14,fontWeight:800,marginBottom:4}}>Net Savings Trend</div>
+        <div style={{fontSize:12,color:'var(--sub)',marginBottom:10}}>Tap dots for details</div>
+        <div style={{position:'relative'}}>
+          {/* Y labels */}
+          <div style={{display:'flex',flexDirection:'column',justifyContent:'space-between',position:'absolute',left:0,top:balPad,height:NH-balPad*2,pointerEvents:'none'}}>
+            {[netMax,netMin].map((v,i)=><div key={i} style={{fontSize:9,color:'var(--muted)',fontWeight:700}}>{fmtK(v,cur)}</div>)}
+          </div>
+          <div style={{paddingLeft:36}}>
+            <svg width="100%" viewBox={`0 0 ${W} ${NH+20}`} style={{overflow:'visible',display:'block'}}>
+              <defs><linearGradient id="nGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f5a623" stopOpacity=".25"/><stop offset="100%" stopColor="#f5a623" stopOpacity="0"/></linearGradient></defs>
+              {netMin<0&&netMax>0&&<line x1="0" y1={netZeroY.toFixed(1)} x2={W} y2={netZeroY.toFixed(1)} stroke="rgba(255,255,255,.13)" strokeWidth="1" strokeDasharray="4,3"/>}
+              {netMin<0&&<text x="4" y={netZeroY-4} fontSize="9" fill="#888">$0</text>}
+              <path d={`${netLine} L${(balPad+5*(W-balPad*2)/5).toFixed(1)},${NH} L${balPad},${NH} Z`} fill="url(#nGrad)"/>
+              <path d={netLine} fill="none" stroke="#f5a623" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              {sixMonths.map((mo,i)=>{
+                const cx=balPad+i*(W-balPad*2)/5;const cy=netY(mo.net);
+                return<g key={i}>
+                  <circle cx={cx.toFixed(1)} cy={cy.toFixed(1)} r="6" fill={mo.net>=0?'var(--green)':'var(--red)'} stroke="#15151e" strokeWidth="2.5" style={{cursor:'pointer'}}
+                    onMouseMove={e=>handleTip(e,[{t:mo.l+(mo.isCur?' (current)':''),bold:true},{t:'Net: '+fmt(mo.net,cur),c:mo.net>=0?'var(--green)':'var(--red)'},{t:'Income: '+fmt(mo.i,cur),c:'var(--green)'},{t:'Expenses: '+fmt(mo.e,cur),c:'var(--red)'}])}
+                    onTouchStart={e=>handleTip(e,[{t:mo.l+(mo.isCur?' (current)':''),bold:true},{t:'Net: '+fmt(mo.net,cur),c:mo.net>=0?'var(--green)':'var(--red)'},{t:'Income: '+fmt(mo.i,cur),c:'var(--green)'},{t:'Expenses: '+fmt(mo.e,cur),c:'var(--red)'}])}
+                    onMouseLeave={()=>setTip(null)}/>
+                  <text x={cx.toFixed(1)} y={NH+16} textAnchor="middle" fontSize="9" fill={mo.isCur?'var(--accent)':'var(--muted)'}>{mo.l}</text>
+                </g>;
+              })}
+            </svg>
+          </div>
+          <Tooltip tip={tip}/>
+        </div>
+      </div>
+    </div>}
+
+    {/* ── CALENDAR ── */}
+    {activeChart==='calendar'&&<div>
+      <div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)',marginBottom:12}}>
+        <div style={{fontSize:14,fontWeight:800,marginBottom:4}}>Day-by-Day Activity</div>
+        <div style={{fontSize:12,color:'var(--sub)',marginBottom:12}}>Tap a day to see transactions</div>
+        {days.every(d=>d.count===0)?<div style={{textAlign:'center',padding:'24px 0',color:'var(--muted)',fontSize:13}}>No activity this month</div>:<div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4,marginBottom:10}}>
+            {['Su','Mo','Tu','We','Th','Fr','Sa'].map((d,i)=><div key={i} style={{fontSize:9,color:'var(--muted)',textAlign:'center',fontWeight:700,padding:'2px 0'}}>{d}</div>)}
+            {Array.from({length:fd}).map((_,i)=><div key={'e'+i}/>)}
+            {days.map(d=>{const isToday=d.d===now.getDate()&&isCurrentMonth;const isSel=selDay===d.d;return<button key={d.d} onClick={()=>setSelDay(selDay===d.d?null:d.d)} style={{aspectRatio:'1',borderRadius:8,fontSize:10,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',background:isSel?'var(--accent)':d.count===0?'var(--card2)':d.net>=0?'rgba(48,209,88,.2)':'rgba(255,69,58,.2)',color:isSel?'#000':d.count===0?'var(--muted2)':d.net>=0?'var(--green)':'var(--red)',border:isToday?'2px solid var(--accent)':'1px solid transparent',cursor:'pointer',transition:'all .15s'}}>
+              {d.d}
+            </button>;})}
+          </div>
+          <div style={{display:'flex',gap:12,fontSize:11,justifyContent:'center'}}>
+            <span style={{color:'var(--green)',fontWeight:700}}>● Positive day</span>
+            <span style={{color:'var(--red)',fontWeight:700}}>● Negative day</span>
+          </div>
+        </div>}
+      </div>
+      {selDayData&&selDayData.count>0&&<div style={{background:'var(--card)',borderRadius:18,padding:'14px',border:'1px solid var(--border)'}}>
+        <div style={{fontSize:14,fontWeight:800,marginBottom:10}}>{selDay} {monthLbl(vy,vm)} — {selDayData.count} transaction{selDayData.count!==1?'s':''}</div>
+        {selDayData.txns.map(x=>{const cat=getCat(x.type,x.category);return<div key={x.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderTop:'1px solid var(--border)'}}>
+          <span style={{fontSize:20}}>{cat.icon}</span>
+          <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600}}>{x.note||cat.label}</div><div style={{fontSize:11,color:'var(--muted)'}}>{cat.label}</div></div>
+          <span style={{fontSize:14,fontWeight:800,color:x.type==='income'?'var(--green)':'var(--red)'}}>{x.type==='income'?'+':'-'}{fmt(x.amount,cur)}</span>
+        </div>;})}
+        <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid var(--border)',display:'flex',justifyContent:'space-between'}}>
+          <span style={{fontSize:12,color:'var(--sub)'}}>Day net</span>
+          <span style={{fontSize:14,fontWeight:800,color:selDayData.net>=0?'var(--green)':'var(--red)'}}>{selDayData.net>=0?'+':''}{fmt(selDayData.net,cur)}</span>
+        </div>
+      </div>}
+      {selDay&&(!selDayData||selDayData.count===0)&&<div style={{background:'var(--card)',borderRadius:18,padding:'20px',border:'1px solid var(--border)',textAlign:'center',color:'var(--muted)'}}>
+        <div style={{fontSize:24,marginBottom:8}}>📅</div><div style={{fontSize:14}}>No transactions on {selDay} {monthLbl(vy,vm).split(' ')[0]}</div>
+      </div>}
+    </div>}
+
+    </div>
+  </div>;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// HISTORY — edit + swipe-delete + filter
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function HistoryScreen({txns,onEdit,onDelete,cur}){
+  const [filter,setFilter]=useState('all');
+  const [search,setSearch]=useState('');
+  const [showSched,setShowSched]=useState(false);
+  const [delConfirm,setDelConfirm]=useState(null);
+  const [editSheet,setEditSheet]=useState(null);
+
+  const filtered=txns.filter(x=>{
+    if(showSched?!x.scheduled:x.scheduled)return false;
+    if(filter!=='all'&&x.type!==filter)return false;
+    if(search){const q=search.toLowerCase();const cat=getCat(x.type,x.category);return (x.note||'').toLowerCase().includes(q)||(cat.label||'').toLowerCase().includes(q);}
+    return true;
+  });
+  const sorted=[...filtered].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const groups=[];
+  sorted.forEach(t=>{const last=groups[groups.length-1];if(last&&last.date===t.date)last.items.push(t);else groups.push({date:t.date,items:[t]});});
+
+  return <div style={{color:'var(--text)',padding:'0 16px',paddingBottom:'calc(var(--tab-h) + env(safe-area-inset-bottom,0px) + 24px)'}}>
+    <div style={{paddingTop:'var(--hdr)',marginBottom:12}}>
+      <div style={{fontSize:26,fontWeight:900,letterSpacing:-.5,marginBottom:12}}>History</div>
+      {/* Search */}
+      <div style={{background:'var(--card)',borderRadius:14,padding:'10px 14px',border:'1px solid var(--border)',display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+        <span style={{color:'var(--muted)',fontSize:16}}>🔍</span>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search transactions…" style={{background:'none',border:'none',color:'var(--text)',fontSize:14,flex:1,outline:'none'}}/>
+        {search&&<button onClick={()=>setSearch('')} style={{background:'none',border:'none',color:'var(--muted)',fontSize:16,cursor:'pointer',padding:0}}>×</button>}
+      </div>
+      {/* Filters */}
+      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+        {['all','income','expense'].map(f=><button key={f} onClick={()=>setFilter(f)} style={{padding:'7px 14px',borderRadius:99,border:`1px solid ${filter===f?(f==='income'?'var(--green)':f==='expense'?'var(--red)':'var(--accent)'):'var(--border)'}`,background:filter===f?(f==='income'?'var(--g10)':f==='expense'?'var(--r10)':'var(--a10)'):'transparent',color:filter===f?(f==='income'?'var(--green)':f==='expense'?'var(--red)':'var(--accent)'):'var(--muted)',fontSize:13,fontWeight:700,cursor:'pointer'}}>{f.charAt(0).toUpperCase()+f.slice(1)}</button>)}
+        <button onClick={()=>setShowSched(!showSched)} style={{padding:'7px 14px',borderRadius:99,border:`1px solid ${showSched?'var(--accent)':'var(--border)'}`,background:showSched?'var(--a10)':'transparent',color:showSched?'var(--accent)':'var(--muted)',fontSize:13,fontWeight:700,cursor:'pointer'}}>📅 Scheduled</button>
+      </div>
+    </div>
+
+    {sorted.length===0&&<div style={{textAlign:'center',padding:'80px 0',color:'var(--muted)'}}>
+      <div style={{fontSize:40,marginBottom:12}}>📋</div>
+      <div style={{fontSize:16,fontWeight:700}}>No transactions found</div>
+      <div style={{fontSize:13,marginTop:6}}>{search?'Try a different search term':'No transactions match this filter'}</div>
+    </div>}
+
+    {groups.map(g=><div key={g.date} style={{marginBottom:16}}>
+      <div style={{fontSize:11,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.8,marginBottom:6,fontWeight:700}}>{dayStr(g.date)}</div>
+      <div style={{background:'var(--card)',borderRadius:20,border:'1px solid var(--border)',padding:'4px 0'}}>
+        {g.items.map((t,i)=>{const cat=getCat(t.type,t.category);return<div key={t.id} style={{display:'flex',alignItems:'center',padding:'11px 14px',borderBottom:i<g.items.length-1?'1px solid var(--border)':'none'}}>
+          <div style={{width:36,height:36,borderRadius:11,background:cat.color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:17,marginRight:10,flexShrink:0}}>{cat.icon}</div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:14,fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{t.note||cat.label}</div>
+            <div style={{fontSize:11,color:'var(--sub)',marginTop:1}}>{cat.label}{t.scheduled&&<span style={{color:'var(--accent)',marginLeft:6}}>· 📅 Scheduled</span>}</div>
+          </div>
+          <div style={{textAlign:'right',flexShrink:0,marginLeft:8}}>
+            <div style={{fontSize:15,fontWeight:800,color:t.type==='income'?'var(--green)':'var(--red)'}}>{t.type==='income'?'+':'-'}{fmt(t.amount,cur)}</div>
+            <div style={{display:'flex',gap:6,justifyContent:'flex-end',marginTop:2}}>
+              <button onClick={()=>setEditSheet(t)} style={{background:'none',border:'none',color:'var(--blue)',fontSize:11,cursor:'pointer',fontWeight:700,padding:0}}>Edit</button>
+              <button onClick={()=>setDelConfirm(t)} style={{background:'none',border:'none',color:'var(--red)',fontSize:11,cursor:'pointer',fontWeight:700,padding:0}}>Delete</button>
+            </div>
+          </div>
+        </div>;})}
+      </div>
+    </div>)}
+
+    {delConfirm&&<Confirm title="Delete Transaction?" body={`Delete "${delConfirm.note||getCat(delConfirm.type,delConfirm.category).label}" — ${fmt(delConfirm.amount,cur)}? This cannot be undone.`} ok="Delete" danger onOk={()=>{onDelete(delConfirm.id);setDelConfirm(null);}} onCancel={()=>setDelConfirm(null)}/>}
+    {editSheet&&<TxSheet cur={cur} tx={editSheet} toast={()=>{}} onClose={()=>setEditSheet(null)} onSave={t=>{onEdit(t);setEditSheet(null);}}/>}
+  </div>;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SETTINGS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function SettingsScreen({profile,onProfileChange,theme,onThemeChange,txns,cur,setCur,budgetGoal,setBudgetGoal,incomeGoal,setIncomeGoal,onReset,onLogout,toast}){
+  const [section,setSection]=useState('profile');
+  const [showResetConfirm,setShowResetConfirm]=useState(false);
+  const [showLogoutConfirm,setShowLogoutConfirm]=useState(false);
+  const [shareMsg,setShareMsg]=useState('');
+
+  const now=new Date();
+  const live=txns.filter(x=>!x.scheduled);
+  const mn=live.filter(x=>{const d=new Date(x.date+'T12:00:00');return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
+  const income=mn.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
+  const expense=mn.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
+  const balance=live.reduce((s,x)=>x.type==='income'?s+x.amount:s-x.amount,0);
+
+  const exportPDF=()=>{
+    const rows=live.sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,100).map(t=>`<tr><td>${new Date(t.date+'T12:00:00').toLocaleDateString()}</td><td>${t.note||getCat(t.type,t.category).label}</td><td style="color:${t.type==='income'?'#30d158':'#ff453a'};font-weight:700">${t.type==='income'?'+':'-'}${fmt(t.amount,cur)}</td><td>${getCat(t.type,t.category).label}</td></tr>`).join('');
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>LedgrTrack Report</title><style>body{font-family:-apple-system,sans-serif;padding:40px;color:#1c1c1e}h1{font-size:28px;font-weight:900;letter-spacing:-.5px;margin-bottom:4px}h2{color:#888;font-weight:400;font-size:15px;margin-bottom:28px}.kpi{display:flex;gap:20px;margin-bottom:28px}.box{background:#f5f5fa;border-radius:12px;padding:16px 20px}.box .lbl{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}.box .val{font-size:24px;font-weight:900}table{width:100%;border-collapse:collapse}th{background:#f5f5fa;text-align:left;padding:10px 12px;font-size:12px;color:#888}td{padding:10px 12px;border-bottom:1px solid #eee;font-size:13px}.footer{margin-top:28px;font-size:11px;color:#aaa;text-align:center}</style></head><body><h1>LedgrTrack Report</h1><h2>${profile.name||''}${profile.name?' · ':''}${now.toLocaleString('default',{month:'long',year:'numeric'})}</h2><div class="kpi"><div class="box"><div class="lbl">Balance</div><div class="val" style="color:${balance>=0?'#1c1c1e':'#ff453a'}">${balance<0?'-':''}${fmt(Math.abs(balance),cur)}</div></div><div class="box"><div class="lbl">Income</div><div class="val" style="color:#30d158">${fmt(income,cur)}</div></div><div class="box"><div class="lbl">Expenses</div><div class="val" style="color:#ff453a">${fmt(expense,cur)}</div></div></div><table><thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Category</th></tr></thead><tbody>${rows}</tbody></table><div class="footer">Generated ${new Date().toLocaleString()} · LedgrTrack</div><script>window.onload=()=>window.print()<\/script></body></html>`;
+    const w=window.open('','_blank');w.document.write(html);w.document.close();
+    toast({icon:'📄',title:'PDF ready',body:'Print dialog opened. Save as PDF.'});
+  };
+
+  const share=async()=>{
+    const text=`📊 LedgrTrack — ${now.toLocaleString('default',{month:'long',year:'numeric'})}\n💚 Income: ${fmt(income,cur)}\n❤️ Expenses: ${fmt(expense,cur)}\n💰 Net: ${income-expense>=0?'+':''}${fmt(income-expense,cur)}\n\n${CONFIG.APP_URL}`;
+    if(navigator.share){try{await navigator.share({title:'LedgrTrack Report',text});return;}catch{}}
+    await navigator.clipboard.writeText(text).catch(()=>{});
+    setShareMsg('Copied!');setTimeout(()=>setShareMsg(''),2500);
+    toast({icon:'📤',title:'Copied to clipboard!',body:'Paste to share with friends.'});
+  };
+
+  const navPills=[{id:'profile',icon:'👤',l:'Profile'},{id:'goals',icon:'🎯',l:'Goals'},{id:'theme',icon:'🎨',l:'Theme'},{id:'export',icon:'📤',l:'Export'},{id:'account',icon:'⚙️',l:'Account'}];
+
+  return <div style={{color:'var(--text)',padding:'0 16px',paddingBottom:'calc(var(--tab-h) + env(safe-area-inset-bottom,0px) + 24px)'}}>
+    <div style={{paddingTop:'var(--hdr)',marginBottom:14}}>
+      <div style={{fontSize:26,fontWeight:900,letterSpacing:-.5}}>Settings</div>
+    </div>
+    <div style={{display:'flex',gap:8,overflowX:'auto',paddingBottom:14,marginBottom:2}}>
+      {navPills.map(p=><button key={p.id} onClick={()=>setSection(p.id)} style={{padding:'8px 14px',borderRadius:99,border:`1px solid ${section===p.id?'var(--accent)':'var(--border)'}`,background:section===p.id?'var(--a10)':'transparent',color:section===p.id?'var(--accent)':'var(--muted)',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,whiteSpace:'nowrap',flexShrink:0,transition:'all .15s'}}>{p.icon} {p.l}</button>)}
+    </div>
+
+    {/* PROFILE */}
+    {section==='profile'&&<div>
+      <div style={{textAlign:'center',marginBottom:20}}>
+        <div style={{width:74,height:74,borderRadius:'50%',background:'var(--a10)',border:'2px solid var(--accent)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:30,margin:'0 auto 10px'}}>{profile.name?profile.name.charAt(0).toUpperCase():'👤'}</div>
+        <div style={{fontSize:18,fontWeight:800}}>{profile.name||'Set your name'}</div>
+        <div style={{fontSize:13,color:'var(--sub)',marginTop:2}}>{profile.email||'No email set'}</div>
+      </div>
+      {[{k:'name',l:'Full Name',icon:'👤',pl:'Your name',t:'text'},{k:'email',l:'Email',icon:'📧',pl:'you@example.com',t:'email'},{k:'phone',l:'Phone Number',icon:'📱',pl:'+1 (202) 555-0100',t:'tel'}].map(f=><div key={f.k} style={{background:'var(--card)',borderRadius:14,padding:'12px 16px',border:'1px solid var(--border)',marginBottom:10}}>
+        <div style={{fontSize:10,color:'var(--muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>{f.icon} {f.l}</div>
+        <input value={profile[f.k]||''} type={f.t} onChange={e=>onProfileChange({...profile,[f.k]:e.target.value})} placeholder={f.pl} style={{background:'none',border:'none',color:'var(--text)',fontSize:16,width:'100%',outline:'none'}}/>
+      </div>)}
+      <div style={{background:'var(--card)',borderRadius:14,padding:'12px 16px',border:'1px solid var(--border)'}}>
+        <div style={{fontSize:10,color:'var(--muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>💱 Currency</div>
+        <select value={cur} onChange={e=>setCur(e.target.value)} style={{background:'none',border:'none',color:'var(--text)',fontSize:16,width:'100%',outline:'none',cursor:'pointer'}}>
+          {[{code:'USD',sym:'$ USD'},{code:'EUR',sym:'€ EUR'},{code:'GBP',sym:'£ GBP'},{code:'INR',sym:'₹ INR'},{code:'JPY',sym:'¥ JPY'},{code:'AED',sym:'AED'},{code:'SAR',sym:'SAR'},{code:'PKR',sym:'₨ PKR'},{code:'AUD',sym:'A$ AUD'},{code:'CAD',sym:'CA$ CAD'}].map(c=><option key={c.code} value={c.code} style={{background:'#1c1c28'}}>{c.sym}</option>)}
+        </select>
+      </div>
+    </div>}
+
+    {/* GOALS */}
+    {section==='goals'&&<div>
+      {[{l:'Monthly Budget Goal',desc:'Max spending per month',val:budgetGoal,set:setBudgetGoal,icon:'🎯'},{l:'Monthly Income Goal',desc:'Target income per month',val:incomeGoal,set:setIncomeGoal,icon:'💰'}].map(g=><div key={g.l} style={{background:'var(--card)',borderRadius:16,padding:'16px',border:'1px solid var(--border)',marginBottom:12}}>
+        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+          <span style={{fontSize:22}}>{g.icon}</span>
+          <div><div style={{fontSize:14,fontWeight:700}}>{g.l}</div><div style={{fontSize:11,color:'var(--sub)',marginTop:2}}>{g.desc}</div></div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <span style={{fontSize:18,color:'var(--accent)',fontWeight:700}}>$</span>
+          <input type="number" value={g.val||''} onChange={e=>g.set(parseFloat(e.target.value)||0)} placeholder="0" style={{background:'var(--card2)',border:'1px solid var(--border)',borderRadius:10,color:'var(--text)',fontSize:20,fontWeight:800,flex:1,padding:'10px 14px',outline:'none'}}/>
+        </div>
+      </div>)}
+    </div>}
+
+    {/* THEME */}
+    {section==='theme'&&<div>
+      <div style={{fontSize:13,color:'var(--sub)',marginBottom:14}}>Choose your visual style</div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        {THEMES.map(th=><button key={th.id} onClick={()=>onThemeChange(th)} style={{borderRadius:18,overflow:'hidden',border:`2px solid ${theme.id===th.id?'var(--accent)':'transparent'}`,cursor:'pointer',padding:0,background:'none',boxShadow:theme.id===th.id?'0 0 0 3px var(--a20)':'none',transition:'all .2s'}}>
+          <div style={{background:th.bg,padding:'14px 14px 10px'}}>
+            <div style={{background:th.card,borderRadius:10,padding:'10px 12px',marginBottom:6}}>
+              <div style={{fontSize:9,color:th.muted,marginBottom:3}}>Balance</div>
+              <div style={{fontSize:16,fontWeight:900,color:th.text}}>$4,330</div>
+            </div>
+            <div style={{display:'flex',gap:4}}>
+              <div style={{flex:1,background:th.card2,borderRadius:7,padding:'5px 6px'}}><div style={{fontSize:9,color:th.accent,fontWeight:700}}>+$3,200</div></div>
+              <div style={{flex:1,background:th.card2,borderRadius:7,padding:'5px 6px'}}><div style={{fontSize:9,color:'#ff453a',fontWeight:700}}>-$870</div></div>
+            </div>
+          </div>
+          <div style={{background:th.card,padding:'8px 12px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <span style={{fontSize:13,fontWeight:700,color:th.text}}>{th.name}</span>
+            {theme.id===th.id&&<span style={{fontSize:12,color:th.accent}}>✓</span>}
+          </div>
+        </button>)}
+      </div>
+    </div>}
+
+    {/* EXPORT */}
+    {section==='export'&&<div>
+      {[{icon:'📄',title:'Export as PDF',desc:'Full transaction report — opens print dialog',action:exportPDF,btn:'Generate PDF',btnCol:'var(--accent)'},{icon:'📤',title:'Share Summary',desc:'Quick text summary for this month — share or copy',action:share,btn:shareMsg||'Share Now',btnCol:'var(--blue)'}].map((item,i)=><div key={i} style={{background:'var(--card)',borderRadius:20,padding:'18px',border:'1px solid var(--border)',marginBottom:12}}>
+        <div style={{fontSize:32,marginBottom:8}}>{item.icon}</div>
+        <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>{item.title}</div>
+        <div style={{fontSize:13,color:'var(--sub)',marginBottom:14,lineHeight:1.5}}>{item.desc}</div>
+        <button onClick={item.action} style={{width:'100%',padding:'12px',borderRadius:14,border:'none',background:item.btnCol,color:'#fff',fontSize:15,fontWeight:800,cursor:'pointer'}}>{item.btn}</button>
+      </div>)}
+      <div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)'}}>
+        <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>📊 Quick Stats</div>
+        {[{l:'Total Transactions',v:live.length},{l:'Total Income',v:fmt(live.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0),cur)},{l:'Total Expenses',v:fmt(live.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0),cur)},{l:'Net Balance',v:fmt(balance,cur)}].map(s=><div key={s.l} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid var(--border)'}}>
+          <span style={{fontSize:13,color:'var(--sub)'}}>{s.l}</span>
+          <span style={{fontSize:13,fontWeight:700}}>{s.v}</span>
+        </div>)}
+      </div>
+    </div>}
+
+    {/* ACCOUNT */}
+    {section==='account'&&<div>
+      <div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)',marginBottom:12}}>
+        <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>⚠️ Danger Zone</div>
+        <button onClick={()=>setShowResetConfirm(true)} style={{width:'100%',padding:'13px',borderRadius:14,border:'1px solid var(--red)',background:'var(--r10)',color:'var(--red)',fontSize:14,fontWeight:700,cursor:'pointer',marginBottom:10}}>🗑️ Reset All Data</button>
+        <button onClick={()=>setShowLogoutConfirm(true)} style={{width:'100%',padding:'13px',borderRadius:14,border:'1px solid var(--border2)',background:'transparent',color:'var(--sub)',fontSize:14,fontWeight:700,cursor:'pointer'}}>🚪 Sign Out</button>
+      </div>
+      <div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)'}}>
+        <div style={{fontSize:14,fontWeight:700,marginBottom:10}}>ℹ️ About</div>
+        <div style={{fontSize:13,color:'var(--sub)',lineHeight:1.7}}>
+          <strong style={{color:'var(--text)'}}>LedgrTrack v2.0</strong><br/>
+          Personal finance tracker with voice input,<br/>
+          smart charts, and scheduled reminders.<br/>
+          <br/>
+          Data is stored privately on your device.<br/>
+          No third-party data sharing.
+        </div>
+      </div>
+    </div>}
+
+    {showResetConfirm&&<Confirm title="Reset All Data?" body="This will permanently delete all transactions, goals, and settings. This cannot be undone." ok="Reset Everything" danger onOk={()=>{onReset();setShowResetConfirm(false);toast({icon:'🗑️',title:'Data reset',body:'All transactions cleared. Starting fresh!'});}} onCancel={()=>setShowResetConfirm(false)}/>}
+    {showLogoutConfirm&&<Confirm title="Sign Out?" body="You'll need to verify your email again to sign back in." ok="Sign Out" onOk={()=>{onLogout();setShowLogoutConfirm(false);}} onCancel={()=>setShowLogoutConfirm(false)}/>}
+  </div>;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// APP ROOT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function App(){
+  const [user,setUser]=useState(()=>LS.get('ledgr_user',null));
+  const [tab,setTab]=useState(()=>LS.get('ledgr_tab',0));
+  const [txns,setTxns]=useState(()=>LS.get('ledgr_txns',null)||buildSeed());
+  const [profile,setProfile]=useState(()=>LS.get('ledgr_profile',{name:'',email:'',phone:''}));
+  const [theme,setTheme]=useState(()=>LS.get('ledgr_theme',null)||THEMES[0]);
+  const [cur,setCur]=useState(()=>LS.get('ledgr_cur','USD'));
+  const [budgetGoal,setBudgetGoal]=useState(()=>LS.get('ledgr_bgoal',0));
+  const [incomeGoal,setIncomeGoal]=useState(()=>LS.get('ledgr_igoal',0));
+  const [toasts,setToasts]=useState([]);
+  const [editSheet,setEditSheet]=useState(null);
+
+  useEffect(()=>{applyTheme(theme);},[theme]);
+  useEffect(()=>{LS.set('ledgr_tab',tab);},[tab]);
+  useEffect(()=>{LS.set('ledgr_txns',txns);},[txns]);
+  useEffect(()=>{LS.set('ledgr_profile',profile);},[profile]);
+  useEffect(()=>{LS.set('ledgr_theme',theme);},[theme]);
+  useEffect(()=>{LS.set('ledgr_cur',cur);},[cur]);
+  useEffect(()=>{LS.set('ledgr_bgoal',budgetGoal);},[budgetGoal]);
+  useEffect(()=>{LS.set('ledgr_igoal',incomeGoal);},[incomeGoal]);
+
+  // Update profile email from auth
+  useEffect(()=>{if(user?.email&&!profile.email)setProfile(p=>({...p,email:user.email,name:p.name||user.name||''}));},[user]);
+
+  // Splash hide
+  useEffect(()=>{setTimeout(()=>{const s=document.getElementById('splash');if(s){s.classList.add('hide');setTimeout(()=>s.remove(),600);}},900);},[]);
+
+  const toast=useCallback((t)=>{const id=Date.now();setToasts(prev=>[{...t,id},...prev].slice(0,3));setTimeout(()=>setToasts(prev=>prev.filter(x=>x.id!==id)),4500);},[]);
+
+  const addTx=t=>setTxns(p=>[t,...p]);
+  const editTx=t=>setTxns(p=>p.map(x=>x.id===t.id?t:x));
+  const delTx=id=>setTxns(p=>p.filter(x=>x.id!==id));
+  const handleTheme=th=>{setTheme(th);applyTheme(th);};
+  const handleReset=()=>{setTxns(buildSeed());setBudgetGoal(0);setIncomeGoal(0);};
+  const handleLogout=()=>{LS.del('ledgr_user');setUser(null);};
+
+  if(!user) return <AuthScreen toast={toast} onAuth={u=>{setUser(u);LS.set('ledgr_user',u);}}/>;
+
+  const navTo=(i)=>setTab(i);
+
+  const screens=[
+    <HomeScreen txns={txns} onNav={navTo} onAdd={()=>setTab(1)} onSched={()=>setTab(1)} onEditTx={setEditSheet} user={user} budgetGoal={budgetGoal} incomeGoal={incomeGoal} cur={cur}/>,
+    <AddScreen onAdd={t=>{addTx(t);setTab(0);}} toast={toast} cur={cur}/>,
+    <ChartsScreen txns={txns} cur={cur}/>,
+    <HistoryScreen txns={txns} onEdit={editTx} onDelete={delTx} cur={cur}/>,
+    <SettingsScreen profile={profile} onProfileChange={setProfile} theme={theme} onThemeChange={handleTheme} txns={txns} cur={cur} setCur={setCur} budgetGoal={budgetGoal} setBudgetGoal={setBudgetGoal} incomeGoal={incomeGoal} setIncomeGoal={setIncomeGoal} onReset={handleReset} onLogout={handleLogout} toast={toast}/>,
+  ];
+
+  const isRealPhone=window.innerWidth<=500&&'ontouchstart' in window;
+
+  return <div style={{height:'100%',display:'flex',flexDirection:'column',background:'var(--bg)',overflow:'hidden'}}>
+    <Toast toasts={toasts}/>
+    {/* Main content */}
+    <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',position:'relative'}}>
+      {screens[tab]}
+    </div>
+    {/* Tab bar */}
+    <div style={{flexShrink:0,background:theme.isDark?'rgba(8,8,18,.96)':'rgba(248,248,255,.96)',backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',borderTop:`0.5px solid ${theme.isDark?'rgba(255,255,255,.07)':'rgba(0,0,0,.07)'}`,paddingTop:10,paddingBottom:`calc(10px + env(safe-area-inset-bottom,0px))`,display:'flex',justifyContent:'space-around',alignItems:'center',zIndex:50}}>
+      {TABS.map((name,i)=><button key={i} onClick={()=>setTab(i)} style={{background:'none',border:'none',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:3,padding:'4px 12px',borderRadius:12,opacity:tab===i?1:.5,transition:'opacity .18s'}}>
+        {TabIcons[name](tab===i)}
+        <span style={{fontSize:10,fontFamily:'-apple-system',color:tab===i?'var(--accent)':'var(--muted)',fontWeight:tab===i?700:400}}>{name}</span>
+      </button>)}
+    </div>
+
+    {/* Global edit sheet */}
+    {editSheet&&<TxSheet cur={cur} tx={editSheet} toast={toast} onClose={()=>setEditSheet(null)} onSave={t=>{editTx(t);setEditSheet(null);toast({icon:'✅',title:'Updated!',body:`${t.note||getCat(t.type,t.category).label} updated.`});}}/>}
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+
+<template id="__bundler_thumbnail">
+  <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100" height="100" fill="#0a0a12"/>
+    <rect x="10" y="10" width="80" height="80" rx="18" fill="url(#tg)"/>
+    <defs><linearGradient id="tg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f5a623"/><stop offset="100%" stop-color="#c8720a"/></linearGradient></defs>
+    <text x="50" y="66" text-anchor="middle" font-size="40" fill="white" font-weight="900">$</text>
+  </svg>
+</template>
+</body>
+</html>
