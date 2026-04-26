@@ -111,6 +111,7 @@ const CONFIG = {
 
   // JSONBin.io — for cross-device sync (low-sensitivity; still, prefer backend proxy)
   JSONBIN_KEY:          '$2a$10$YFCjq4Azn.L42reasWN8ZOv2Ub1rlOrNwZnVod/d1i/vBo4pP/XxG',
+  JSONBIN_BIN_ID:       '69edc15236566621a8f1a208',
 
   // App URL (used in emails)
   APP_URL: 'https://shaikbaseer.github.io/Budgeting-App/LedgrTrack.html',
@@ -159,13 +160,43 @@ const TABS=['Home','Add','Charts','History','Settings'];
 const LS={
   get:(k,fb=null)=>{try{const v=localStorage.getItem(k);return v!==null?JSON.parse(v):fb;}catch{return fb;}},
   set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}},
+  del:k=>{try{localStorage.removeItem(k);}catch{}},
 };
-const fmt=(n,cur='USD')=>{try{return new Intl.NumberFormat('en-US',{style:'currency',currency:cur,minimumFractionDigits:2,maximumFractionDigits:2}).format(Math.abs(n));}catch{return '$'+Math.abs(n).toFixed(2);}};
+const LANGUAGES=[
+  {code:'en-US',name:'English',native:'English',html:'en'},
+  {code:'hi-IN',name:'Hindi',native:'हिन्दी',html:'hi'},
+  {code:'te-IN',name:'Telugu',native:'తెలుగు',html:'te'},
+  {code:'ta-IN',name:'Tamil',native:'தமிழ்',html:'ta'},
+  {code:'kn-IN',name:'Kannada',native:'ಕನ್ನಡ',html:'kn'},
+  {code:'ml-IN',name:'Malayalam',native:'മലയാളം',html:'ml'},
+  {code:'ur-IN',name:'Urdu',native:'اردو',html:'ur'},
+  {code:'es-ES',name:'Spanish',native:'Español',html:'es'},
+  {code:'fr-FR',name:'French',native:'Français',html:'fr'},
+  {code:'ar-SA',name:'Arabic',native:'العربية',html:'ar'},
+];
+const getLang=code=>LANGUAGES.find(l=>l.code===code)||LANGUAGES[0];
+const fmt=(n,cur='USD',locale='en-US')=>{try{return new Intl.NumberFormat(locale,{style:'currency',currency:cur,minimumFractionDigits:2,maximumFractionDigits:2}).format(Math.abs(n));}catch{return '$'+Math.abs(n).toFixed(2);}};
 const getCurrSym=(cur)=>{try{return(0).toLocaleString('en',{style:'currency',currency:cur,minimumFractionDigits:0}).replace(/[\d,.\s]/g,'').trim();}catch{return '$';}};
-const fmtK=(n,cur='USD')=>{const sym=getCurrSym(cur);return Math.abs(n)>=1000?sym+(Math.abs(n)/1000).toFixed(1)+'k':fmt(n,cur);};
+const fmtK=(n,cur='USD',locale='en-US')=>{const sym=getCurrSym(cur);return Math.abs(n)>=1000?sym+(Math.abs(n)/1000).toFixed(1)+'k':fmt(n,cur,locale);};
 const todayStr=()=>new Date().toISOString().split('T')[0];
-const dayStr=d=>{try{return new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});}catch{return d;}};
-const monthLbl=(y,m)=>new Date(y,m,1).toLocaleString('default',{month:'long',year:'numeric'});
+const dayStr=(d,locale='en-US')=>{try{return new Date(d+'T12:00:00').toLocaleDateString(locale,{weekday:'short',month:'short',day:'numeric'});}catch{return d;}};
+const monthLbl=(y,m,locale='default')=>new Date(y,m,1).toLocaleString(locale,{month:'long',year:'numeric'});
+const pad2=n=>String(n).padStart(2,'0');
+const normalizeTime=t=>{
+  if(!t)return'';
+  if(/^\d{2}:\d{2}$/.test(t))return t;
+  const m=String(t).trim().match(/^(\d{1,2}):(\d{2})\s*([AP]M)$/i);
+  if(!m)return'';
+  let h=parseInt(m[1],10);const min=m[2];const ap=m[3].toUpperCase();
+  if(ap==='PM'&&h!==12)h+=12;if(ap==='AM'&&h===12)h=0;
+  return pad2(h)+':'+min;
+};
+const displayTime=(t,locale='en-US')=>{const nt=normalizeTime(t);if(!nt)return t||'';const[h,m]=nt.split(':').map(Number);const d=new Date();d.setHours(h,m,0,0);return d.toLocaleTimeString(locale,{hour:'numeric',minute:'2-digit'});};
+const minutesUntil=(dateStr,timeStr)=>{
+  const [h,m]=normalizeTime(timeStr||'09:00').split(':').map(Number);
+  const d=new Date((dateStr||todayStr())+'T00:00:00');d.setHours(h||0,m||0,0,0);
+  return d.getTime()-Date.now();
+};
 
 // Apply theme to CSS vars
 function applyTheme(th){
@@ -196,7 +227,9 @@ async function sendEmail(to,subject,html){
   try{
     const res=await emailjs.send(CONFIG.EMAILJS_SERVICE_ID,CONFIG.EMAILJS_TEMPLATE_ID,{
       to_email:to, subject, html_content:html,
-      email:to, from_name:'LedgrTrack', app_name:'LedgrTrack',
+      email:to, user_email:to, reply_to:to, to_name:to.split('@')[0],
+      message:html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim(),
+      from_name:'LedgrTrack', app_name:'LedgrTrack',
     });
     return{ok:true};
   }catch(e){
@@ -227,6 +260,71 @@ async function sendOTPEmail({toEmail,toName,otp,isNewUser}){
       </div>
     </div>`;
   return sendEmail(toEmail,subj,body);
+}
+
+function emailKey(email){return String(email||'').trim().toLowerCase().replace(/[^a-z0-9._-]/g,'_');}
+function syncConfigured(){return !!(CONFIG.JSONBIN_KEY&&CONFIG.JSONBIN_BIN_ID);}
+async function readCloudStore(){
+  if(!syncConfigured())return{ok:false,err:'Add CONFIG.JSONBIN_BIN_ID to enable cross-device sync.'};
+  try{
+    const r=await fetch(`https://api.jsonbin.io/v3/b/${CONFIG.JSONBIN_BIN_ID}/latest`,{headers:{'X-Master-Key':CONFIG.JSONBIN_KEY}});
+    if(!r.ok)throw new Error('JSONBin read failed: '+r.status);
+    const j=await r.json();
+    return{ok:true,store:j.record||{}};
+  }catch(e){return{ok:false,err:e.message||'Cloud read failed'};}
+}
+async function writeCloudStore(store){
+  if(!syncConfigured())return{ok:false,err:'Add CONFIG.JSONBIN_BIN_ID to enable cross-device sync.'};
+  try{
+    const r=await fetch(`https://api.jsonbin.io/v3/b/${CONFIG.JSONBIN_BIN_ID}`,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json','X-Master-Key':CONFIG.JSONBIN_KEY},
+      body:JSON.stringify(store||{})
+    });
+    if(!r.ok)throw new Error('JSONBin save failed: '+r.status);
+    return{ok:true};
+  }catch(e){return{ok:false,err:e.message||'Cloud save failed'};}
+}
+async function loadCloudData(email){
+  const key=emailKey(email);if(!key)return{ok:false,err:'No email for sync'};
+  const res=await readCloudStore();if(!res.ok)return res;
+  return{ok:true,data:res.store?.users?.[key]||null,store:res.store};
+}
+async function saveCloudData(email,data){
+  const key=emailKey(email);if(!key)return{ok:false,err:'No email for sync'};
+  const res=await readCloudStore();if(!res.ok)return res;
+  const store=res.store||{};
+  store.users={...(store.users||{}),[key]:{...data,email:String(email).trim().toLowerCase(),updatedAt:Date.now()}};
+  return writeCloudStore(store);
+}
+function makeSummaryEmail({profile,txns,cur,locale}){
+  const today=todayStr();
+  const day=txns.filter(t=>!t.scheduled&&t.date===today);
+  const income=day.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const expense=day.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const rows=day.length?day.map(t=>`<li style="margin:8px 0;color:#a0a0c0"><strong style="color:${t.type==='income'?'#30d158':'#ff453a'}">${t.type==='income'?'+':'-'}${fmt(t.amount,cur,locale)}</strong> ${t.note||getCat(t.type,t.category).label}</li>`).join(''):'<li style="margin:8px 0;color:#a0a0c0">No transactions recorded today.</li>';
+  return `<div style="font-family:-apple-system,sans-serif;max-width:520px;margin:0 auto;background:#0a0a12;border-radius:20px;padding:28px;color:#f0f0f8">
+    <div style="font-size:24px;font-weight:900;color:#f5a623;margin-bottom:16px">$ LedgrTrack</div>
+    <h2 style="margin:0 0 10px;font-size:20px">Daily Summary</h2>
+    <p style="color:#a0a0c0;margin:0 0 18px">Hi ${profile.name||'there'}, here is your summary for ${dayStr(today,locale)}.</p>
+    <div style="display:flex;gap:10px;margin-bottom:18px">
+      <div style="flex:1;background:#15151e;border-radius:14px;padding:14px"><div style="font-size:11px;color:#606080">Income</div><div style="font-size:20px;font-weight:900;color:#30d158">${fmt(income,cur,locale)}</div></div>
+      <div style="flex:1;background:#15151e;border-radius:14px;padding:14px"><div style="font-size:11px;color:#606080">Expenses</div><div style="font-size:20px;font-weight:900;color:#ff453a">${fmt(expense,cur,locale)}</div></div>
+    </div>
+    <ul style="padding-left:18px;margin:0">${rows}</ul>
+  </div>`;
+}
+function makeDueEmail({tx,cur,locale}){
+  const cat=getCat(tx.type,tx.category);
+  return `<div style="font-family:-apple-system,sans-serif;max-width:500px;margin:0 auto;background:#0a0a12;border-radius:20px;padding:28px;color:#f0f0f8">
+    <div style="font-size:24px;font-weight:900;color:#f5a623;margin-bottom:16px">$ LedgrTrack</div>
+    <h2 style="margin:0 0 10px;font-size:20px">Scheduled transaction due</h2>
+    <p style="color:#a0a0c0;line-height:1.6;margin:0 0 18px">${tx.note||cat.label} is due ${dayStr(tx.date,locale)} at ${displayTime(tx.remindTime||'09:00',locale)}.</p>
+    <div style="background:#15151e;border-radius:14px;padding:16px;border:1px solid rgba(255,255,255,.07)">
+      <div style="font-size:12px;color:#606080;margin-bottom:6px">${cat.label}</div>
+      <div style="font-size:28px;font-weight:900;color:${tx.type==='income'?'#30d158':'#ff453a'}">${tx.type==='income'?'+':'-'}${fmt(tx.amount,cur,locale)}</div>
+    </div>
+  </div>`;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1189,15 +1287,16 @@ function HistoryScreen({txns,onEdit,onDelete,cur}){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // NOTIFICATIONS PANEL
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const REMINDER_SLOTS=['6:00 AM','9:00 AM','12:00 PM','3:00 PM','6:00 PM','9:00 PM'];
+const REMINDER_SLOTS=['06:00','09:00','12:00','15:00','18:00','21:00'];
 
-function NotificationsPanel({profile,toast}){
+function NotificationsPanel({profile,toast,locale='en-US'}){
   const [pushOn,setPushOn]=useState(()=>LS.get('n_push',false));
   const [emailOn,setEmailOn]=useState(()=>LS.get('n_email',true));
   const [smsOn,setSmsOn]=useState(()=>LS.get('n_sms',false));
   const [summaryOn,setSummaryOn]=useState(()=>LS.get('n_summary',false));
   const [summaryTime,setSummaryTime]=useState(()=>LS.get('n_sum_time','21:00'));
-  const [slots,setSlots]=useState(()=>LS.get('n_slots',['9:00 AM','12:00 PM','3:00 PM','6:00 PM']));
+  const [slots,setSlots]=useState(()=>LS.get('n_slots',['09:00','12:00','15:00','18:00']).map(normalizeTime).filter(Boolean));
+  const [customTime,setCustomTime]=useState('08:30');
   const [perm,setPerm]=useState(()=>'Notification' in window?Notification.permission:'unsupported');
   const [testSent,setTestSent]=useState('');
   const [nextReminder,setNextReminder]=useState('');
@@ -1214,14 +1313,10 @@ function NotificationsPanel({profile,toast}){
   useEffect(()=>{
     const now=new Date();
     const upcoming=slots.map(s=>{
-      const [time,ampm]=s.split(' ');
-      const [h,m]=time.split(':');
-      let hr=parseInt(h);
-      if(ampm==='PM'&&hr!==12)hr+=12;
-      if(ampm==='AM'&&hr===12)hr=0;
-      const d=new Date();d.setHours(hr,0,0,0);
+      const [hr,min]=normalizeTime(s).split(':').map(Number);
+      const d=new Date();d.setHours(hr,min,0,0);
       if(d<=now)d.setDate(d.getDate()+1);
-      return{label:s,d};
+      return{label:displayTime(s,locale),d};
     }).sort((a,b)=>a.d-b.d);
     if(upcoming.length){
       const n=upcoming[0];
@@ -1244,7 +1339,14 @@ function NotificationsPanel({profile,toast}){
   };
 
   const toggleSlot=t=>{
-    setSlots(prev=>prev.includes(t)?prev.filter(x=>x!==t):[...prev,t].sort((a,b)=>REMINDER_SLOTS.indexOf(a)-REMINDER_SLOTS.indexOf(b)));
+    const nt=normalizeTime(t);if(!nt)return;
+    setSlots(prev=>prev.includes(nt)?prev.filter(x=>x!==nt):[...prev,nt].sort());
+  };
+  const addCustomSlot=()=>{
+    const nt=normalizeTime(customTime);
+    if(!nt)return;
+    setSlots(prev=>prev.includes(nt)?prev:[...prev,nt].sort());
+    toast({icon:'⏰',title:'Reminder added',body:'Custom reminder set for '+displayTime(nt,locale)});
   };
 
   const sendTestPush=()=>{
@@ -1261,7 +1363,7 @@ function NotificationsPanel({profile,toast}){
       `<div style="font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;background:#0a0a12;border-radius:20px;padding:32px;color:#f0f0f8">
         <div style="font-size:24px;font-weight:900;color:#f5a623;margin-bottom:16px">$ LedgrTrack</div>
         <h2 style="margin:0 0 12px;font-size:20px">⏰ Budget Reminder</h2>
-        <p style="color:#a0a0c0;line-height:1.6;margin:0 0 20px">This is a test reminder from LedgrTrack. Your reminder schedule is set to: <strong style="color:#f0f0f8">${slots.join(', ')}</strong>.</p>
+        <p style="color:#a0a0c0;line-height:1.6;margin:0 0 20px">This is a test reminder from LedgrTrack. Your reminder schedule is set to: <strong style="color:#f0f0f8">${slots.map(s=>displayTime(s,locale)).join(', ')}</strong>.</p>
         <p style="color:#a0a0c0;margin:0">Keep tracking your finances! 💰</p>
       </div>`
     );
@@ -1314,7 +1416,7 @@ function NotificationsPanel({profile,toast}){
     {/* Reminder schedule */}
     <div style={{background:'var(--card)',borderRadius:20,border:'1px solid var(--border)',padding:'16px'}}>
       <div style={{fontSize:14,fontWeight:800,marginBottom:4}}>⏰ Reminder Schedule</div>
-      <div style={{fontSize:12,color:'var(--sub)',marginBottom:14}}>Every 3 hours · 6AM–9PM · Tap to toggle</div>
+      <div style={{fontSize:12,color:'var(--sub)',marginBottom:14}}>Choose presets or add your own reminder time</div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
         {REMINDER_SLOTS.map(s=>{
           const on=slots.includes(s);
@@ -1327,10 +1429,15 @@ function NotificationsPanel({profile,toast}){
             display:'flex',alignItems:'center',justifyContent:'space-between',
             transition:'all .18s',
           }}>
-            <span>{s}</span>
+            <span>{displayTime(s,locale)}</span>
             <span style={{fontSize:16}}>{on?'🔔':'○'}</span>
           </button>;
         })}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:8,marginTop:10}}>
+        <input type="time" value={customTime} onChange={e=>setCustomTime(e.target.value)}
+          style={{background:'var(--card2)',border:'1px solid var(--border2)',borderRadius:12,color:'var(--text)',fontSize:16,padding:'11px 14px',outline:'none',fontWeight:700}}/>
+        <button onClick={addCustomSlot} style={{padding:'0 14px',borderRadius:12,border:'none',background:'var(--accent)',color:'#000',fontSize:13,fontWeight:800,cursor:'pointer'}}>Add</button>
       </div>
     </div>
 
@@ -1377,7 +1484,7 @@ function NotificationsPanel({profile,toast}){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SETTINGS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function SettingsScreen({profile,onProfileChange,theme,onThemeChange,txns,cur,setCur,budgetGoal,setBudgetGoal,incomeGoal,setIncomeGoal,onReset,onLogout,toast}){
+function SettingsScreen({profile,onProfileChange,theme,onThemeChange,txns,cur,setCur,language,setLanguage,syncState,onSyncNow,budgetGoal,setBudgetGoal,incomeGoal,setIncomeGoal,onReset,onLogout,toast}){
   const [section,setSection]=useState('profile');
   const [showResetConfirm,setShowResetConfirm]=useState(false);
   const [showLogoutConfirm,setShowLogoutConfirm]=useState(false);
@@ -1426,16 +1533,23 @@ function SettingsScreen({profile,onProfileChange,theme,onThemeChange,txns,cur,se
         <div style={{fontSize:10,color:'var(--muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>{f.icon} {f.l}</div>
         <input value={profile[f.k]||''} type={f.t} onChange={e=>onProfileChange({...profile,[f.k]:e.target.value})} placeholder={f.pl} style={{background:'none',border:'none',color:'var(--text)',fontSize:16,width:'100%',outline:'none'}}/>
       </div>)}
-      <div style={{background:'var(--card)',borderRadius:14,padding:'12px 16px',border:'1px solid var(--border)'}}>
+      <div style={{background:'var(--card)',borderRadius:14,padding:'12px 16px',border:'1px solid var(--border)',marginBottom:10}}>
         <div style={{fontSize:10,color:'var(--muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>💱 Currency</div>
         <select value={cur} onChange={e=>setCur(e.target.value)} style={{background:'none',border:'none',color:'var(--text)',fontSize:16,width:'100%',outline:'none',cursor:'pointer'}}>
           {[{code:'USD',sym:'$ USD'},{code:'EUR',sym:'€ EUR'},{code:'GBP',sym:'£ GBP'},{code:'INR',sym:'₹ INR'},{code:'JPY',sym:'¥ JPY'},{code:'AED',sym:'AED'},{code:'SAR',sym:'SAR'},{code:'PKR',sym:'₨ PKR'},{code:'AUD',sym:'A$ AUD'},{code:'CAD',sym:'CA$ CAD'}].map(c=><option key={c.code} value={c.code} style={{background:'#1c1c28'}}>{c.sym}</option>)}
         </select>
       </div>
+      <div style={{background:'var(--card)',borderRadius:14,padding:'12px 16px',border:'1px solid var(--border)'}}>
+        <div style={{fontSize:10,color:'var(--muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>🌐 Language</div>
+        <select value={language} onChange={e=>setLanguage(e.target.value)} style={{background:'none',border:'none',color:'var(--text)',fontSize:16,width:'100%',outline:'none',cursor:'pointer'}}>
+          {LANGUAGES.map(l=><option key={l.code} value={l.code} style={{background:'#1c1c28'}}>{l.native} — {l.name}</option>)}
+        </select>
+        <div style={{fontSize:11,color:'var(--sub)',marginTop:8,lineHeight:1.4}}>Dates, currency, and reminder times follow this language. Full screen text remains English in this offline version.</div>
+      </div>
     </div>}
 
     {/* NOTIFICATIONS */}
-    {section==='notifications'&&<NotificationsPanel profile={profile} toast={toast}/>}
+    {section==='notifications'&&<NotificationsPanel profile={profile} toast={toast} locale={language}/>}
 
     {/* GOALS */}
     {section==='goals'&&<div>
@@ -1494,6 +1608,18 @@ function SettingsScreen({profile,onProfileChange,theme,onThemeChange,txns,cur,se
     {/* ACCOUNT */}
     {section==='account'&&<div>
       <div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)',marginBottom:12}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,marginBottom:10}}>
+          <div>
+            <div style={{fontSize:14,fontWeight:700}}>☁️ Cloud Sync</div>
+            <div style={{fontSize:12,color:'var(--sub)',marginTop:2}}>{syncState?.message||'Sync keeps your account data updated across devices.'}</div>
+          </div>
+          <button onClick={onSyncNow} style={{padding:'10px 12px',borderRadius:12,border:'none',background:'var(--accent)',color:'#000',fontSize:12,fontWeight:800,cursor:'pointer',whiteSpace:'nowrap'}}>Sync Now</button>
+        </div>
+        <div style={{fontSize:11,color:syncState?.ok?'var(--green)':syncState?.warn?'var(--accent)':'var(--muted)',lineHeight:1.5}}>
+          Status: {syncState?.label||'Waiting'}
+        </div>
+      </div>
+      <div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)',marginBottom:12}}>
         <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>⚠️ Danger Zone</div>
         <button onClick={()=>setShowResetConfirm(true)} style={{width:'100%',padding:'13px',borderRadius:14,border:'1px solid var(--red)',background:'var(--r10)',color:'var(--red)',fontSize:14,fontWeight:700,cursor:'pointer',marginBottom:10}}>🗑️ Reset All Data</button>
         <button onClick={()=>setShowLogoutConfirm(true)} style={{width:'100%',padding:'13px',borderRadius:14,border:'1px solid var(--border2)',background:'transparent',color:'var(--sub)',fontSize:14,fontWeight:700,cursor:'pointer'}}>🚪 Sign Out</button>
@@ -1505,8 +1631,8 @@ function SettingsScreen({profile,onProfileChange,theme,onThemeChange,txns,cur,se
           Personal finance tracker with voice input,<br/>
           smart charts, and scheduled reminders.<br/>
           <br/>
-          Data is stored privately on your device.<br/>
-          No third-party data sharing.
+          Data is stored on this device and can sync<br/>
+          through your configured JSONBin account.
         </div>
       </div>
     </div>}
@@ -1526,17 +1652,23 @@ function App(){
   const [profile,setProfile]=useState(()=>LS.get('ledgr_profile',{name:'',email:'',phone:''}));
   const [theme,setTheme]=useState(()=>LS.get('ledgr_theme',null)||THEMES[0]);
   const [cur,setCur]=useState(()=>LS.get('ledgr_cur','USD'));
+  const [language,setLanguage]=useState(()=>LS.get('ledgr_lang','en-US'));
   const [budgetGoal,setBudgetGoal]=useState(()=>LS.get('ledgr_bgoal',0));
   const [incomeGoal,setIncomeGoal]=useState(()=>LS.get('ledgr_igoal',0));
+  const [syncState,setSyncState]=useState(()=>syncConfigured()?{label:'Ready',message:'Cloud sync ready',ok:true}:{label:'Setup needed',message:'Paste your JSONBin bin ID in CONFIG.JSONBIN_BIN_ID.',warn:true});
   const [toasts,setToasts]=useState([]);
   const [editSheet,setEditSheet]=useState(null);
+  const syncReady=useRef(false);
+  const lastSaveSig=useRef('');
 
   useEffect(()=>{applyTheme(theme);},[theme]);
+  useEffect(()=>{document.documentElement.lang=getLang(language).html;},[language]);
   useEffect(()=>{LS.set('ledgr_tab',tab);},[tab]);
   useEffect(()=>{LS.set('ledgr_txns',txns);},[txns]);
   useEffect(()=>{LS.set('ledgr_profile',profile);},[profile]);
   useEffect(()=>{LS.set('ledgr_theme',theme);},[theme]);
   useEffect(()=>{LS.set('ledgr_cur',cur);},[cur]);
+  useEffect(()=>{LS.set('ledgr_lang',language);},[language]);
   useEffect(()=>{LS.set('ledgr_bgoal',budgetGoal);},[budgetGoal]);
   useEffect(()=>{LS.set('ledgr_igoal',incomeGoal);},[incomeGoal]);
 
@@ -1547,6 +1679,84 @@ function App(){
   useEffect(()=>{setTimeout(()=>{const s=document.getElementById('splash');if(s){s.classList.add('hide');setTimeout(()=>s.remove(),600);}},900);},[]);
 
   const toast=useCallback((t)=>{const id=Date.now();setToasts(prev=>[{...t,id},...prev].slice(0,3));setTimeout(()=>setToasts(prev=>prev.filter(x=>x.id!==id)),4500);},[]);
+
+  const snapshot=useCallback(()=>({txns,profile,theme,cur,language,budgetGoal,incomeGoal}),[txns,profile,theme,cur,language,budgetGoal,incomeGoal]);
+  const applySnapshot=useCallback(data=>{
+    if(!data)return;
+    if(Array.isArray(data.txns))setTxns(data.txns);
+    if(data.profile)setProfile(data.profile);
+    if(data.theme)setTheme(data.theme);
+    if(data.cur)setCur(data.cur);
+    if(data.language)setLanguage(data.language);
+    if(typeof data.budgetGoal==='number')setBudgetGoal(data.budgetGoal);
+    if(typeof data.incomeGoal==='number')setIncomeGoal(data.incomeGoal);
+  },[]);
+  const syncNow=useCallback(async(showToast=true)=>{
+    const email=user?.email||profile.email;
+    if(!email){setSyncState({label:'No email',message:'Sign in with email before syncing.',warn:true});return;}
+    setSyncState({label:'Syncing...',message:'Checking cloud data...',warn:true});
+    const cloud=await loadCloudData(email);
+    if(!cloud.ok){setSyncState({label:'Setup needed',message:cloud.err,warn:true});if(showToast)toast({icon:'☁️',title:'Cloud sync setup needed',body:cloud.err,warn:true});return;}
+    if(cloud.data?.updatedAt){
+      const localUpdated=LS.get('ledgr_updated_at',0);
+      if(cloud.data.updatedAt>localUpdated){
+        applySnapshot(cloud.data);LS.set('ledgr_updated_at',cloud.data.updatedAt);syncReady.current=true;
+        setSyncState({label:'Synced',message:'Loaded cloud data '+new Date(cloud.data.updatedAt).toLocaleString(),ok:true});
+        if(showToast)toast({icon:'☁️',title:'Cloud data loaded',body:'This device now has your saved data.'});
+        return;
+      }
+    }
+    const saved=await saveCloudData(email,{...snapshot(),updatedAt:Date.now()});
+    syncReady.current=true;
+    if(saved.ok){LS.set('ledgr_updated_at',Date.now());setSyncState({label:'Synced',message:'Last synced '+new Date().toLocaleTimeString(),ok:true});if(showToast)toast({icon:'☁️',title:'Cloud synced',body:'Your data is updated for this email.'});}
+    else{setSyncState({label:'Sync failed',message:saved.err,warn:true});if(showToast)toast({icon:'⚠️',title:'Sync failed',body:saved.err,warn:true});}
+  },[user,profile,snapshot,applySnapshot,toast]);
+
+  useEffect(()=>{if(user?.email)syncNow(false);},[user?.email]);
+  useEffect(()=>{
+    if(!user?.email||!syncConfigured())return;
+    const sig=JSON.stringify(snapshot());
+    if(sig===lastSaveSig.current)return;
+    lastSaveSig.current=sig;
+    const t=setTimeout(async()=>{
+      const saved=await saveCloudData(user.email,{...snapshot(),updatedAt:Date.now()});
+      if(saved.ok){LS.set('ledgr_updated_at',Date.now());setSyncState({label:'Synced',message:'Saved to cloud '+new Date().toLocaleTimeString(),ok:true});}
+      else setSyncState({label:'Sync failed',message:saved.err,warn:true});
+    },1200);
+    return()=>clearTimeout(t);
+  },[user?.email,snapshot]);
+
+  useEffect(()=>{
+    const run=async()=>{
+      const email=profile.email||user?.email;
+      const emailOn=LS.get('n_email',true);
+      const summaryOn=LS.get('n_summary',false);
+      const summaryTime=LS.get('n_sum_time','21:00');
+      if(!email)return;
+      if(emailOn){
+        for(const tx of txns){
+          if(!tx.scheduled||!tx.notifyWhenDue)continue;
+          const dueIn=minutesUntil(tx.date,tx.remindTime||'09:00');
+          const sentKey='sent_due_'+tx.id+'_'+tx.date+'_'+normalizeTime(tx.remindTime||'09:00');
+          if(dueIn<=0&&dueIn>-10*60*1000&&!LS.get(sentKey,false)){
+            const res=await sendEmail(email,'LedgrTrack scheduled transaction due',makeDueEmail({tx,cur,locale:language}));
+            if(res.ok){LS.set(sentKey,true);toast({icon:'📧',title:'Due reminder sent',body:tx.note||getCat(tx.type,tx.category).label});}
+          }
+        }
+      }
+      if(summaryOn){
+        const sumKey='sent_summary_'+todayStr()+'_'+normalizeTime(summaryTime);
+        const sumDue=minutesUntil(todayStr(),summaryTime);
+        if(sumDue<=0&&sumDue>-10*60*1000&&!LS.get(sumKey,false)){
+          const res=await sendEmail(email,'LedgrTrack daily summary',makeSummaryEmail({profile,txns,cur,locale:language}));
+          if(res.ok){LS.set(sumKey,true);toast({icon:'📊',title:'Daily summary sent',body:'Check '+email});}
+        }
+      }
+    };
+    run();
+    const id=setInterval(run,60000);
+    return()=>clearInterval(id);
+  },[txns,profile,user,cur,language,toast]);
 
   const addTx=t=>setTxns(p=>[t,...p]);
   const editTx=t=>setTxns(p=>p.map(x=>x.id===t.id?t:x));
@@ -1564,7 +1774,7 @@ function App(){
     <AddScreen onAdd={t=>{addTx(t);setTab(0);}} toast={toast} cur={cur}/>,
     <ChartsScreen txns={txns} cur={cur}/>,
     <HistoryScreen txns={txns} onEdit={editTx} onDelete={delTx} cur={cur}/>,
-    <SettingsScreen profile={profile} onProfileChange={setProfile} theme={theme} onThemeChange={handleTheme} txns={txns} cur={cur} setCur={setCur} budgetGoal={budgetGoal} setBudgetGoal={setBudgetGoal} incomeGoal={incomeGoal} setIncomeGoal={setIncomeGoal} onReset={handleReset} onLogout={handleLogout} toast={toast}/>,
+    <SettingsScreen profile={profile} onProfileChange={setProfile} theme={theme} onThemeChange={handleTheme} txns={txns} cur={cur} setCur={setCur} language={language} setLanguage={setLanguage} syncState={syncState} onSyncNow={()=>syncNow(true)} budgetGoal={budgetGoal} setBudgetGoal={setBudgetGoal} incomeGoal={incomeGoal} setIncomeGoal={setIncomeGoal} onReset={handleReset} onLogout={handleLogout} toast={toast}/>,
   ];
 
   const isRealPhone=window.innerWidth<=500&&'ontouchstart' in window;
