@@ -2,6 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
+<meta name="app-version" content="1777179681"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta http-equiv="Expires" content="0"/>
@@ -1108,245 +1112,253 @@ function ChartsScreen({txns,cur,lang}){
   const [selDay,setSelDay]=useState(null);
   const [selWeek,setSelWeek]=useState(null);
 
-  const nav=d=>{let m=vm+d,y=vy;if(m<0){m=11;y--;}if(m>11){m=0;y++;}setVm(m);setVy(y);setSelCat(null);setSelDay(null);setSelWeek(null);};
+  const nav=d=>{
+    let m=vm+d,y=vy;
+    if(m<0){m=11;y--;}
+    if(m>11){m=0;y++;}
+    setVm(m);setVy(y);setSelCat(null);setSelDay(null);setSelWeek(null);
+  };
+
   const live=txns.filter(x=>!x.scheduled);
   const mn=live.filter(x=>{const d=new Date(x.date+'T12:00:00');return d.getMonth()===vm&&d.getFullYear()===vy;});
-  const prevMn=live.filter(x=>{const d=new Date(x.date+'T12:00:00');let pm=vm-1,py=vy;if(pm<0){pm=11;py--;}return d.getMonth()===pm&&d.getFullYear()===py;});
+  let pm=vm-1,py=vy;if(pm<0){pm=11;py--;}
+  const prevMn=live.filter(x=>{const d=new Date(x.date+'T12:00:00');return d.getMonth()===pm&&d.getFullYear()===py;});
   const inc=mn.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
   const exp=mn.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
   const net=inc-exp;
   const prevInc=prevMn.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
   const prevExp=prevMn.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
   const savRate=inc>0?Math.round((net/inc)*100):0;
+  const isCurrentMonth=vm===now.getMonth()&&vy===now.getFullYear();
 
-  // Weekly data
-  const weeks=['W1','W2','W3','W4','W5'].map((l,wi)=>{
+  const weeks=useMemo(()=>['W1','W2','W3','W4'].map((l,wi)=>{
     const w=mn.filter(x=>{const day=new Date(x.date+'T12:00:00').getDate();return Math.floor((day-1)/7)===wi;});
-    const i=w.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
-    const e=w.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
-    return{l,i,e,txns:w,count:w.length};
-  }).filter(w=>w.count>0||w.l==='W1'||w.l==='W2'||w.l==='W3'||w.l==='W4');
+    return{l,i:w.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0),e:w.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0),count:w.length};
+  }),[mn]);
 
-  // Category breakdown
-  const cats=EXP_CATS.map(cat=>({
-    ...cat,
-    v:mn.filter(x=>x.type==='expense'&&x.category===cat.id).reduce((s,x)=>s+x.amount,0),
+  const cats=useMemo(()=>EXP_CATS.map(cat=>({
+    ...cat,v:mn.filter(x=>x.type==='expense'&&x.category===cat.id).reduce((s,x)=>s+x.amount,0),
     txns:mn.filter(x=>x.type==='expense'&&x.category===cat.id)
-  })).filter(c=>c.v>0).sort((a,b)=>b.v-a.v);
-  const topCat=cats[0];
+  })).filter(cat=>cat.v>0).sort((a,b)=>b.v-a.v),[mn]);
 
-  // Daily data for heatmap
-  const dim=new Date(vy,vm+1,0).getDate(),fd=new Date(vy,vm,1).getDay();
-  const days=Array.from({length:dim},(_,i)=>{
+  const incCats=useMemo(()=>INC_CATS.map(cat=>({
+    ...cat,v:mn.filter(x=>x.type==='income'&&x.category===cat.id).reduce((s,x)=>s+x.amount,0)
+  })).filter(cat=>cat.v>0).sort((a,b)=>b.v-a.v),[mn]);
+
+  const dim=new Date(vy,vm+1,0).getDate();
+  const fd=new Date(vy,vm,1).getDay();
+  const days=useMemo(()=>Array.from({length:dim},(_,i)=>{
     const d=i+1;
     const dt=mn.filter(x=>new Date(x.date+'T12:00:00').getDate()===d);
     const ni=dt.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
     const ne=dt.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
     return{d,net:ni-ne,inc:ni,exp:ne,count:dt.length,txns:dt};
-  });
+  }),[mn,dim]);
 
-  // Running balance
-  const sorted=[...live].sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const sorted=useMemo(()=>[...live].sort((a,b)=>new Date(a.date)-new Date(b.date)),[live]);
   let runBal=0;
-  const balPts=sorted.map(x=>{runBal+=x.type==='income'?x.amount:-x.amount;return{y:runBal,date:x.date};});
+  const balPts=useMemo(()=>sorted.map(x=>{runBal+=x.type==='income'?x.amount:-x.amount;return{y:runBal};}),[sorted]);
+  const finalBal=balPts.length>0?balPts[balPts.length-1].y:0;
 
-  // Income categories
-  const incCats=INC_CATS.map(cat=>({
-    ...cat,
-    v:mn.filter(x=>x.type==='income'&&x.category===cat.id).reduce((s,x)=>s+x.amount,0)
-  })).filter(c=>c.v>0).sort((a,b)=>b.v-a.v);
+  const topCat=cats[0]||null;
+  const topDay=useMemo(()=>{const expDays=days.filter(d=>d.exp>0);return expDays.sort((a,b)=>b.exp-a.exp)[0]||null;},[days]);
+
+  // 6-month data (no IIFEs needed — computed in useMemo)
+  const sixMonths=useMemo(()=>Array.from({length:6},(_,i)=>{
+    let m=vm-5+i,y=vy;
+    while(m<0){m+=12;y--;}
+    while(m>11){m-=12;y++;}
+    const mTxns=live.filter(x=>{const d=new Date(x.date+'T12:00:00');return d.getMonth()===m&&d.getFullYear()===y;});
+    const mi=mTxns.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
+    const me=mTxns.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
+    return{l:new Date(y,m,1).toLocaleString('default',{month:'short'}),m,y,i:mi,e:me,net:mi-me,isCurrent:m===vm&&y===vy};
+  }),[live,vm,vy]);
 
   // Insights
-  const insights=[];
-  if(net>0)insights.push({icon:'🎉',color:'var(--green)',txt:`Great month! You saved ${fmtMoney(net,cur)} (${savRate}% of income).`});
-  else if(net<0)insights.push({icon:'⚠️',color:'var(--red)',txt:`Spending exceeded income by ${fmtMoney(Math.abs(net),cur)} this month.`});
-  if(topCat)insights.push({icon:topCat.icon,color:'var(--accent)',txt:`Biggest expense: ${topCat.label} at ${fmtMoney(topCat.v,cur)} (${exp>0?Math.round(topCat.v/exp*100):0}% of total).`});
-  if(prevExp>0){const diff=exp-prevExp;insights.push({icon:diff>0?'📈':'📉',color:diff>0?'var(--red)':'var(--green)',txt:`Expenses ${diff>0?'up':'down'} ${fmtMoney(Math.abs(diff),cur)} vs last month (${prevExp>0?Math.round(Math.abs(diff)/prevExp*100):0}%).`});}
-  const topDay=days.filter(d=>d.exp>0).sort((a,b)=>b.exp-a.exp)[0];
-  if(topDay)insights.push({icon:'📅',color:'var(--sub)',txt:`Highest spending day: ${topDay.d} ${monthLbl(vy,vm).split(' ')[0]} — ${fmtMoney(topDay.exp,cur)}.`});
+  const insights=useMemo(()=>{
+    const ins=[];
+    if(net>0)ins.push({icon:'🎉',txt:'Great month! Saved '+fmtMoney(net,cur)+' ('+savRate+'% of income).'});
+    else if(net<0)ins.push({icon:'⚠️',txt:'Spending exceeded income by '+fmtMoney(Math.abs(net),cur)+'.'});
+    if(topCat)ins.push({icon:topCat.icon,txt:'Biggest expense: '+topCat.label+' at '+fmtMoney(topCat.v,cur)+' ('+(exp>0?Math.round(topCat.v/exp*100):0)+'% of total).'});
+    const diff=exp-prevExp;
+    if(prevExp>0)ins.push({icon:diff>0?'📈':'📉',txt:'Expenses '+(diff>0?'up':'down')+' '+fmtMoney(Math.abs(diff),cur)+' vs last month.'});
+    if(topDay)ins.push({icon:'📅',txt:'Highest spend day: '+topDay.d+' '+monthLbl(vy,vm).split(' ')[0]+' — '+fmtMoney(topDay.exp,cur)+'.'});
+    return ins;
+  },[mn,net,topCat,exp,prevExp,topDay,cur,savRate]);
 
-  const CHARTS=[{id:'overview',icon:'📊',l:'Overview'},{id:'spending',icon:'🍩',l:'Spending'},{id:'trends',icon:'📈',l:'Trends'},{id:'calendar',icon:'📅',l:'Calendar'},{id:'insights',icon:'💡',l:'Insights'}];
-
-  // SVG helpers
-  const W=340,BH=140;
+  // SVG dimensions
+  const W=320,BH=120;
   const maxW=Math.max(...weeks.map(w=>Math.max(w.i,w.e)),1);
-  const barW=Math.floor(W/weeks.length)-8;
+  const barW=Math.max(Math.floor(W/4)-14,20);
+  const maxSix=Math.max(...sixMonths.flatMap(m=>[m.i,m.e]),1);
+  const balYs=balPts.map(p=>p.y);
+  const balMin=balYs.length>0?Math.min(...balYs):0;
+  const balMax=balYs.length>0?Math.max(...balYs):1;
+  const balRange=balMax-balMin||1;
+  const balH=70;
+  const balLine=balPts.map((p,i)=>(i===0?'M':'L')+(8+i*(W-16)/Math.max(balPts.length-1,1)).toFixed(1)+','+(balH-8-((p.y-balMin)/balRange*(balH-16))).toFixed(1)).join(' ');
+  const balArea=balLine+' L'+(W-8)+','+balH+' L8,'+balH+' Z';
+  const balZeroY=balH-8-((0-balMin)/balRange*(balH-16));
 
-  // Donut helper
-  const donutPath=(data,size)=>{
-    const total=data.reduce((s,d)=>s+d.v,0);if(!total)return[];
-    let angle=-Math.PI/2,r=size/2-6,cx=size/2,cy=size/2;
-    return data.map(d=>{
-      const sweep=(d.v/total)*2*Math.PI;
+  // Donut segments
+  const donutTotal=cats.reduce((s,c)=>s+c.v,0);
+  const donutSegs=useMemo(()=>{
+    if(!donutTotal)return[];
+    let angle=-Math.PI/2;
+    return cats.map(cat=>{
+      const sweep=(cat.v/donutTotal)*2*Math.PI;
+      const r=54,cx=65,cy=65;
       const x1=cx+r*Math.cos(angle),y1=cy+r*Math.sin(angle);
       const x2=cx+r*Math.cos(angle+sweep),y2=cy+r*Math.sin(angle+sweep);
       const large=sweep>Math.PI?1:0;
-      const path=`M${cx},${cy} L${x1},${y1} A${r},${r},0,${large},1,${x2},${y2} Z`;
+      const path='M'+cx+','+cy+' L'+x1.toFixed(2)+','+y1.toFixed(2)+' A'+r+','+r+',0,'+large+',1,'+x2.toFixed(2)+','+y2.toFixed(2)+' Z';
       angle+=sweep;
-      return{...d,path,pct:Math.round(d.v/total*100)};
+      return{...cat,path,pct:Math.round(cat.v/donutTotal*100)};
     });
-  };
+  },[cats,donutTotal]);
 
-  // Line chart
-  const lineChart=(pts,h,color)=>{
-    if(pts.length<2)return null;
-    const ys=pts.map(p=>p.y);
-    const minY=Math.min(...ys),maxY=Math.max(...ys);
-    const range=maxY-minY||1;
-    const scaleY=y=>h-8-((y-minY)/range*(h-16));
-    const scaleX=i=>8+(i/(pts.length-1))*(W-16);
-    const line=pts.map((p,i)=>`${i===0?'M':'L'}${scaleX(i).toFixed(1)},${scaleY(p.y).toFixed(1)}`).join(' ');
-    const area=`${line} L${scaleX(pts.length-1).toFixed(1)},${h} L${scaleX(0).toFixed(1)},${h} Z`;
-    return{line,area,scaleX,scaleY,pts};
-  };
+  // Net savings line
+  const netVals=sixMonths.map(m=>m.net);
+  const netMin=Math.min(...netVals);
+  const netMax=Math.max(...netVals);
+  const netRange=netMax-netMin||1;
+  const NH=70;
+  const netLine=sixMonths.map((m,i)=>(i===0?'M':'L')+(8+i*(W-16)/5).toFixed(1)+','+(NH-8-((m.net-netMin)/netRange*(NH-16))).toFixed(1)).join(' ');
+  const netZeroY=NH-8-((0-netMin)/netRange*(NH-16));
 
-  const isCurrentMonth=vm===now.getMonth()&&vy===now.getFullYear();
+  const CHARTS=[{id:'overview',icon:'📊',l:'Overview'},{id:'spending',icon:'🍩',l:'Spending'},{id:'trends',icon:'📈',l:'Trends'},{id:'calendar',icon:'📅',l:'Calendar'},{id:'insights',icon:'💡',l:'Insights'}];
 
-  return<div style={{color:'var(--text)',paddingBottom:`calc(var(--tab-h) + env(safe-area-inset-bottom,0px) + 20px)`}}>
+  const selDayData=selDay?days.find(d=>d.d===selDay):null;
+  const selCatData=selCat?cats.find(cat=>cat.id===selCat):null;
 
+  const kpiCards=[
+    {l:'Income',v:inc,prev:prevInc,c:'var(--green)',icon:'💚'},
+    {l:'Expenses',v:exp,prev:prevExp,c:'var(--red)',icon:'❤️'},
+    {l:'Net',v:net,prev:prevInc-prevExp,c:net>=0?'var(--green)':'var(--red)',icon:net>=0?'📈':'📉'},
+    {l:'Savings %',v:savRate+'%',prev:null,c:'var(--accent)',icon:'💰'},
+  ];
+
+  const pStyle={paddingBottom:`calc(var(--tab-h) + env(safe-area-inset-bottom,0px) + 20px)`};
+
+  return<div style={{color:'var(--text)',...pStyle}}>
     {/* Header */}
     <div style={{padding:'var(--hdr) 16px 0',background:'var(--bg)',position:'sticky',top:0,zIndex:10}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
         <div style={{fontSize:26,fontWeight:900,letterSpacing:-.5}}>{t('charts')}</div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <button onClick={()=>nav(-1)} style={{width:32,height:32,borderRadius:10,background:'var(--card)',border:'1px solid var(--border)',color:'var(--text)',fontSize:16,cursor:'pointer'}}>‹</button>
-          <div style={{fontSize:12,color:'var(--sub)',minWidth:96,textAlign:'center',fontWeight:700}}>{monthLbl(vy,vm)}</div>
-          <button onClick={()=>nav(1)} disabled={isCurrentMonth} style={{width:32,height:32,borderRadius:10,background:'var(--card)',border:'1px solid var(--border)',color:isCurrentMonth?'var(--muted2)':'var(--text)',fontSize:16,cursor:isCurrentMonth?'default':'pointer'}}>›</button>
+          <button onClick={()=>nav(-1)} style={{width:32,height:32,borderRadius:10,background:'var(--card)',border:'1px solid var(--border)',color:'var(--text)',fontSize:16,cursor:'pointer'}}>&#8249;</button>
+          <span style={{fontSize:12,color:'var(--sub)',minWidth:96,textAlign:'center',fontWeight:700}}>{monthLbl(vy,vm)}</span>
+          <button onClick={()=>nav(1)} disabled={isCurrentMonth} style={{width:32,height:32,borderRadius:10,background:'var(--card)',border:'1px solid var(--border)',color:isCurrentMonth?'var(--muted2)':'var(--text)',fontSize:16,cursor:'pointer'}}>&#8250;</button>
         </div>
       </div>
-      {/* Chart selector tabs */}
-      <div style={{display:'flex',gap:6,overflowX:'auto',paddingBottom:12,scrollbarWidth:'none'}}>
-        {CHARTS.map(ch=><button key={ch.id} onClick={()=>setActiveChart(ch.id)} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:99,border:`1px solid ${activeChart===ch.id?'var(--accent)':'var(--border)'}`,background:activeChart===ch.id?'var(--a10)':'var(--card)',color:activeChart===ch.id?'var(--accent)':'var(--muted)',fontSize:13,fontWeight:700,whiteSpace:'nowrap',flexShrink:0,cursor:'pointer',transition:'all .15s'}}>
-          <span>{ch.icon}</span><span>{ch.l}</span>
+      <div style={{display:'flex',gap:6,overflowX:'auto',paddingBottom:12,msOverflowStyle:'none'}}>
+        {CHARTS.map(ch=><button key={ch.id} onClick={()=>setActiveChart(ch.id)} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:99,border:'1px solid '+(activeChart===ch.id?'var(--accent)':'var(--border)'),background:activeChart===ch.id?'var(--a10)':'var(--card)',color:activeChart===ch.id?'var(--accent)':'var(--muted)',fontSize:13,fontWeight:700,whiteSpace:'nowrap',flexShrink:0,cursor:'pointer'}}>
+          {ch.icon} {ch.l}
         </button>)}
       </div>
     </div>
 
     <div style={{padding:'0 16px'}}>
 
-    {/* ── OVERVIEW ── */}
+    {/* OVERVIEW */}
     {activeChart==='overview'&&<div>
-      {/* KPI cards */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
-        {[
-          {l:'Income',v:inc,prev:prevInc,c:'var(--green)',icon:'💚'},
-          {l:'Expenses',v:exp,prev:prevExp,c:'var(--red)',icon:'❤️'},
-          {l:'Net Savings',v:net,prev:prevInc-prevExp,c:net>=0?'var(--green)':'var(--red)',icon:net>=0?'📈':'📉'},
-          {l:'Saving Rate',v:savRate,prev:prevInc>0?Math.round(((prevInc-prevExp)/prevInc)*100):0,c:'var(--accent)',icon:'💰',pct:true},
-        ].map(s=>{
-          const diff=s.v-(s.prev||0);
-          const hasChange=s.prev!==undefined&&s.prev!==null;
+        {kpiCards.map(s=>{
+          const diff=s.prev!=null?s.v-s.prev:null;
           return<div key={s.l} style={{background:'var(--card)',borderRadius:18,padding:'14px',border:'1px solid var(--border)'}}>
             <div style={{fontSize:20,marginBottom:6}}>{s.icon}</div>
             <div style={{fontSize:11,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.8,fontWeight:700,marginBottom:4}}>{s.l}</div>
-            <div style={{fontSize:18,fontWeight:900,color:s.c}}>{s.pct?savRate+'%':fmtK(s.v,cur)}</div>
-            {hasChange&&<div style={{fontSize:10,color:diff>=0?'var(--green)':'var(--red)',marginTop:3,fontWeight:700}}>{diff>=0?'▲':'▼'} {s.pct?Math.abs(diff)+'%':fmtK(Math.abs(diff),cur)} vs last month</div>}
+            <div style={{fontSize:17,fontWeight:900,color:s.c}}>{typeof s.v==='string'?s.v:fmtK(s.v,cur)}</div>
+            {diff!=null&&<div style={{fontSize:10,color:diff>=0?'var(--green)':'var(--red)',marginTop:3,fontWeight:700}}>{diff>=0?'▲':'▼'} {fmtK(Math.abs(diff),cur)} vs last mo</div>}
           </div>;
         })}
       </div>
 
-      {/* Weekly bar chart — interactive */}
+      {/* Weekly bars */}
       <div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)',marginBottom:12}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-          <div style={{fontSize:14,fontWeight:800}}>Weekly Breakdown</div>
+          <span style={{fontSize:14,fontWeight:800}}>Weekly Breakdown</span>
           <div style={{display:'flex',gap:12,fontSize:11}}>
             <span style={{color:'var(--green)',fontWeight:700}}>● Income</span>
             <span style={{color:'var(--red)',fontWeight:700}}>● Expenses</span>
           </div>
         </div>
-        <svg width="100%" viewBox={`0 0 ${W} ${BH+30}`} style={{overflow:'visible'}}>
-          {/* Grid lines */}
+        <svg width="100%" viewBox={'0 0 '+W+' '+(BH+30)} style={{overflow:'visible'}}>
           {[0.25,0.5,0.75,1].map(f=><line key={f} x1="0" y1={BH*(1-f)} x2={W} y2={BH*(1-f)} stroke="var(--border)" strokeWidth=".5" strokeDasharray="4,4"/>)}
           {weeks.map((w,wi)=>{
-            const x=wi*(W/weeks.length)+(W/weeks.length-barW*2-4)/2;
+            const x=wi*(W/4)+(W/4-barW*2-4)/2;
             const ih=Math.round((w.i/maxW)*BH);
             const eh=Math.round((w.e/maxW)*BH);
-            const isSelected=selWeek===wi;
+            const isSel=selWeek===wi;
             return<g key={wi} onClick={()=>setSelWeek(selWeek===wi?null:wi)} style={{cursor:'pointer'}}>
-              <rect x={x} y={BH-ih} width={barW} height={ih} rx="4" fill={isSelected?"var(--green)":"rgba(48,209,88,.6)"} opacity={selWeek!==null&&!isSelected?.4:1}/>
-              <rect x={x+barW+4} y={BH-eh} width={barW} height={eh} rx="4" fill={isSelected?"var(--red)":"rgba(255,69,58,.6)"} opacity={selWeek!==null&&!isSelected?.4:1}/>
-              <text x={x+barW+2} y={BH+14} textAnchor="middle" fontSize="10" fill="var(--muted)" fontWeight="700">{w.l}</text>
+              <rect x={x} y={BH-ih} width={barW} height={Math.max(ih,2)} rx="4" fill={isSel?'var(--green)':'rgba(48,209,88,.55)'} opacity={selWeek!=null&&!isSel?.4:1}/>
+              <rect x={x+barW+4} y={BH-eh} width={barW} height={Math.max(eh,2)} rx="4" fill={isSel?'var(--red)':'rgba(255,69,58,.55)'} opacity={selWeek!=null&&!isSel?.4:1}/>
+              <text x={x+barW+2} y={BH+16} textAnchor="middle" fontSize="11" fill="var(--muted)" fontWeight="700">{w.l}</text>
             </g>;
           })}
         </svg>
-        {selWeek!==null&&weeks[selWeek]&&<div style={{background:'var(--card2)',borderRadius:12,padding:'10px 14px',marginTop:8,border:'1px solid var(--border)'}}>
-          <div style={{fontSize:12,fontWeight:700,marginBottom:4}}>{weeks[selWeek].l} — {weeks[selWeek].count} transactions</div>
+        {selWeek!=null&&weeks[selWeek]&&<div style={{background:'var(--card2)',borderRadius:12,padding:'10px 14px',marginTop:8,border:'1px solid var(--border)'}}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:4}}>{weeks[selWeek].l} — {weeks[selWeek].count} transactions</div>
           <div style={{display:'flex',gap:16,fontSize:12}}>
             <span style={{color:'var(--green)'}}>In: {fmtMoney(weeks[selWeek].i,cur)}</span>
             <span style={{color:'var(--red)'}}>Out: {fmtMoney(weeks[selWeek].e,cur)}</span>
-            <span style={{color:weeks[selWeek].i-weeks[selWeek].e>=0?'var(--green)':'var(--red)',fontWeight:700}}>Net: {fmtMoney(weeks[selWeek].i-weeks[selWeek].e,cur)}</span>
+            <span style={{fontWeight:700,color:weeks[selWeek].i-weeks[selWeek].e>=0?'var(--green)':'var(--red)'}}>Net: {fmtMoney(weeks[selWeek].i-weeks[selWeek].e,cur)}</span>
           </div>
         </div>}
       </div>
 
-      {/* Running balance line chart */}
-      {balPts.length>1&&(()=>{const lc=lineChart(balPts,90,'var(--accent)');return lc&&<div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)',marginBottom:12}}>
+      {/* Running balance */}
+      {balPts.length>1&&<div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)',marginBottom:12}}>
         <div style={{fontSize:14,fontWeight:800,marginBottom:4}}>Running Balance</div>
-        <div style={{fontSize:12,color:'var(--sub)',marginBottom:10}}>Current: <strong style={{color:runBal>=0?'var(--green)':'var(--red)'}}>{fmtMoney(runBal,cur)}</strong></div>
-        <svg width="100%" viewBox={`0 0 ${W} 90`}>
-          <defs>
-            <linearGradient id="balGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--accent)" stopOpacity=".4"/>
-              <stop offset="100%" stopColor="var(--accent)" stopOpacity="0"/>
-            </linearGradient>
-          </defs>
-          <path d={lc.area} fill="url(#balGrad)"/>
-          <path d={lc.line} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          {/* Zero line */}
-          <line x1="0" y1={lc.scaleY(0)} x2={W} y2={lc.scaleY(0)} stroke="var(--border)" strokeWidth="1" strokeDasharray="4,4"/>
+        <div style={{fontSize:12,color:'var(--sub)',marginBottom:10}}>Current: <strong style={{color:finalBal>=0?'var(--green)':'var(--red)'}}>{fmtMoney(finalBal,cur)}</strong></div>
+        <svg width="100%" viewBox={'0 0 '+W+' '+balH}>
+          <defs><linearGradient id="bGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--accent)" stopOpacity=".35"/><stop offset="100%" stopColor="var(--accent)" stopOpacity="0"/></linearGradient></defs>
+          <path d={balArea} fill="url(#bGrad)"/>
+          <path d={balLine} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <line x1="0" y1={balZeroY} x2={W} y2={balZeroY} stroke="var(--border)" strokeWidth="1" strokeDasharray="4,4"/>
         </svg>
-      </div>;})()}
+      </div>}
     </div>}
 
-    {/* ── SPENDING BREAKDOWN ── */}
+    {/* SPENDING */}
     {activeChart==='spending'&&<div>
       {cats.length===0?<div style={{textAlign:'center',padding:'60px 0',color:'var(--muted)'}}>
         <div style={{fontSize:48,marginBottom:12}}>🍩</div>
         <div style={{fontSize:16,fontWeight:700}}>No expenses this month</div>
-      </div>:<>
-        {/* Donut */}
+      </div>:<div>
         <div style={{background:'var(--card)',borderRadius:20,padding:'20px',border:'1px solid var(--border)',marginBottom:12}}>
-          <div style={{fontSize:14,fontWeight:800,marginBottom:16}}>Expense Breakdown</div>
+          <div style={{fontSize:14,fontWeight:800,marginBottom:16}}>Expense Breakdown — tap to drill down</div>
           <div style={{display:'flex',gap:16,alignItems:'center'}}>
-            <div style={{flexShrink:0,position:'relative'}}>
-              <svg width="130" height="130" viewBox="0 0 130 130" style={{cursor:'pointer'}}>
-                {donutPath(cats,130).map((seg,i)=><path key={i} d={seg.path} fill={seg.color||'var(--accent)'} opacity={selCat&&selCat!==seg.id?.5:1} onClick={()=>setSelCat(selCat===seg.id?null:seg.id)} style={{transition:'opacity .2s'}}/>)}
-                <circle cx="65" cy="65" r="36" fill="var(--card)"/>
-                <text x="65" y="60" textAnchor="middle" fontSize="11" fill="var(--muted)" fontWeight="700">TOTAL</text>
-                <text x="65" y="76" textAnchor="middle" fontSize="12" fill="var(--text)" fontWeight="900">{fmtK(exp,cur)}</text>
-              </svg>
-            </div>
-            <div style={{flex:1,display:'flex',flexDirection:'column',gap:8}}>
-              {cats.map(cat=><div key={cat.id} onClick={()=>setSelCat(selCat===cat.id?null:cat.id)} style={{cursor:'pointer',opacity:selCat&&selCat!==cat.id?.4:1,transition:'opacity .2s'}}>
+            <svg width="130" height="130" viewBox="0 0 130 130" style={{flexShrink:0}}>
+              {donutSegs.map((seg,i)=><path key={i} d={seg.path} fill={seg.color||'var(--accent)'} opacity={selCat&&selCat!==seg.id?.4:1} onClick={()=>setSelCat(selCat===seg.id?null:seg.id)} style={{cursor:'pointer',transition:'opacity .2s'}}/>)}
+              <circle cx="65" cy="65" r="36" fill="var(--card)"/>
+              <text x="65" y="60" textAnchor="middle" fontSize="11" fill="var(--muted)" fontWeight="700">TOTAL</text>
+              <text x="65" y="77" textAnchor="middle" fontSize="12" fill="var(--text)" fontWeight="900">{fmtK(exp,cur)}</text>
+            </svg>
+            <div style={{flex:1}}>
+              {cats.map(cat=><div key={cat.id} onClick={()=>setSelCat(selCat===cat.id?null:cat.id)} style={{marginBottom:10,cursor:'pointer',opacity:selCat&&selCat!==cat.id?.4:1}}>
                 <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
                   <span style={{fontSize:14}}>{cat.icon}</span>
-                  <div style={{flex:1,fontSize:11,color:'var(--sub)',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{cat.label}</div>
-                  <div style={{fontSize:12,fontWeight:800,color:'var(--red)',flexShrink:0}}>{fmtK(cat.v,cur)}</div>
+                  <span style={{flex:1,fontSize:11,color:'var(--sub)',fontWeight:600}}>{cat.label}</span>
+                  <span style={{fontSize:12,fontWeight:800,color:'var(--red)'}}>{fmtK(cat.v,cur)}</span>
                 </div>
                 <div style={{height:4,borderRadius:2,background:'var(--card2)',overflow:'hidden'}}>
-                  <div style={{height:'100%',width:`${exp>0?Math.round(cat.v/exp*100):0}%`,background:cat.color||'var(--accent)',borderRadius:2,transition:'width .4s'}}/>
+                  <div style={{height:'100%',width:(exp>0?Math.round(cat.v/exp*100):0)+'%',background:cat.color||'var(--accent)',borderRadius:2}}/>
                 </div>
               </div>)}
             </div>
           </div>
         </div>
-
-        {/* Selected category transactions */}
-        {selCat&&(()=>{const cat=cats.find(c=>c.id===selCat);return cat&&<div style={{background:'var(--card)',borderRadius:18,padding:'14px',border:`1px solid ${cat.color||'var(--accent)'}44`,marginBottom:12}}>
+        {selCatData&&<div style={{background:'var(--card)',borderRadius:18,padding:'14px',border:'1px solid var(--border)',marginBottom:12}}>
           <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
-            <span style={{fontSize:22}}>{cat.icon}</span>
-            <div>
-              <div style={{fontSize:14,fontWeight:800}}>{cat.label}</div>
-              <div style={{fontSize:12,color:'var(--sub)'}}>{cat.txns.length} transactions · {fmtMoney(cat.v,cur)} total</div>
-            </div>
+            <span style={{fontSize:22}}>{selCatData.icon}</span>
+            <div><div style={{fontSize:14,fontWeight:800}}>{selCatData.label}</div><div style={{fontSize:12,color:'var(--sub)'}}>{selCatData.txns.length} transactions · {fmtMoney(selCatData.v,cur)}</div></div>
           </div>
-          {cat.txns.map(x=><div key={x.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderTop:'1px solid var(--border)'}}>
-            <div><div style={{fontSize:13,fontWeight:600}}>{x.note||cat.label}</div><div style={{fontSize:11,color:'var(--muted)'}}>{dayStr(x.date)}</div></div>
-            <div style={{fontSize:14,fontWeight:800,color:'var(--red)'}}>-{fmtMoney(x.amount,cur)}</div>
+          {selCatData.txns.map(x=><div key={x.id} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderTop:'1px solid var(--border)'}}>
+            <div><div style={{fontSize:13,fontWeight:600}}>{x.note||selCatData.label}</div><div style={{fontSize:11,color:'var(--muted)'}}>{dayStr(x.date)}</div></div>
+            <span style={{fontSize:14,fontWeight:800,color:'var(--red)'}}>-{fmtMoney(x.amount,cur)}</span>
           </div>)}
-        </div>;})()}
-
-        {/* Income sources */}
+        </div>}
         {incCats.length>0&&<div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)'}}>
           <div style={{fontSize:14,fontWeight:800,marginBottom:10}}>Income Sources</div>
           {incCats.map(cat=><div key={cat.id} style={{marginBottom:10}}>
@@ -1355,179 +1367,141 @@ function ChartsScreen({txns,cur,lang}){
               <span style={{fontSize:13,fontWeight:800,color:'var(--green)'}}>{fmtMoney(cat.v,cur)}</span>
             </div>
             <div style={{height:4,borderRadius:2,background:'var(--card2)',overflow:'hidden'}}>
-              <div style={{height:'100%',width:`${inc>0?Math.round(cat.v/inc*100):0}%`,background:'var(--green)',borderRadius:2}}/>
+              <div style={{height:'100%',width:(inc>0?Math.round(cat.v/inc*100):0)+'%',background:'var(--green)',borderRadius:2}}/>
             </div>
           </div>)}
         </div>}
-      </>}
+      </div>}
     </div>}
 
-    {/* ── TRENDS ── */}
+    {/* TRENDS */}
     {activeChart==='trends'&&<div>
-      {/* Last 6 months trend */}
-      {(()=>{
-        const months=Array.from({length:6},(_,i)=>{
-          let m=vm-5+i,y=vy;while(m<0){m+=12;y--;}while(m>11){m-=12;y++;}
-          const mTxns=live.filter(x=>{const d=new Date(x.date+'T12:00:00');return d.getMonth()===m&&d.getFullYear()===y;});
-          return{l:new Date(y,m,1).toLocaleString('default',{month:'short'}),m,y,i:mTxns.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0),e:mTxns.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0)};
-        });
-        const maxVal=Math.max(...months.flatMap(m=>[m.i,m.e]),1);
-        const TH=100;
-        return<div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)',marginBottom:12}}>
-          <div style={{fontSize:14,fontWeight:800,marginBottom:4}}>6-Month Trend</div>
-          <div style={{fontSize:12,color:'var(--sub)',marginBottom:12}}>Income vs Expenses over time</div>
-          <svg width="100%" viewBox={`0 0 ${W} ${TH+30}`}>
-            {[.25,.5,.75,1].map(f=><line key={f} x1="0" y1={TH*(1-f)} x2={W} y2={TH*(1-f)} stroke="var(--border)" strokeWidth=".5"/>)}
-            {months.map((mo,i)=>{
-              const x=i*(W/months.length)+(W/months.length-22)/2;
-              const ih=Math.round((mo.i/maxVal)*TH);
-              const eh=Math.round((mo.e/maxVal)*TH);
-              const isCurrent=mo.m===vm&&mo.y===vy;
-              return<g key={i}>
-                <rect x={x} y={TH-ih} width={10} height={ih} rx="3" fill="var(--green)" opacity={isCurrent?1:.6}/>
-                <rect x={x+12} y={TH-eh} width={10} height={eh} rx="3" fill="var(--red)" opacity={isCurrent?1:.6}/>
-                <text x={x+11} y={TH+16} textAnchor="middle" fontSize="10" fill={isCurrent?"var(--accent)":"var(--muted)"} fontWeight={isCurrent?"900":"400"}>{mo.l}</text>
-                {isCurrent&&<rect x={x-2} y="-4" width={26} height={TH+8} rx="4" fill="var(--accent)" opacity=".08"/>}
-              </g>;
-            })}
-          </svg>
-          <div style={{display:'flex',justifyContent:'center',gap:16,marginTop:6,fontSize:11}}>
-            <span style={{color:'var(--green)',fontWeight:700}}>■ Income</span>
-            <span style={{color:'var(--red)',fontWeight:700}}>■ Expenses</span>
-          </div>
-        </div>;
-      })()}
+      <div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)',marginBottom:12}}>
+        <div style={{fontSize:14,fontWeight:800,marginBottom:4}}>6-Month Income vs Expenses</div>
+        <div style={{fontSize:12,color:'var(--sub)',marginBottom:12}}>Current month highlighted</div>
+        <svg width="100%" viewBox={'0 0 '+W+' 130'}>
+          {[.25,.5,.75,1].map(f=><line key={f} x1="0" y1={100*(1-f)} x2={W} y2={100*(1-f)} stroke="var(--border)" strokeWidth=".5"/>)}
+          {sixMonths.map((mo,i)=>{
+            const x=i*(W/6)+(W/6-22)/2;
+            const ih=Math.round((mo.i/maxSix)*100);
+            const eh=Math.round((mo.e/maxSix)*100);
+            return<g key={i}>
+              {mo.isCurrent&&<rect x={x-3} y="-4" width={28} height={108} rx="4" fill="var(--accent)" opacity=".08"/>}
+              <rect x={x} y={100-ih} width={10} height={Math.max(ih,2)} rx="3" fill="var(--green)" opacity={mo.isCurrent?1:.6}/>
+              <rect x={x+12} y={100-eh} width={10} height={Math.max(eh,2)} rx="3" fill="var(--red)" opacity={mo.isCurrent?1:.6}/>
+              <text x={x+11} y={116} textAnchor="middle" fontSize="10" fill={mo.isCurrent?'var(--accent)':'var(--muted)'} fontWeight={mo.isCurrent?'900':'400'}>{mo.l}</text>
+            </g>;
+          })}
+        </svg>
+        <div style={{display:'flex',justifyContent:'center',gap:16,fontSize:11}}>
+          <span style={{color:'var(--green)',fontWeight:700}}>■ Income</span>
+          <span style={{color:'var(--red)',fontWeight:700}}>■ Expenses</span>
+        </div>
+      </div>
 
-      {/* Net savings trend */}
-      {(()=>{
-        const months=Array.from({length:6},(_,i)=>{
-          let m=vm-5+i,y=vy;while(m<0){m+=12;y--;}
-          const mTxns=live.filter(x=>{const d=new Date(x.date+'T12:00:00');return d.getMonth()===m&&d.getFullYear()===y;});
-          const mi=mTxns.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
-          const me=mTxns.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
-          return{l:new Date(y,m,1).toLocaleString('default',{month:'short'}),net:mi-me,rate:mi>0?Math.round(((mi-me)/mi)*100):0};
-        });
-        const vals=months.map(m=>m.net);
-        const minV=Math.min(...vals),maxV=Math.max(...vals);
-        const range=maxV-minV||1;
-        const H=80;
-        const points=months.map((mo,i)=>({x:8+i*(W-16)/5,y:H-8-((mo.net-minV)/range*(H-16)),net:mo.net,l:mo.l,rate:mo.rate}));
-        const linePts=points.map((p,i)=>`${i===0?'M':'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-        return<div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)',marginBottom:12}}>
-          <div style={{fontSize:14,fontWeight:800,marginBottom:4}}>Net Savings Trend</div>
-          <div style={{fontSize:12,color:'var(--sub)',marginBottom:10}}>Monthly savings over 6 months</div>
-          <svg width="100%" viewBox={`0 0 ${W} ${H+20}`} style={{overflow:'visible'}}>
-            <line x1="0" y1={H-8-((0-minV)/range*(H-16))} x2={W} y2={H-8-((0-minV)/range*(H-16))} stroke="var(--border)" strokeWidth="1" strokeDasharray="4,4"/>
-            <path d={linePts} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-            {points.map((p,i)=><g key={i}>
-              <circle cx={p.x} cy={p.y} r="5" fill={p.net>=0?'var(--green)':'var(--red)'} stroke="var(--card)" strokeWidth="2"/>
-              <text x={p.x} y={H+18} textAnchor="middle" fontSize="9" fill="var(--muted)">{p.l}</text>
-            </g>)}
-          </svg>
-        </div>;
-      })()}
+      <div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)'}}>
+        <div style={{fontSize:14,fontWeight:800,marginBottom:4}}>Net Savings Trend</div>
+        <div style={{fontSize:12,color:'var(--sub)',marginBottom:10}}>6-month savings trajectory</div>
+        <svg width="100%" viewBox={'0 0 '+W+' '+(NH+20)} style={{overflow:'visible'}}>
+          <line x1="0" y1={netZeroY} x2={W} y2={netZeroY} stroke="var(--border)" strokeWidth="1" strokeDasharray="4,4"/>
+          <path d={netLine} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+          {sixMonths.map((mo,i)=>{
+            const cx=8+i*(W-16)/5;
+            const cy=NH-8-((mo.net-netMin)/netRange*(NH-16));
+            return<g key={i}>
+              <circle cx={cx} cy={cy} r="5" fill={mo.net>=0?'var(--green)':'var(--red)'} stroke="var(--card)" strokeWidth="2"/>
+              <text x={cx} y={NH+18} textAnchor="middle" fontSize="9" fill="var(--muted)">{mo.l}</text>
+            </g>;
+          })}
+        </svg>
+      </div>
     </div>}
 
-    {/* ── CALENDAR HEATMAP ── */}
+    {/* CALENDAR */}
     {activeChart==='calendar'&&<div>
       <div style={{background:'var(--card)',borderRadius:20,padding:'16px',border:'1px solid var(--border)',marginBottom:12}}>
         <div style={{fontSize:14,fontWeight:800,marginBottom:4}}>Day-by-Day Activity</div>
-        <div style={{fontSize:12,color:'var(--sub)',marginBottom:12}}>Tap a day to see transactions</div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4,marginBottom:12}}>
+        <div style={{fontSize:12,color:'var(--sub)',marginBottom:12}}>Tap any day to see transactions</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4,marginBottom:10}}>
           {['Su','Mo','Tu','We','Th','Fr','Sa'].map((d,i)=><div key={i} style={{fontSize:9,color:'var(--muted)',textAlign:'center',fontWeight:700,padding:'2px 0'}}>{d}</div>)}
           {Array.from({length:fd}).map((_,i)=><div key={'e'+i}/>)}
           {days.map(d=>{
-            const isToday=d.d===now.getDate()&&vm===now.getMonth()&&vy===now.getFullYear();
+            const isToday=d.d===now.getDate()&&isCurrentMonth;
             const isSel=selDay===d.d;
-            const intensity=d.exp>0?Math.min(d.exp/2000,1):0;
-            return<button key={d.d} onClick={()=>setSelDay(selDay===d.d?null:d.d)} style={{aspectRatio:'1',borderRadius:8,fontSize:10,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',background:isSel?'var(--accent)':!d.count?'var(--card2)':d.net>=0?`rgba(48,209,88,${.15+intensity*.5})`:`rgba(255,69,58,${.15+intensity*.5})`,color:isSel?'#000':!d.count?'var(--muted2)':d.net>=0?'var(--green)':'var(--red)',border:isToday?'2px solid var(--accent)':'1px solid transparent',cursor:'pointer',transition:'all .15s'}}>
+            return<button key={d.d} onClick={()=>setSelDay(selDay===d.d?null:d.d)} style={{aspectRatio:'1',borderRadius:8,fontSize:10,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',background:isSel?'var(--accent)':d.count===0?'var(--card2)':d.net>=0?'rgba(48,209,88,.2)':'rgba(255,69,58,.2)',color:isSel?'#000':d.count===0?'var(--muted2)':d.net>=0?'var(--green)':'var(--red)',border:isToday?'2px solid var(--accent)':'1px solid transparent',cursor:'pointer'}}>
               {d.d}
             </button>;
           })}
         </div>
         <div style={{display:'flex',gap:12,fontSize:11,justifyContent:'center'}}>
-          <span style={{color:'var(--green)',fontWeight:700}}>● Net positive</span>
-          <span style={{color:'var(--red)',fontWeight:700}}>● Net negative</span>
+          <span style={{color:'var(--green)',fontWeight:700}}>● Positive</span>
+          <span style={{color:'var(--red)',fontWeight:700}}>● Negative</span>
           <span style={{color:'var(--muted)',fontWeight:700}}>● No activity</span>
         </div>
       </div>
-
-      {/* Selected day detail */}
-      {selDay&&(()=>{const day=days.find(d=>d.d===selDay);return day&&day.count>0&&<div style={{background:'var(--card)',borderRadius:18,padding:'14px',border:'1px solid var(--border)'}}>
-        <div style={{fontSize:14,fontWeight:800,marginBottom:10}}>{selDay} {monthLbl(vy,vm)} — {day.count} transaction{day.count!==1?'s':''}</div>
-        {day.txns.map(x=>{const cat=getCat(x.type,x.category);return<div key={x.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderTop:'1px solid var(--border)'}}>
+      {selDayData&&selDayData.count>0&&<div style={{background:'var(--card)',borderRadius:18,padding:'14px',border:'1px solid var(--border)'}}>
+        <div style={{fontSize:14,fontWeight:800,marginBottom:10}}>{selDay} {monthLbl(vy,vm)} — {selDayData.count} transaction{selDayData.count!==1?'s':''}</div>
+        {selDayData.txns.map(x=>{const cat=getCat(x.type,x.category);return<div key={x.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderTop:'1px solid var(--border)'}}>
           <span style={{fontSize:20}}>{cat.icon}</span>
           <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600}}>{x.note||cat.label}</div><div style={{fontSize:11,color:'var(--muted)'}}>{cat.label}</div></div>
-          <div style={{fontSize:14,fontWeight:800,color:x.type==='income'?'var(--green)':'var(--red)'}}>{x.type==='income'?'+':'-'}{fmtMoney(x.amount,cur)}</div>
+          <span style={{fontSize:14,fontWeight:800,color:x.type==='income'?'var(--green)':'var(--red)'}}>{x.type==='income'?'+':'-'}{fmtMoney(x.amount,cur)}</span>
         </div>;})}
         <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid var(--border)',display:'flex',justifyContent:'space-between'}}>
           <span style={{fontSize:12,color:'var(--sub)'}}>Day net</span>
-          <span style={{fontSize:14,fontWeight:800,color:day.net>=0?'var(--green)':'var(--red)'}}>{day.net>=0?'+':''}{fmtMoney(day.net,cur)}</span>
+          <span style={{fontSize:14,fontWeight:800,color:selDayData.net>=0?'var(--green)':'var(--red)'}}>{selDayData.net>=0?'+':''}{fmtMoney(selDayData.net,cur)}</span>
         </div>
-      </div>;})()}
-
-      {selDay&&days.find(d=>d.d===selDay)?.count===0&&<div style={{background:'var(--card)',borderRadius:14,padding:'20px',textAlign:'center',color:'var(--muted)',border:'1px solid var(--border)'}}>
-        No transactions on {selDay} {monthLbl(vy,vm).split(' ')[0]}
       </div>}
+      {selDay&&selDayData&&selDayData.count===0&&<div style={{background:'var(--card)',borderRadius:14,padding:'20px',textAlign:'center',color:'var(--muted)',border:'1px solid var(--border)'}}>No transactions on {selDay} {monthLbl(vy,vm).split(' ')[0]}</div>}
     </div>}
 
-    {/* ── INSIGHTS ── */}
+    {/* INSIGHTS */}
     {activeChart==='insights'&&<div>
       {mn.length===0?<div style={{textAlign:'center',padding:'60px 0',color:'var(--muted)'}}>
         <div style={{fontSize:48,marginBottom:12}}>💡</div>
         <div style={{fontSize:16,fontWeight:700}}>Add transactions to see insights</div>
-      </div>:<>
-        {/* Insight cards */}
+      </div>:<div>
         {insights.map((ins,i)=><div key={i} style={{background:'var(--card)',borderRadius:18,padding:'16px',border:'1px solid var(--border)',marginBottom:10,display:'flex',gap:12,alignItems:'flex-start'}}>
-          <div style={{fontSize:24,flexShrink:0}}>{ins.icon}</div>
-          <div style={{fontSize:13,color:'var(--text)',lineHeight:1.6,fontWeight:500}}>{ins.txt}</div>
+          <span style={{fontSize:24,flexShrink:0}}>{ins.icon}</span>
+          <span style={{fontSize:13,color:'var(--text)',lineHeight:1.6,fontWeight:500}}>{ins.txt}</span>
         </div>)}
 
-        {/* Budget health */}
-        {(()=>{
-          const budgetPct=live.length>0?Math.min(Math.round(exp/Math.max(inc,1)*100),200):0;
-          const health=budgetPct<70?{l:'Healthy',c:'var(--green)',icon:'💚'}:budgetPct<90?{l:'Watch Out',c:'var(--accent)',icon:'⚡'}:{l:'Over Budget',c:'var(--red)',icon:'🔴'};
-          return<div style={{background:'var(--card)',borderRadius:18,padding:'16px',border:'1px solid var(--border)',marginBottom:10}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-              <div style={{fontSize:14,fontWeight:800}}>Budget Health</div>
-              <div style={{display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:700,color:health.c}}>{health.icon} {health.l}</div>
-            </div>
-            <div style={{height:12,borderRadius:6,background:'var(--card2)',overflow:'hidden',marginBottom:8}}>
-              <div style={{height:'100%',width:`${Math.min(budgetPct,100)}%`,background:health.c,borderRadius:6,transition:'width .5s'}}/>
-            </div>
-            <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'var(--sub)'}}>
-              <span>Spent {fmtMoney(exp,cur)}</span>
-              <span>{budgetPct}% of income</span>
-              <span>Saved {fmtMoney(Math.max(net,0),cur)}</span>
-            </div>
-          </div>;
-        })()}
-
-        {/* Top spending days */}
         <div style={{background:'var(--card)',borderRadius:18,padding:'16px',border:'1px solid var(--border)',marginBottom:10}}>
-          <div style={{fontSize:14,fontWeight:800,marginBottom:10}}>Top Spending Days</div>
-          {days.filter(d=>d.exp>0).sort((a,b)=>b.exp-a.exp).slice(0,5).map(d=><div key={d.d} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderTop:'1px solid var(--border)'}}>
-            <div style={{fontSize:13,color:'var(--sub)'}}>{d.d} {monthLbl(vy,vm).split(' ')[0]} · {d.count} transactions</div>
-            <div style={{fontSize:14,fontWeight:800,color:'var(--red)'}}>-{fmtMoney(d.exp,cur)}</div>
-          </div>)}
-          {days.filter(d=>d.exp>0).length===0&&<div style={{fontSize:13,color:'var(--muted)',textAlign:'center',padding:'16px 0'}}>No expenses recorded</div>}
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+            <span style={{fontSize:14,fontWeight:800}}>Budget Health</span>
+            <span style={{fontSize:13,fontWeight:700,color:savRate>=10?'var(--green)':savRate>=0?'var(--accent)':'var(--red)'}}>{savRate>=10?'💚 Healthy':savRate>=0?'⚡ Watch Out':'🔴 Over Budget'}</span>
+          </div>
+          <div style={{height:12,borderRadius:6,background:'var(--card2)',overflow:'hidden',marginBottom:8}}>
+            <div style={{height:'100%',width:Math.min(Math.max(savRate,0),100)+'%',background:savRate>=10?'var(--green)':savRate>=0?'var(--accent)':'var(--red)',borderRadius:6}}/>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'var(--sub)'}}>
+            <span>Spent {fmtMoney(exp,cur)}</span>
+            <span>Saved {fmtMoney(Math.max(net,0),cur)}</span>
+          </div>
         </div>
 
-        {/* Average transaction */}
+        <div style={{background:'var(--card)',borderRadius:18,padding:'16px',border:'1px solid var(--border)',marginBottom:10}}>
+          <div style={{fontSize:14,fontWeight:800,marginBottom:10}}>Top Spending Days</div>
+          {days.filter(d=>d.exp>0).sort((a,b)=>b.exp-a.exp).slice(0,5).map(d=><div key={d.d} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderTop:'1px solid var(--border)'}}>
+            <span style={{fontSize:13,color:'var(--sub)'}}>{d.d} {monthLbl(vy,vm).split(' ')[0]} · {d.count} txns</span>
+            <span style={{fontSize:14,fontWeight:800,color:'var(--red)'}}>-{fmtMoney(d.exp,cur)}</span>
+          </div>)}
+          {days.filter(d=>d.exp>0).length===0&&<div style={{fontSize:13,color:'var(--muted)',textAlign:'center',padding:'12px 0'}}>No expenses recorded</div>}
+        </div>
+
         {mn.length>0&&<div style={{background:'var(--card)',borderRadius:18,padding:'16px',border:'1px solid var(--border)'}}>
           <div style={{fontSize:14,fontWeight:800,marginBottom:10}}>Monthly Stats</div>
           {[
-            {l:'Avg transaction',v:fmtMoney(mn.reduce((s,x)=>s+x.amount,0)/mn.length,cur)},
             {l:'Total transactions',v:mn.length+' this month'},
-            {l:'Biggest expense',v:fmtMoney(Math.max(...mn.filter(x=>x.type==='expense').map(x=>x.amount),0),cur)},
-            {l:'Biggest income',v:fmtMoney(Math.max(...mn.filter(x=>x.type==='income').map(x=>x.amount),0),cur)},
-            {l:'Active days',v:new Set(mn.map(x=>x.date)).size+' of '+dim+' days'},
+            {l:'Active days',v:new Set(mn.map(x=>x.date)).size+' of '+dim},
+            {l:'Avg per transaction',v:fmtMoney(mn.reduce((s,x)=>s+x.amount,0)/mn.length,cur)},
+            {l:'Biggest expense',v:mn.filter(x=>x.type==='expense').length>0?('-'+fmtMoney(Math.max(...mn.filter(x=>x.type==='expense').map(x=>x.amount)),cur)):'—'},
+            {l:'Biggest income',v:mn.filter(x=>x.type==='income').length>0?('+'+fmtMoney(Math.max(...mn.filter(x=>x.type==='income').map(x=>x.amount)),cur)):'—'},
           ].map(s=><div key={s.l} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderTop:'1px solid var(--border)'}}>
             <span style={{fontSize:13,color:'var(--sub)'}}>{s.l}</span>
             <span style={{fontSize:13,fontWeight:700}}>{s.v}</span>
           </div>)}
         </div>}
-      </>}
+      </div>}
     </div>}
 
     </div>
@@ -2071,7 +2045,7 @@ function App(){
   },[txns,budgetGoal,incomeGoal,cur,lang,theme]);
 
   // Splash
-  useEffect(()=>{setTimeout(()=>{const s=document.getElementById('splash');if(s){s.classList.add('hide');setTimeout(()=>s.remove(),500);}},1200);},[]);
+  useEffect(()=>{setTimeout(()=>{const s=document.getElementById('splash');if(s){s.classList.add('hide');setTimeout(()=>s.remove(),600);}},800);},[]);
   // SW
   useEffect(()=>{'serviceWorker' in navigator&&navigator.serviceWorker.register('./sw.js').catch(()=>{});},[]);
   // Apply language dir
@@ -2349,7 +2323,14 @@ function App(){
   </>;
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+try{
+  ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+}catch(err){
+  // Show error instead of infinite loading
+  const s=document.getElementById('splash');
+  if(s){s.innerHTML='<div style="text-align:center;padding:40px;color:#ff453a"><div style="font-size:32px;margin-bottom:12px">⚠️</div><div style="font-size:16px;font-weight:700;margin-bottom:8px">App failed to load</div><div style="font-size:12px;color:#a0506080;margin-bottom:16px">'+err.message+'</div><button onclick="location.reload()" style="background:#f5a623;color:#000;border:none;padding:10px 20px;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px">Reload</button></div>';}
+  console.error('App crash:',err);
+}
 </script>
 </body>
 </html>
