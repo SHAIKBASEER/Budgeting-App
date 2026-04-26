@@ -47,7 +47,7 @@ body{height:100%;height:-webkit-fill-available;overflow:hidden;font-family:-appl
   --blue:#4e9af1;--b10:rgba(78,154,241,.1);
   --tab-h:62px;--safe-b:env(safe-area-inset-bottom,0px);--safe-t:env(safe-area-inset-top,0px);
   --hdr:calc(env(safe-area-inset-top,0px) + 58px);
-  --tab-pb:calc(env(safe-area-inset-bottom,0px) + var(--tab-h) + 16px);
+  --tab-pb:calc(env(safe-area-inset-bottom,0px) + var(--tab-h) + 8px);
   --radius:22px;
 }
 ::-webkit-scrollbar{display:none}
@@ -77,7 +77,7 @@ select option{background:#1c1c28;color:#f0f0f8}
 #splash{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;background:#0a0a12;transition:opacity .6s ease}
 #splash.hide{opacity:0;pointer-events:none}
 /* Tooltip base */
-.chart-tip{position:absolute;background:var(--card3);border:1px solid var(--border2);border-radius:12px;padding:10px 14px;font-size:12px;font-family:-apple-system,sans-serif;color:var(--text);pointer-events:none;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:200;animation:popIn .15s ease;transition:opacity .15s}
+.chart-tip{position:fixed;background:linear-gradient(180deg,var(--card3),var(--card2));border:1px solid var(--border2);border-radius:14px;padding:11px 14px;font-size:12px;font-family:-apple-system,sans-serif;color:var(--text);pointer-events:none;white-space:nowrap;box-shadow:0 16px 44px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.03) inset;z-index:9000;animation:popIn .15s ease;transition:opacity .15s;max-width:calc(100vw - 28px)}
 </style>
 </head>
 <body>
@@ -481,7 +481,7 @@ function Tog({on,fn,col='var(--accent)'}){
 }
 function Modal({onBg,ch}){
   return <div onClick={e=>{if(e.target===e.currentTarget&&onBg)onBg();}} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.72)',zIndex:8000,display:'flex',alignItems:'flex-end',animation:'fadeIn .2s'}}>
-    <div style={{background:'var(--card)',borderRadius:'28px 28px 0 0',width:'100%',maxHeight:'94dvh',maxHeight:'94vh',overflowY:'auto',animation:'slideUp .3s ease',paddingBottom:'calc(env(safe-area-inset-bottom,0px) + 12px)'}}>{ch}</div>
+    <div style={{background:'var(--card)',borderRadius:'28px 28px 0 0',width:'100%',maxHeight:'88dvh',overflowY:'auto',WebkitOverflowScrolling:'touch',animation:'slideUp .3s ease',paddingBottom:'env(safe-area-inset-bottom,0px)'}}>{ch}</div>
   </div>;
 }
 function Confirm({title,body,ok='Confirm',danger,onOk,onCancel}){
@@ -822,8 +822,8 @@ function TxSheet({tx,onSave,onClose,defSched=false,toast,cur='USD',voiceDefaults
         </div>}
       </div>
     </div>}
-    <div style={{padding:'4px 16px 8px'}}>
-      <button onClick={save} style={{width:'100%',padding:'16px',borderRadius:16,border:'none',background:!amt||!cat?'var(--card2)':'var(--accent)',color:!amt||!cat?'var(--muted)':'#000',fontSize:16,fontWeight:800,cursor:'pointer',transition:'all .2s'}}>{ed?'Update Transaction':'Save Transaction'}</button>
+    <div style={{position:'sticky',bottom:0,zIndex:5,padding:'10px 16px calc(env(safe-area-inset-bottom,0px) + 10px)',background:'linear-gradient(180deg,rgba(0,0,0,0),var(--card) 22%,var(--card))',borderTop:'1px solid var(--border)'}}>
+      <button onClick={save} style={{width:'100%',padding:'16px',borderRadius:16,border:'none',background:!amt||!cat?'var(--card2)':'linear-gradient(135deg,var(--accent),#ffbd45)',color:!amt||!cat?'var(--muted)':'#000',fontSize:16,fontWeight:900,cursor:'pointer',transition:'all .2s',boxShadow:amt&&cat?'0 12px 28px var(--a20)':'none'}}>{ed?'Update Transaction':'Save Transaction'}</button>
     </div>
   </>}/>;
 }
@@ -932,7 +932,7 @@ function AddScreen({onAdd,toast,cur,defSched}){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function Tooltip({tip}){
   if(!tip)return null;
-  return <div className="chart-tip" style={{left:tip.x,top:tip.y,transform:'translateX(-50%)'}}>
+  return <div className="chart-tip" style={{left:tip.x,top:tip.y,transform:'translate(-50%,-100%)'}}>
     {tip.lines.map((l,i)=><div key={i} style={{color:l.c||'var(--text)',fontWeight:l.bold?700:400,marginBottom:i<tip.lines.length-1?3:0}}>{l.t}</div>)}
   </div>;
 }
@@ -1026,11 +1026,16 @@ function ChartsScreen({txns,cur}){
   const netZeroY=netY(Math.max(netMin,0));
 
   const handleTip=(e,lines)=>{
+    e.preventDefault?.();
+    const touch=e.touches?.[0]||e.changedTouches?.[0];
     const rect=e.currentTarget.getBoundingClientRect();
-    const parentRect=chartRef.current?.getBoundingClientRect()||{left:0,top:0};
-    const cx=rect.left-parentRect.left+rect.width/2;
-    const cy=rect.top-parentRect.top-10;
-    setTip({x:Math.max(60,Math.min(cx,260)),y:Math.max(0,cy),lines});
+    const rawX=touch?.clientX??(rect.left+rect.width/2);
+    const rawY=touch?.clientY??rect.top;
+    const x=Math.max(74,Math.min(rawX,window.innerWidth-74));
+    const y=Math.max(92,Math.min(rawY-12,window.innerHeight-24));
+    setTip({x,y,lines});
+    clearTimeout(handleTip.tid);
+    handleTip.tid=setTimeout(()=>setTip(null),4200);
   };
 
   const CHARTS=[{id:'overview',icon:'📊',l:'Overview'},{id:'spending',icon:'🍩',l:'Spending'},{id:'trends',icon:'📈',l:'Trends'},{id:'calendar',icon:'📅',l:'Calendar'}];
@@ -1903,8 +1908,31 @@ function App(){
     if(saved.ok){LS.set('ledgr_updated_at',Date.now());setSyncState({label:'Synced',message:'Last synced '+new Date().toLocaleTimeString(),ok:true});if(showToast)toast({icon:'☁️',title:'Cloud synced',body:'Your data is updated for this email.'});}
     else{setSyncState({label:'Sync failed',message:saved.err,warn:true});if(showToast)toast({icon:'⚠️',title:'Sync failed',body:saved.err,warn:true});}
   },[user,profile,snapshot,applySnapshot,toast]);
+  const pullCloud=useCallback(async()=>{
+    const email=user?.email||profile.email;
+    if(!email||!syncConfigured())return;
+    const cloud=await loadCloudData(email);
+    if(!cloud.ok){setSyncState({label:'Sync paused',message:cloud.err,warn:true});return;}
+    const localUpdated=LS.get('ledgr_updated_at',0);
+    if(cloud.data?.updatedAt&&cloud.data.updatedAt>localUpdated){
+      applySnapshot(cloud.data);
+      LS.set('ledgr_updated_at',cloud.data.updatedAt);
+      setSyncState({label:'Synced',message:'Auto-loaded cloud changes '+new Date().toLocaleTimeString(),ok:true});
+    }else{
+      setSyncState(s=>s?.ok?{...s,message:'Auto-sync checked '+new Date().toLocaleTimeString()}:s);
+    }
+  },[user?.email,profile.email,applySnapshot]);
 
   useEffect(()=>{if(user?.email)syncNow(false);},[user?.email]);
+  useEffect(()=>{
+    if(!user?.email||!syncConfigured())return;
+    const onActive=()=>{if(!document.hidden)pullCloud();};
+    const id=setInterval(()=>{if(!document.hidden)pullCloud();},60000);
+    window.addEventListener('focus',onActive);
+    window.addEventListener('online',onActive);
+    document.addEventListener('visibilitychange',onActive);
+    return()=>{clearInterval(id);window.removeEventListener('focus',onActive);window.removeEventListener('online',onActive);document.removeEventListener('visibilitychange',onActive);};
+  },[user?.email,pullCloud]);
   useEffect(()=>{
     if(!user?.email||!syncConfigured())return;
     const sig=JSON.stringify(snapshot());
@@ -2016,7 +2044,7 @@ function App(){
       backdropFilter:'blur(24px)',WebkitBackdropFilter:'blur(24px)',
       borderTop:`0.5px solid ${theme.isDark?'rgba(255,255,255,.08)':'rgba(0,0,0,.08)'}`,
       paddingTop:10,
-      paddingBottom:`calc(env(safe-area-inset-bottom,0px) + 10px)`,
+      paddingBottom:`max(8px, env(safe-area-inset-bottom,0px))`,
       display:'flex',justifyContent:'space-around',alignItems:'center',
       zIndex:50,position:'relative',
     }}>
