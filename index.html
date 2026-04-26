@@ -491,27 +491,8 @@ async function cloudSave(uk,data){
     if(!newId)return{ok:false,reason:'no bin id returned'};
     localStorage.setItem('bin_id_'+uk,newId);
     localStorage.setItem('bin_ts_'+uk,String(Date.now()));
-    // Track new user registration in a master registry bin
-    trackNewUser(uk,newId);
     return{ok:true};
   }catch(e){return{ok:false,reason:e.message};}
-}
-
-// Master registry bin ID — stores list of all users
-// Create this bin manually once: POST to JSONBin, get the ID, paste below
-const REGISTRY_BIN='';// Paste your registry bin ID here after first run
-
-async function trackNewUser(uk,binId){
-  if(!REGISTRY_BIN)return;
-  try{
-    const h={'X-Master-Key':JSONBIN_KEY,'Content-Type':'application/json','X-Bin-Versioning':'false'};
-    // Load existing registry
-    const r=await fetch(JSONBIN_URL+'/b/'+REGISTRY_BIN+'/latest',{headers:{'X-Master-Key':JSONBIN_KEY}});
-    const registry=r.ok?(await r.json()).record||{}:{};
-    if(registry[uk])return;// Already tracked
-    registry[uk]={binId,registeredAt:new Date().toISOString(),lastSeen:new Date().toISOString()};
-    await fetch(JSONBIN_URL+'/b/'+REGISTRY_BIN,{method:'PUT',headers:h,body:JSON.stringify(registry)});
-  }catch(e){}
 }
 
 async function cloudLoad(uk){
