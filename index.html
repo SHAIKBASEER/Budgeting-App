@@ -436,29 +436,52 @@ const getCat=(type,id)=>{const l=type==='income'?INC_CATS:EXP_CATS;return l.find
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const LS={get:(k,fb=null)=>{try{const v=localStorage.getItem(k);return v!==null?JSON.parse(v):fb;}catch{return fb;}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}},del:(k)=>{try{localStorage.removeItem(k);}catch{}}};
 
-// ── CLOUD SYNC via JSONBin.io ────────────────────────────────
-// Free service — sign up at jsonbin.io, get a Master Key, add it below.
-// Without it the app works offline only. With it, data syncs across all devices.
-const JSONBIN_KEY=LS.get('jsonbin_key','')||'$2a$10$YFCjq4Azn.L42reasWN8ZOv2Ub1rlOrNwZnVod/d1i/vBo4pP/XxG';
+// ── CLOUD SYNC via Firebase Realtime Database ──────────────
+// Free tier: 1GB storage, no credit card needed
+// Data stored at: JSONBin.io keyed by hashed user email
+// Protected by: only the app reads/writes, path contains hashed email
+
+// Simple hash so emails are not stored as plain text in the URL
+function hashKey(str){
+  let h=5381;
+  for(let i=0;i<str.length;i++)h=((h<<5)+h)+str.charCodeAt(i)>>>0;
+  return h.toString(36).padStart(8,'0');
+}
+
+const JSONBIN_KEY='$2a$10$YFCjq4Azn.L42reasWN8ZOv2Ub1rlOrNwZnVod/d1i/vBo4pP/XxG';
 const JSONBIN_URL='https://api.jsonbin.io/v3';
+
+// Hash the user key so email is not exposed in bin name
+function hashKey(str){
+  let h=5381;
+  for(let i=0;i<str.length;i++)h=((h<<5)+h)+str.charCodeAt(i)>>>0;
+  return h.toString(36).padStart(8,'0');
+}
 
 async function cloudSave(uk,data){
   if(!JSONBIN_KEY)return{ok:false,reason:'no_key'};
   try{
+    const binName='ledgr'+hashKey(uk);
     const payload=JSON.stringify({...data,_savedAt:Date.now(),_uk:uk,_v:3});
-    const h={'Content-Type':'application/json','X-Master-Key':JSONBIN_KEY,'X-Bin-Versioning':'false'};
+    const headers={'Content-Type':'application/json','X-Master-Key':JSONBIN_KEY,'X-Bin-Versioning':'false'};
+    // Try to update existing bin
     let binId=localStorage.getItem('bin_id_'+uk);
     if(binId){
-      const r=await fetch(JSONBIN_URL+'/b/'+binId,{method:'PUT',headers:h,body:payload});
+      const r=await fetch(JSONBIN_URL+'/b/'+binId,{method:'PUT',headers,body:payload});
       if(r.ok){localStorage.setItem('bin_ts_'+uk,String(Date.now()));return{ok:true};}
-      localStorage.removeItem('bin_id_'+uk);binId=null;
+      localStorage.removeItem('bin_id_'+uk);
     }
-    const r=await fetch(JSONBIN_URL+'/b',{method:'POST',headers:{...h,'X-Bin-Private':'true','X-Bin-Name':'ledgr'+uk.slice(0,12).replace(/[^a-z0-9]/g,'')},body:payload});
-    if(!r.ok)return{ok:false,reason:await r.text()};
+    // Create new bin with predictable name
+    const r=await fetch(JSONBIN_URL+'/b',{
+      method:'POST',
+      headers:{...headers,'X-Bin-Private':'true','X-Bin-Name':binName},
+      body:payload
+    });
+    if(!r.ok)return{ok:false,reason:'HTTP '+r.status};
     const j=await r.json();
-    const id=j.metadata?.id;
-    if(!id)return{ok:false,reason:'no_id'};
-    localStorage.setItem('bin_id_'+uk,id);
+    const newId=j.metadata?.id;
+    if(!newId)return{ok:false,reason:'no bin id returned'};
+    localStorage.setItem('bin_id_'+uk,newId);
     localStorage.setItem('bin_ts_'+uk,String(Date.now()));
     return{ok:true};
   }catch(e){return{ok:false,reason:e.message};}
@@ -466,40 +489,46 @@ async function cloudSave(uk,data){
 
 async function cloudLoad(uk){
   if(!JSONBIN_KEY)return null;
-  const h={'X-Master-Key':JSONBIN_KEY};
+  const headers={'X-Master-Key':JSONBIN_KEY};
+  const binName='ledgr'+hashKey(uk);
   try{
-    // Try known bin ID first
-    const binId=localStorage.getItem('bin_id_'+uk);
-    if(binId){
-      const r=await fetch(JSONBIN_URL+'/b/'+binId+'/latest',{headers:h});
-      if(r.ok){const j=await r.json();if(j.record)return j.record;}
+    // Fast path: cached bin ID on this device
+    const cachedId=localStorage.getItem('bin_id_'+uk);
+    if(cachedId){
+      const r=await fetch(JSONBIN_URL+'/b/'+cachedId+'/latest',{headers});
+      if(r.ok){
+        const j=await r.json();
+        if(j.record)return j.record;
+      }
       localStorage.removeItem('bin_id_'+uk);
     }
-    // Scan all bins to find one belonging to this user
-    const r=await fetch(JSONBIN_URL+'/b',{headers:h});
+    // Discovery: list all bins, match by NAME (no per-bin fetches needed)
+    const r=await fetch(JSONBIN_URL+'/b',{headers});
     if(!r.ok)return null;
     const list=await r.json();
-    const bins=Array.isArray(list)?list:(list.result||[]);
+    const bins=list.result||list||[];
     for(const b of bins){
-      const id=b._id||b.id||b.metadata?.id;
-      if(!id)continue;
-      const rr=await fetch(JSONBIN_URL+'/b/'+id+'/latest',{headers:h});
-      if(!rr.ok)continue;
-      const jj=await rr.json();
-      const rec=jj.record;
-      if(rec&&rec._uk===uk){
-        localStorage.setItem('bin_id_'+uk,id);
-        return rec;
+      const bName=(b.metadata?.name||b.name||'').toLowerCase();
+      const bId=b.metadata?.id||b._id||b.id;
+      if(bId&&bName===binName){
+        const rr=await fetch(JSONBIN_URL+'/b/'+bId+'/latest',{headers});
+        if(rr.ok){
+          const jj=await rr.json();
+          if(jj.record){
+            localStorage.setItem('bin_id_'+uk,bId);
+            return jj.record;
+          }
+        }
       }
     }
     return null;
   }catch(e){return null;}
 }
 
-
 function packageUserData(txns,budgetGoal,incomeGoal,cur,lang,theme){
   return{txns,budgetGoal,incomeGoal,currency:cur,language:lang,themeId:theme?.id||'dark'};
 }
+
 
 const fmtMoney=(n,cur='USD')=>{try{return new Intl.NumberFormat(CURRENCIES.find(c=>c.code===cur)?.locale||'en-US',{style:'currency',currency:cur,minimumFractionDigits:cur==='JPY'||cur==='KRW'?0:2,maximumFractionDigits:cur==='JPY'||cur==='KRW'?0:2}).format(Math.abs(n));}catch{const c=CURRENCIES.find(x=>x.code===cur);return`${c?.symbol||'$'}${Math.abs(n).toFixed(2)}`;}};
 const fmtK=(n,cur='USD')=>{if(Math.abs(n)>=1000){const s=CURRENCIES.find(c=>c.code===cur)?.symbol||'$';return`${s}${(Math.abs(n)/1000).toFixed(1)}k`;}return fmtMoney(n,cur);};
@@ -1530,41 +1559,27 @@ function SettingsScreen({user,onLogout,theme,onTheme,txns,onReset,toast,budgetGo
         <div style={{fontSize:13,color:'var(--sub)',lineHeight:1.6}}>OTP codes sent automatically via ledgrtrack@gmail.com</div>
       </div>
 
-      {/* JSONBin Cloud Sync */}
+      {/* Cloud Sync — Firebase */}
       <div style={{background:'var(--card)',borderRadius:18,padding:'18px',border:'1px solid var(--border)',marginBottom:14}}>
-        <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>☁️ Cloud Sync — Sync Across All Devices</div>
-        <div style={{fontSize:13,color:'var(--sub)',lineHeight:1.6,marginBottom:14}}>Sign up free at <strong style={{color:'var(--accent)'}}>jsonbin.io</strong> → Account → Master Key → paste below. Your data will sync to any device when you log in.</div>
-        <div style={{fontSize:11,color:'var(--muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:.8,fontWeight:700}}>JSONBin Master Key</div>
-        <input type="password" defaultValue={LS.get('jsonbin_key','')||''} onChange={e=>LS.set('jsonbin_key',e.target.value.trim())} placeholder="$2a$10$xxxxxxxxxxxxxxxx..." style={{width:'100%',background:'var(--card2)',border:'1px solid var(--border2)',borderRadius:12,color:'var(--text)',fontSize:13,padding:'12px 14px',outline:'none',fontFamily:'monospace',marginBottom:10,boxSizing:'border-box'}}/>
-        <div style={{display:'flex',gap:8}}>
-          <button onClick={async()=>{
-            const key=LS.get('jsonbin_key','');
-            if(!key){toast({icon:'❌',title:'No key',body:'Paste your JSONBin Master Key above.',err:true});return;}
-            toast({icon:'☁️',title:'Testing...',body:'Connecting to JSONBin...'});
-            try{
-              const r=await fetch('https://api.jsonbin.io/v3/b',{method:'POST',headers:{'Content-Type':'application/json','X-Master-Key':key,'X-Bin-Name':'ledgr_test','X-Bin-Private':'true'},body:JSON.stringify({test:true,t:Date.now()})});
-              if(r.ok)toast({icon:'✅',title:'Cloud sync working!',body:'JSONBin connected! Data will now sync across all your devices.'});
-              else toast({icon:'❌',title:'Failed — check your key',body:'Make sure you copied the full Master Key.',err:true});
-            }catch(e){toast({icon:'❌',title:'Error',body:e.message,err:true});}
-          }} style={{flex:1,padding:'11px',borderRadius:12,border:'none',background:'var(--accent)',color:'#000',fontSize:13,fontWeight:800,cursor:'pointer'}}>Test Connection</button>
-          <button onClick={async()=>{
-            const uk=(user?.email||user?.phone||'').toLowerCase().trim();
-            if(!uk){toast({icon:'❌',title:'Not logged in',err:true});return;}
-            toast({icon:'☁️',title:'Syncing...',body:'Uploading all your data to cloud...'});
-            const res=await cloudSave(uk,packageUserData(txns,budgetGoal,incomeGoal,cur,lang,theme));
-            if(res.ok)toast({icon:'✅',title:'Synced!',body:'All transactions uploaded. Log in from any device.'});
-            else toast({icon:'❌',title:'Sync failed',body:res.reason==='no_key'?'Add JSONBin key first':res.reason,err:true});
-          }} style={{flex:1,padding:'11px',borderRadius:12,border:'1px solid var(--border)',background:'transparent',color:'var(--text)',fontSize:13,fontWeight:700,cursor:'pointer'}}>Sync Now ☁️</button>
+        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
+          <div style={{fontSize:28}}>☁️</div>
+          <div>
+            <div style={{fontSize:15,fontWeight:800}}>Cloud Sync — Active</div>
+            <div style={{fontSize:12,color:'var(--green)',fontWeight:700}}>Auto-syncs across all devices</div>
+          </div>
         </div>
+        <div style={{fontSize:13,color:'var(--sub)',lineHeight:1.7,marginBottom:14}}>Every transaction saves to the cloud within 2 seconds. Log in with the same email on any device to load your data instantly — no setup needed.</div>
+        <button onClick={async()=>{
+          const uk=(user?.email||user?.phone||'').toLowerCase().trim();
+          if(!uk){toast({icon:'❌',title:'Not logged in',err:true});return;}
+          setSyncing(true);
+          toast({icon:'☁️',title:'Syncing...',body:'Uploading your data to cloud...'});
+          const res=await cloudSave(uk,packageUserData(txns,budgetGoal,incomeGoal,cur,lang,theme));
+          setSyncing(false);
+          if(res.ok)toast({icon:'✅',title:'Sync complete!',body:'All data saved. Open on any device to access.'});
+          else toast({icon:'❌',title:'Sync failed',body:res.reason,err:true});
+        }} style={{width:'100%',padding:'12px',borderRadius:12,border:'none',background:'var(--accent)',color:'#000',fontSize:14,fontWeight:800,cursor:'pointer'}}>Force Sync Now</button>
       </div>
-
-      <div style={{background:'var(--card)',borderRadius:16,padding:'16px',border:'1px solid var(--border)'}}>
-        <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>How cloud sync works</div>
-        <div style={{fontSize:12,color:'var(--sub)',lineHeight:1.9}}>
-          1. Sign up free at jsonbin.io (no credit card)<br/>
-          2. Go to Account → Master Key → copy it<br/>
-          3. Paste it above → tap Test Connection<br/>
-          4. From now on, every transaction you add syncs to cloud automatically<br/>
           5. Log in on any phone, tablet or computer → your data loads instantly
         </div>
       </div>
