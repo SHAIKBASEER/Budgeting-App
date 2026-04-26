@@ -355,6 +355,29 @@ function makeDueEmail({tx,cur,locale}){
     </div>
   </div>`;
 }
+function makeReminderEmail({profile,slots,locale='en-US'}){
+  const name=escapeHtml(profile.name||profile.email?.split('@')[0]||'there');
+  const schedule=(slots||[]).map(s=>displayTime(s,locale)).join(' · ')||'No times selected';
+  return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:580px;margin:0 auto;background:#090912;border-radius:28px;overflow:hidden;color:#f7f7fb;border:1px solid #24243a">
+    <div style="background:linear-gradient(135deg,#111827,#0f766e 48%,#f5a623);padding:32px 30px">
+      <div style="font-size:13px;color:#99f6e4;font-weight:900;letter-spacing:2px;text-transform:uppercase">$ LedgrTrack</div>
+      <h1 style="font-size:30px;letter-spacing:-.7px;margin:12px 0 6px">Budget reminder</h1>
+      <p style="margin:0;color:#d9f99d;line-height:1.6">Hi ${name}, this is your reminder to log today’s transactions.</p>
+    </div>
+    <div style="background:#11111c;padding:28px 30px">
+      <div style="background:#181827;border:1px solid #2a2a3e;border-radius:20px;padding:20px;margin-bottom:18px">
+        <div style="font-size:12px;color:#8585a3;text-transform:uppercase;letter-spacing:1px;font-weight:800;margin-bottom:8px">Your reminder schedule</div>
+        <div style="font-size:18px;color:#f5a623;font-weight:900;line-height:1.5">${schedule}</div>
+      </div>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr>
+        <td style="background:#17251d;border:1px solid #244d34;border-radius:16px;padding:16px;color:#b8f7c8">Add income as soon as it arrives.</td>
+        <td width="10"></td>
+        <td style="background:#2a1719;border:1px solid #5f2b30;border-radius:16px;padding:16px;color:#ffc5c1">Log expenses before they blur together.</td>
+      </tr></table>
+      <a href="${CONFIG.APP_URL}" style="display:block;text-align:center;text-decoration:none;background:#f5a623;color:#090912;font-weight:900;border-radius:16px;padding:15px 18px;margin-top:20px">Open LedgrTrack</a>
+    </div>
+  </div>`;
+}
 function rangeLabel(from,to,locale=null){
   if(from&&to)return `${dayStr(from,locale)} - ${dayStr(to,locale)}`;
   if(from)return `From ${dayStr(from,locale)}`;
@@ -1018,6 +1041,17 @@ function ChartsScreen({txns,cur}){
     {l:'Net',v:net,prev:prevInc-prevExp,c:net>=0?'var(--green)':'var(--red)',icon:net>=0?'📈':'📉'},
     {l:'Savings %',v:inc>0?Math.round(net/inc*100)+'%':'—',prev:null,c:'var(--accent)',icon:'💰'},
   ];
+  const spentDays=days.filter(d=>d.exp>0);
+  const avgDaily=spentDays.length?exp/spentDays.length:0;
+  const topCat=cats[0];
+  const bestDay=days.reduce((best,d)=>d.net>best.net?d:best,{d:'-',net:-Infinity});
+  const busiestDay=days.reduce((best,d)=>d.count>best.count?d:best,{d:'-',count:0});
+  const insightCards=[
+    {l:'Top Spend',v:topCat?topCat.label:'None',s:topCat?fmt(topCat.v,cur):'No expenses',c:topCat?.color||'var(--accent)'},
+    {l:'Daily Avg',v:avgDaily?fmt(avgDaily,cur):fmt(0,cur),s:`${spentDays.length} spending days`,c:'var(--blue)'},
+    {l:'Best Day',v:bestDay.d==='-'?'None':String(bestDay.d),s:bestDay.d==='-'?'No activity':`${bestDay.net>=0?'+':'-'}${fmt(bestDay.net,cur)}`,c:bestDay.net>=0?'var(--green)':'var(--red)'},
+    {l:'Busiest',v:busiestDay.d==='-'?'None':String(busiestDay.d),s:`${busiestDay.count} entries`,c:'var(--accent)'},
+  ];
 
   const pStyle={paddingBottom:'var(--tab-pb)'};
 
@@ -1041,6 +1075,25 @@ function ChartsScreen({txns,cur}){
     </div>
 
     <div style={{padding:'0 16px',position:'relative'}} ref={chartRef} onClick={e=>{if(e.target===chartRef.current)setTip(null);}}>
+      <div style={{background:'linear-gradient(135deg,var(--hero-a),var(--hero-b))',border:'1px solid var(--border)',borderRadius:24,padding:'18px',marginBottom:12,position:'relative',overflow:'hidden',boxShadow:'0 18px 50px rgba(0,0,0,.18)'}}>
+        <div style={{position:'absolute',inset:0,background:'radial-gradient(circle at 20% 10%,var(--a20),transparent 34%),radial-gradient(circle at 90% 0%,rgba(78,154,241,.14),transparent 32%)',pointerEvents:'none'}}/>
+        <div style={{position:'relative',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+          <div>
+            <div style={{fontSize:11,color:'var(--accent)',fontWeight:900,textTransform:'uppercase',letterSpacing:1}}>Monthly intelligence</div>
+            <div style={{fontSize:22,fontWeight:900,letterSpacing:-.3,marginTop:4}}>{net>=0?'You are ahead':'You are behind'} by {fmt(Math.abs(net),cur)}</div>
+            <div style={{fontSize:12,color:'var(--sub)',lineHeight:1.5,marginTop:5}}>{topCat?`${topCat.label} is your biggest category at ${fmt(topCat.v,cur)}.`:'Add expenses to unlock spending insights.'}</div>
+          </div>
+          <div style={{minWidth:76,height:76,borderRadius:22,background:'var(--card)',border:'1px solid var(--border2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:30,boxShadow:'inset 0 1px 0 rgba(255,255,255,.05)'}}>{net>=0?'📈':'📉'}</div>
+        </div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+        {insightCards.map(x=><div key={x.l} style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:16,padding:'12px',position:'relative',overflow:'hidden'}}>
+          <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:x.c}}/>
+          <div style={{fontSize:10,color:'var(--muted)',fontWeight:900,textTransform:'uppercase',letterSpacing:.7}}>{x.l}</div>
+          <div style={{fontSize:16,fontWeight:900,marginTop:4,color:x.c,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{x.v}</div>
+          <div style={{fontSize:11,color:'var(--sub)',marginTop:3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{x.s}</div>
+        </div>)}
+      </div>
 
     {/* ── OVERVIEW ── */}
     {activeChart==='overview'&&<div>
@@ -1403,7 +1456,10 @@ function NotificationsPanel({profile,toast,locale='en-US'}){
   const [smsOn,setSmsOn]=useState(()=>LS.get('n_sms',false));
   const [summaryOn,setSummaryOn]=useState(()=>LS.get('n_summary',false));
   const [summaryTime,setSummaryTime]=useState(()=>LS.get('n_sum_time','21:00'));
-  const [slots,setSlots]=useState(()=>LS.get('n_slots',['09:00','12:00','15:00','18:00']).map(normalizeTime).filter(Boolean));
+  const [slots,setSlots]=useState(()=>{
+    const saved=LS.get('n_slots',['09:00','12:00','15:00','18:00']);
+    return [...new Set(saved.map(normalizeTime).filter(Boolean))].sort();
+  });
   const [customTime,setCustomTime]=useState('08:30');
   const [perm,setPerm]=useState(()=>'Notification' in window?Notification.permission:'unsupported');
   const [testSent,setTestSent]=useState('');
@@ -1415,7 +1471,7 @@ function NotificationsPanel({profile,toast,locale='en-US'}){
   useEffect(()=>LS.set('n_sms',smsOn),[smsOn]);
   useEffect(()=>LS.set('n_summary',summaryOn),[summaryOn]);
   useEffect(()=>LS.set('n_sum_time',summaryTime),[summaryTime]);
-  useEffect(()=>LS.set('n_slots',slots),[slots]);
+  useEffect(()=>{const clean=[...new Set(slots.map(normalizeTime).filter(Boolean))].sort();LS.set('n_slots',clean);},[slots]);
 
   // Compute next reminder time
   useEffect(()=>{
@@ -1431,7 +1487,7 @@ function NotificationsPanel({profile,toast,locale='en-US'}){
       const isToday=n.d.getDate()===now.getDate();
       setNextReminder((isToday?'Today':'Tomorrow')+' at '+n.label);
     } else setNextReminder('No reminders scheduled');
-  },[slots]);
+  },[slots,locale]);
 
   const requestPush=async()=>{
     if(!('Notification' in window)){toast({icon:'❌',body:'Push not supported on this browser.',err:true});return;}
@@ -1453,9 +1509,14 @@ function NotificationsPanel({profile,toast,locale='en-US'}){
   const addCustomSlot=()=>{
     const nt=normalizeTime(customTime);
     if(!nt)return;
-    setSlots(prev=>prev.includes(nt)?prev:[...prev,nt].sort());
-    toast({icon:'⏰',title:'Reminder added',body:'Custom reminder set for '+displayTime(nt,locale)});
+    setSlots(prev=>{
+      const next=prev.includes(nt)?prev:[...prev,nt].sort();
+      LS.set('n_slots',next);
+      return next;
+    });
+    toast({icon:'⏰',title:'Reminder saved',body:'Custom reminder set for '+displayTime(nt,locale)});
   };
+  const removeSlot=t=>setSlots(prev=>{const next=prev.filter(x=>x!==t);LS.set('n_slots',next);return next;});
 
   const sendTestPush=()=>{
     if(perm!=='granted'){toast({icon:'⚠️',body:'Enable push first.',warn:true});return;}
@@ -1468,12 +1529,7 @@ function NotificationsPanel({profile,toast,locale='en-US'}){
     if(!profile.email){toast({icon:'⚠️',body:'Add your email in Profile first.',warn:true});return;}
     setTestSent('email');
     const res=await sendEmail(profile.email,'💰 LedgrTrack — Test Reminder',
-      `<div style="font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;background:#0a0a12;border-radius:20px;padding:32px;color:#f0f0f8">
-        <div style="font-size:24px;font-weight:900;color:#f5a623;margin-bottom:16px">$ LedgrTrack</div>
-        <h2 style="margin:0 0 12px;font-size:20px">⏰ Budget Reminder</h2>
-        <p style="color:#a0a0c0;line-height:1.6;margin:0 0 20px">This is a test reminder from LedgrTrack. Your reminder schedule is set to: <strong style="color:#f0f0f8">${slots.map(s=>displayTime(s,locale)).join(', ')}</strong>.</p>
-        <p style="color:#a0a0c0;margin:0">Keep tracking your finances! 💰</p>
-      </div>`
+      makeReminderEmail({profile,slots,locale})
     );
     if(res.ok) toast({icon:'📧',title:'Test email sent!',body:'Check '+profile.email});
     else toast({icon:'❌',title:'Email failed',body:res.err||'Check your EmailJS config',err:true});
@@ -1547,6 +1603,12 @@ function NotificationsPanel({profile,toast,locale='en-US'}){
           style={{background:'var(--card2)',border:'1px solid var(--border2)',borderRadius:12,color:'var(--text)',fontSize:16,padding:'11px 14px',outline:'none',fontWeight:700}}/>
         <button onClick={addCustomSlot} style={{padding:'0 14px',borderRadius:12,border:'none',background:'var(--accent)',color:'#000',fontSize:13,fontWeight:800,cursor:'pointer'}}>Add</button>
       </div>
+      <div style={{display:'flex',flexWrap:'wrap',gap:8,marginTop:12}}>
+        {slots.map(s=><button key={s} onClick={()=>removeSlot(s)} title="Tap to remove" style={{padding:'8px 10px',borderRadius:99,border:'1px solid var(--border2)',background:'var(--card2)',color:'var(--text)',fontSize:12,fontWeight:800,cursor:'pointer'}}>
+          {displayTime(s,locale)} <span style={{color:'var(--muted)',marginLeft:4}}>×</span>
+        </button>)}
+      </div>
+      <div style={{fontSize:11,color:'var(--sub)',lineHeight:1.45,marginTop:10}}>Reminder times are saved on this device and will fire while LedgrTrack is open in the browser.</div>
     </div>
 
     {/* Daily summary email */}
@@ -1887,6 +1949,38 @@ function App(){
     const id=setInterval(run,60000);
     return()=>clearInterval(id);
   },[txns,profile,user,cur,language,toast]);
+
+  useEffect(()=>{
+    const run=async()=>{
+      const slots=[...new Set((LS.get('n_slots',['09:00','12:00','15:00','18:00'])||[]).map(normalizeTime).filter(Boolean))];
+      const pushOn=LS.get('n_push',false);
+      const emailOn=LS.get('n_email',true);
+      const email=profile.email||user?.email;
+      if(!slots.length)return;
+      for(const slot of slots){
+        const diff=minutesUntil(todayStr(),slot);
+        const sentKey='sent_budget_reminder_'+todayStr()+'_'+slot;
+        if(diff<=0&&diff>-10*60*1000&&!LS.get(sentKey,false)){
+          let sent=false;
+          if(pushOn&&'Notification' in window&&Notification.permission==='granted'){
+            new Notification('LedgrTrack reminder',{body:'Time to log your transactions for today.',icon:'pwa/icons/icon-192.png',tag:'ledgr-budget-'+slot});
+            sent=true;
+          }
+          if(emailOn&&email){
+            const res=await sendEmail(email,'LedgrTrack budget reminder',makeReminderEmail({profile:{...profile,email},slots,locale:language}));
+            sent=sent||res.ok;
+          }
+          if(sent){
+            LS.set(sentKey,true);
+            toast({icon:'⏰',title:'Reminder sent',body:'Budget reminder fired for '+displayTime(slot,language)});
+          }
+        }
+      }
+    };
+    run();
+    const id=setInterval(run,30000);
+    return()=>clearInterval(id);
+  },[profile,user,language,toast]);
 
   const addTx=t=>setTxns(p=>[t,...p]);
   const editTx=t=>setTxns(p=>p.map(x=>x.id===t.id?t:x));
