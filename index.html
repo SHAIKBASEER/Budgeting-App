@@ -671,33 +671,141 @@ const Icons={
 };
 const TABS=['Home','Add','Charts','History','Settings'];
 function parseVoice(text){
-  const t=text.toLowerCase();const am=text.match(/[\$]?(\d+(?:[.]\d{1,2})?)/);
+  const t=text.toLowerCase();
+  const am=text.match(/[$]?(\d+(?:[.]\d{1,2})?)/);
   const amount=am?parseFloat(am[1]):null;
   const isInc=/earn|receiv|got paid|income|salary|deposit|freelan|invest|dividend|gift/i.test(t);
   const type=isInc?'income':'expense';
-  const cm=[{id:'food',w:['food','lunch','dinner','breakfast','restaurant','coffee','pizza','grocery','chipotle','starbucks']},{id:'transport',w:['uber','lyft','bus','metro','gas','fuel','parking','train']},{id:'bills',w:['bill','electric','water','internet','rent','netflix','spotify']},{id:'shopping',w:['shop','cloth','amazon','online','store','bought']},{id:'health',w:['doctor','pharmacy','medicine','gym','health','dental']},{id:'entertainment',w:['movie','concert','game','fun','show','ticket']},{id:'education',w:['course','book','school','tuition','study']},{id:'travel',w:['travel','hotel','flight','vacation','trip']},{id:'salary',w:['salary','paycheck','wage']},{id:'freelance',w:['freelance','project','client','invoice']},{id:'investment',w:['dividend','stock','crypto','invest']}];
-  let category='other';for(const c of cm){if(c.w.some(w=>t.includes(w))){category=c.id;break;}}
-  const note=text.replace(/[\$]?\d+(?:[.]\d{1,2})?\s*(?:dollars?|bucks?)?/gi,'').replace(/\b(spent|paid|bought|received|earned|got|on|for|at|the|a|an|i|my|just)\b/gi,'').replace(/\s+/g,' ').trim().slice(0,40)||null;
+  const cm=[
+    {id:'food',      w:['food','lunch','dinner','breakfast','restaurant','coffee','pizza','grocery','groceries','chipotle','starbucks','burger','sushi','eat','meal','snack']},
+    {id:'transport', w:['uber','lyft','bus','metro','gas','fuel','parking','train','cab','taxi','flight','commute']},
+    {id:'bills',     w:['bill','electric','water','internet','rent','netflix','spotify','subscription','utility','phone bill','electricity']},
+    {id:'shopping',  w:['shop','shopping','cloth','amazon','online','store','bought','purchase','mall','shoes','shirt']},
+    {id:'health',    w:['doctor','pharmacy','medicine','gym','health','dental','hospital','vitamin','medical','workout']},
+    {id:'entertainment',w:['movie','concert','game','fun','show','ticket','bar','club','party','netflix','disney']},
+    {id:'education', w:['course','book','school','tuition','study','udemy','class','workshop','tutorial']},
+    {id:'travel',    w:['travel','hotel','flight','vacation','trip','airbnb','holiday']},
+    {id:'salary',    w:['salary','paycheck','wage','payday','got paid']},
+    {id:'freelance', w:['freelance','project','client','invoice','contract','consulting']},
+    {id:'investment',w:['dividend','stock','crypto','invest','profit','returns']},
+    {id:'gift',      w:['gift','present','birthday money','received money']},
+  ];
+  let category='other';
+  for(const c of cm){if(c.w.some(w=>t.includes(w))){category=c.id;break;}}
+  const note=text
+    .replace(/[$]?\d+(?:[.]\d{1,2})?\s*(?:dollars?|bucks?|usd)?/gi,'')
+    .replace(/\b(spent|paid|bought|received|earned|got|on|for|at|the|a|an|i|my|just|about|around)\b/gi,'')
+    .replace(/\s+/g,' ').trim().slice(0,40)||null;
   return{amount,type,category,note};
 }
+
 function VoiceButton({onResult,toast}){
-  const [listening,setL]=useState(false);
-  const sup='webkitSpeechRecognition' in window||'SpeechRecognition' in window;
+  const [state,setState]=useState('idle'); // idle | listening | processing | success | error
+  const [transcript,setTranscript]=useState('');
+  const [ripple,setRipple]=useState(false);
   const recRef=useRef(null);
-  const go=()=>{
-    if(!sup){toast({icon:'X',title:'Not supported',body:'Try Chrome on Android or desktop.',err:true});return;}
+  const timerRef=useRef(null);
+  const sup=typeof window!=='undefined'&&('webkitSpeechRecognition' in window||'SpeechRecognition' in window);
+
+  const start=()=>{
+    if(!sup){toast({icon:'🎤',title:'Not supported',body:'Voice input works in Chrome on Android or desktop.',warn:true});return;}
     const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-    const r=new SR();recRef.current=r;r.lang='en-US';r.interimResults=false;r.maxAlternatives=1;
-    r.onstart=()=>setL(true);r.onend=()=>setL(false);
-    r.onerror=e=>{setL(false);toast({icon:'X',title:'Mic error',body:e.error==='not-allowed'?'Microphone blocked - check browser settings':e.error,err:true});};
-    r.onresult=e=>{const t=e.results[0][0].transcript;toast({icon:'mic',title:'Heard: "'+t+'"',body:'Parsing your transaction...'});onResult(parseVoice(t),t);};
+    const r=new SR();
+    recRef.current=r;
+    r.lang='en-US';r.interimResults=true;r.maxAlternatives=1;r.continuous=false;
+    r.onstart=()=>{setState('listening');setTranscript('');setRipple(true);};
+    r.onend=()=>{setRipple(false);if(state==='listening')setState('idle');};
+    r.onerror=e=>{
+      setState('error');setRipple(false);
+      const msg=e.error==='not-allowed'?'Microphone blocked — allow it in browser settings':
+                e.error==='no-speech'?'No speech heard — try again':'Error: '+e.error;
+      toast({icon:'🎤',title:'Mic error',body:msg,err:true});
+      timerRef.current=setTimeout(()=>setState('idle'),2500);
+    };
+    r.onresult=e=>{
+      const interim=Array.from(e.results).map(r=>r[0].transcript).join('');
+      setTranscript(interim);
+      if(e.results[e.results.length-1].isFinal){
+        setState('processing');
+        const final=e.results[e.results.length-1][0].transcript;
+        setTranscript(final);
+        const parsed=parseVoice(final);
+        timerRef.current=setTimeout(()=>{
+          if(!parsed.amount){
+            setState('error');
+            toast({icon:'🎤',title:'No amount detected',body:'Try: "spent $50 on groceries"',warn:true});
+            timerRef.current=setTimeout(()=>setState('idle'),2500);
+          }else{
+            setState('success');
+            timerRef.current=setTimeout(()=>{setState('idle');setTranscript('');onResult(parsed,final);},800);
+          }
+        },400);
+      }
+    };
     r.start();
   };
-  const stop=()=>{recRef.current?.stop();setL(false);};
+
+  const stop=()=>{recRef.current?.stop();setState('idle');setRipple(false);setTranscript('');};
+
+  useEffect(()=>()=>{clearTimeout(timerRef.current);recRef.current?.stop();},[]);
+
   if(!sup)return null;
-  return<button onClick={listening?stop:go} style={{width:'100%',padding:'14px',borderRadius:16,border:'1.5px solid '+(listening?'var(--red)':'var(--border2)'),background:listening?'var(--r10)':'var(--card)',color:listening?'var(--red)':'var(--sub)',fontSize:14,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',gap:10,transition:'all .2s'}}>
-    {listening?<><span style={{width:10,height:10,borderRadius:'50%',background:'var(--red)',display:'inline-block'}}/>Listening... tap to stop</>:<>mic Add by Voice — say "spent $50 on groceries"</>}
-  </button>;
+
+  const isListening=state==='listening';
+  const isProcessing=state==='processing';
+  const isSuccess=state==='success';
+  const isError=state==='error';
+  const isActive=isListening||isProcessing;
+
+  const bgColor=isError?'var(--r10)':isSuccess?'var(--g10)':isActive?'rgba(245,166,35,.08)':'var(--card)';
+  const borderColor=isError?'var(--red)':isSuccess?'var(--green)':isActive?'var(--accent)':'var(--border2)';
+  const iconColor=isError?'var(--red)':isSuccess?'var(--green)':isActive?'var(--accent)':'var(--sub)';
+
+  return<div style={{width:'100%'}}>
+    <button
+      onClick={isActive?stop:start}
+      style={{width:'100%',padding:'18px 20px',borderRadius:20,border:'1.5px solid '+borderColor,background:bgColor,display:'flex',alignItems:'center',gap:14,transition:'all .25s',cursor:'pointer',position:'relative',overflow:'hidden'}}
+    >
+      {/* Ripple animation when listening */}
+      {ripple&&<div style={{position:'absolute',inset:0,borderRadius:20,animation:'voiceRipple 1.5s ease-out infinite',background:'radial-gradient(circle at center, rgba(245,166,35,.15) 0%, transparent 70%)',pointerEvents:'none'}}/>}
+
+      {/* Mic icon */}
+      <div style={{width:48,height:48,borderRadius:16,background:isActive?'var(--accent)':isSuccess?'var(--green)':isError?'var(--red)':'var(--card2)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all .25s',boxShadow:isActive?'0 0 20px rgba(245,166,35,.4)':isSuccess?'0 0 16px rgba(48,209,88,.4)':'none'}}>
+        {isProcessing?<div style={{width:20,height:20,border:'2.5px solid rgba(0,0,0,.2)',borderTopColor:'#000',borderRadius:'50%',animation:'spin .6s linear infinite'}}/>
+        :isSuccess?<span style={{fontSize:22}}>✓</span>
+        :isError?<span style={{fontSize:22}}>✕</span>
+        :<svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <rect x="9" y="2" width="6" height="12" rx="3" fill={isActive?'#000':'var(--sub)'}/>
+          <path d="M5 10a7 7 0 0014 0" stroke={isActive?'#000':'var(--sub)'} strokeWidth="2" strokeLinecap="round"/>
+          <line x1="12" y1="17" x2="12" y2="21" stroke={isActive?'#000':'var(--sub)'} strokeWidth="2" strokeLinecap="round"/>
+          <line x1="9" y1="21" x2="15" y2="21" stroke={isActive?'#000':'var(--sub)'} strokeWidth="2" strokeLinecap="round"/>
+        </svg>}
+      </div>
+
+      {/* Text */}
+      <div style={{flex:1,textAlign:'left'}}>
+        <div style={{fontSize:15,fontWeight:800,color:iconColor,marginBottom:3}}>
+          {isListening?'Listening…':isProcessing?'Processing…':isSuccess?'Got it!':isError?'Try again':'Add by Voice'}
+        </div>
+        <div style={{fontSize:12,color:'var(--muted)',lineHeight:1.4}}>
+          {transcript
+            ?<span style={{color:'var(--text)',fontStyle:'italic'}}>"{transcript}"</span>
+            :isListening?<span style={{color:'var(--accent)'}}>Speak now — say your transaction</span>
+            :'Tap and say "spent $50 on groceries"'}
+        </div>
+      </div>
+
+      {/* Wave bars when listening */}
+      {isListening&&<div style={{display:'flex',alignItems:'center',gap:3,flexShrink:0}}>
+        {[1,2,3,4,3].map((h,i)=><div key={i} style={{width:3,borderRadius:2,background:'var(--accent)',height:8*h+'px',animation:`wavebar .8s ease-in-out ${i*0.1}s infinite alternate`}}/>)}
+      </div>}
+    </button>
+
+    <style>{`
+      @keyframes voiceRipple{0%{opacity:1;transform:scale(.8)}100%{opacity:0;transform:scale(2)}}
+      @keyframes wavebar{0%{transform:scaleY(.4)}100%{transform:scaleY(1.2)}}
+    `}</style>
+  </div>;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1965,6 +2073,33 @@ function SettingsScreen({user,onLogout,theme,onTheme,txns,onReset,toast,budgetGo
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ROOT APP
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function AddQuickStats({txns,cur}){
+  const now=new Date();
+  const live=txns.filter(x=>!x.scheduled);
+  const mn=live.filter(x=>{const d=new Date(x.date+'T12:00:00');return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
+  const inc=mn.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
+  const exp=mn.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
+  const pct=inc>0?Math.min(Math.round(exp/inc*100),100):0;
+  const pc=pct>90?'var(--red)':pct>70?'var(--accent)':'var(--green)';
+  if(mn.length===0)return null;
+  return<div style={{background:'var(--card)',borderRadius:20,border:'1px solid var(--border)',padding:'16px'}}>
+    <div style={{fontSize:12,color:'var(--sub)',fontWeight:700,marginBottom:10,textTransform:'uppercase',letterSpacing:.8}}>📊 This Month Quick View</div>
+    <div style={{display:'flex',gap:12,marginBottom:12}}>
+      {[{l:'Income',v:inc,c:'var(--green)'},{l:'Spent',v:exp,c:'var(--red)'},{l:'Saved',v:inc-exp,c:(inc-exp)>=0?'var(--green)':'var(--red)'}].map(s=><div key={s.l} style={{flex:1,textAlign:'center'}}>
+        <div style={{fontSize:13,fontWeight:900,color:s.c}}>{fmtK(s.v,cur)}</div>
+        <div style={{fontSize:10,color:'var(--muted)',marginTop:2}}>{s.l}</div>
+      </div>)}
+    </div>
+    <div style={{height:6,borderRadius:3,background:'var(--card2)',overflow:'hidden'}}>
+      <div style={{height:'100%',width:pct+'%',background:pc,borderRadius:3}}/>
+    </div>
+    <div style={{display:'flex',justifyContent:'space-between',marginTop:6,fontSize:11,color:'var(--muted)'}}>
+      <span>{mn.length} transactions this month</span>
+      <span style={{color:pc,fontWeight:700}}>{pct}% of income spent</span>
+    </div>
+  </div>;
+}
+
 function App(){
   const [user,setUser]=useState(()=>LS.get('auth_user',null));
   const [tab,setTab]=useState(()=>LS.get('budget_tab',0));
@@ -2257,18 +2392,80 @@ function App(){
       {/* Screens */}
       <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch'}}>
         {tab===0&&<HomeScreen txns={txns} onNav={setTab} onAdd={()=>setAdd(true)} onSched={()=>setSched(true)} user={user} budgetGoal={budgetGoal} incomeGoal={incomeGoal} {...sharedProps}/>}
-        {tab===1&&<div style={{color:'var(--text)',padding:`var(--hdr) 16px`,paddingBottom:`calc(var(--tab-h) + env(safe-area-inset-bottom,0px) + 20px)`}}>
-          <div style={{fontSize:26,fontWeight:900,letterSpacing:-.5,marginBottom:20}}>{t('add')}</div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
-            {[{icon:'add',title:t('addTransaction'),sub:'Record now',accent:false,fn:()=>setAdd(true)},{icon:'cal',title:t('schedule'),sub:'Plan ahead',accent:true,fn:()=>setSched(true)}].map((b,i)=><button key={i} onClick={b.fn} style={{padding:'22px 16px',borderRadius:22,border:'1.5px solid '+(b.accent?'var(--accent)':'var(--border)'),background:b.accent?'var(--a10)':'var(--card)',display:'flex',flexDirection:'column',alignItems:'center',gap:8,textAlign:'center'}}>
-              <span style={{fontSize:34}}>{b.accent?'📅':'➕'}</span>
-              <div style={{fontSize:14,fontWeight:800,color:b.accent?'var(--accent)':'var(--text)'}}>{b.title}</div>
-              <div style={{fontSize:11,color:'var(--sub)'}}>{b.sub}</div>
-            </button>)}
+        {tab===1&&<div style={{color:'var(--text)',paddingBottom:`calc(var(--tab-h) + env(safe-area-inset-bottom,0px) + 24px)`}}>
+
+          {/* Hero header */}
+          <div style={{padding:'var(--hdr) 20px 20px',background:'linear-gradient(180deg,var(--card) 0%,transparent 100%)'}}>
+            <div style={{fontSize:28,fontWeight:900,letterSpacing:-.5,marginBottom:4}}>{t('add')}</div>
+            <div style={{fontSize:13,color:'var(--sub)'}}>Record a transaction or use voice</div>
           </div>
-          <VoiceButton toast={addToast} onResult={(parsed,raw)=>{if(!parsed.amount){addToast({icon:'warn',title:'No amount heard',body:'"'+raw+'" - try "spent $50 on groceries"',warn:true});return;}setVoiceParsed(parsed);setAdd(true);}}/>
-          <div style={{marginTop:8,padding:'10px 14px',borderRadius:12,background:'var(--card2)',border:'1px solid var(--border)'}}>
-            <div style={{fontSize:11,color:'var(--muted)',lineHeight:1.7}}>Try: "Spent $45 on groceries" | "Paid $120 rent" | "Got $3000 salary"</div>
+
+          <div style={{padding:'0 16px'}}>
+
+          {/* Primary action cards */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
+            {/* Add Transaction */}
+            <button onClick={()=>setAdd(true)} style={{padding:'0',borderRadius:24,border:'1px solid var(--border)',background:'var(--card)',overflow:'hidden',textAlign:'left',cursor:'pointer',transition:'transform .15s,box-shadow .15s'}}
+              onMouseEnter={e=>{e.currentTarget.style.transform='scale(1.02)';e.currentTarget.style.boxShadow='0 12px 32px rgba(0,0,0,.3)';}}
+              onMouseLeave={e=>{e.currentTarget.style.transform='scale(1)';e.currentTarget.style.boxShadow='none';}}>
+              <div style={{background:'linear-gradient(135deg,rgba(245,166,35,.2),rgba(245,166,35,.05))',padding:'20px 18px 14px'}}>
+                <div style={{width:46,height:46,borderRadius:14,background:'var(--accent)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,marginBottom:12,boxShadow:'0 8px 20px rgba(245,166,35,.35)'}}>➕</div>
+                <div style={{fontSize:15,fontWeight:900,color:'var(--text)',marginBottom:3}}>{t('addTransaction')}</div>
+                <div style={{fontSize:11,color:'var(--sub)'}}>Log income or expense</div>
+              </div>
+              <div style={{padding:'10px 18px',borderTop:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <span style={{fontSize:11,color:'var(--accent)',fontWeight:700}}>Tap to open</span>
+                <span style={{color:'var(--accent)',fontSize:16}}>›</span>
+              </div>
+            </button>
+
+            {/* Schedule */}
+            <button onClick={()=>setSched(true)} style={{padding:'0',borderRadius:24,border:'1px solid var(--border)',background:'var(--card)',overflow:'hidden',textAlign:'left',cursor:'pointer',transition:'transform .15s,box-shadow .15s'}}
+              onMouseEnter={e=>{e.currentTarget.style.transform='scale(1.02)';e.currentTarget.style.boxShadow='0 12px 32px rgba(0,0,0,.3)';}}
+              onMouseLeave={e=>{e.currentTarget.style.transform='scale(1)';e.currentTarget.style.boxShadow='none';}}>
+              <div style={{background:'linear-gradient(135deg,rgba(78,154,241,.15),rgba(78,154,241,.03))',padding:'20px 18px 14px'}}>
+                <div style={{width:46,height:46,borderRadius:14,background:'var(--blue)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,marginBottom:12,boxShadow:'0 8px 20px rgba(78,154,241,.3)'}}>📅</div>
+                <div style={{fontSize:15,fontWeight:900,color:'var(--text)',marginBottom:3}}>{t('schedule')}</div>
+                <div style={{fontSize:11,color:'var(--sub)'}}>Plan a future payment</div>
+              </div>
+              <div style={{padding:'10px 18px',borderTop:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <span style={{fontSize:11,color:'var(--blue)',fontWeight:700}}>With reminders</span>
+                <span style={{color:'var(--blue)',fontSize:16}}>›</span>
+              </div>
+            </button>
+          </div>
+
+          {/* Voice section */}
+          <div style={{background:'var(--card)',borderRadius:24,border:'1px solid var(--border)',overflow:'hidden',marginBottom:16}}>
+            <div style={{padding:'16px 18px 12px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div>
+                <div style={{fontSize:14,fontWeight:800,marginBottom:2}}>🎤 Voice Input</div>
+                <div style={{fontSize:11,color:'var(--sub)'}}>Speak naturally — we understand</div>
+              </div>
+              <div style={{background:'var(--a10)',borderRadius:8,padding:'4px 10px',fontSize:11,fontWeight:700,color:'var(--accent)'}}>AI-powered</div>
+            </div>
+            <div style={{padding:'0 16px 16px'}}>
+              <VoiceButton toast={addToast} onResult={(parsed,raw)=>{
+                if(!parsed.amount){
+                  addToast({icon:'🎤',title:'No amount detected',body:`"${raw}" — try "spent $50 on groceries"`,warn:true});
+                  return;
+                }
+                setVoiceParsed(parsed);
+                setAdd(true);
+              }}/>
+            </div>
+            {/* Example phrases */}
+            <div style={{background:'var(--card2)',borderTop:'1px solid var(--border)',padding:'12px 18px'}}>
+              <div style={{fontSize:10,color:'var(--muted)',textTransform:'uppercase',letterSpacing:1,fontWeight:700,marginBottom:8}}>Try saying</div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                {['"Spent $45 on groceries"','"Paid $120 rent"','"Got $3000 salary"','"$60 uber"','"Netflix $16"'].map(ex=><div key={ex} style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:8,padding:'4px 10px',fontSize:11,color:'var(--sub)',fontStyle:'italic'}}>{ex}</div>)}
+              </div>
+            </div>
+          </div>
+
+          {/* Quick stats strip — computed inline without IIFE */}
+          <AddQuickStats txns={txns} cur={cur}/>
+
           </div>
         </div>}
         {tab===2&&<ChartsScreen txns={txns} {...sharedProps}/>}
