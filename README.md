@@ -11,6 +11,7 @@ Static GitHub Pages dashboard for Newark parcel intelligence.
   - Underutilized: `IMPRVT_VAL > 0` and `IMPRVT_VAL / LAND_VAL <= 0.20`
   - Active: improvement ratio above `20%`
 - Query the dataset with a no-token local assistant.
+- Fuzzy-match messy parcel questions with Fuse.js, while keeping counts deterministic from the loaded dataset.
 - Generate CSV, JSON, HTML, and print-to-PDF reports.
 
 ## No-Token Assistant
@@ -21,6 +22,7 @@ The assistant does not require an API key. It reads the loaded dataset in the br
 - filters by real values in owner, zoning, LBCS, status, ZCTA, census, ward, and neighborhood fields
 - opens analytics, map, findings, and documentation views
 - creates scoped reports from the matched data
+- uses Fuse.js fuzzy matching for typos and partial owner/address/zoning/LBCS searches
 
 This is safer for GitHub Pages because frontend API keys are visible to users.
 

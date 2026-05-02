@@ -39,6 +39,7 @@ function expandCompact(source) {
 const allFeatures = compactSource ? expandCompact(compactSource) : parcelSource.features;
 const allProps = allFeatures.map((feature) => feature.properties);
 const attrById = new Map(allFeatures.map((feature) => [feature.properties.id, feature.properties]));
+let fuseSearch = null;
 let geomById = null;
 let geomPromise = null;
 const selectedIds = new Set();
@@ -149,6 +150,41 @@ function queryTokens(text) {
 function extractParcelId(text) {
   const match = String(text).match(/\b\d{4}_\d+_\d+\b/i);
   return match ? match[0] : "";
+}
+
+function initFuseSearch() {
+  if (!window.Fuse) return null;
+  return new Fuse(allFeatures, {
+    includeScore: true,
+    ignoreLocation: true,
+    shouldSort: true,
+    threshold: 0.28,
+    minMatchCharLength: 2,
+    keys: [
+      { name: "properties.id", weight: 0.2 },
+      { name: "properties.regridParcel", weight: 0.2 },
+      { name: "properties.regridPath", weight: 0.12 },
+      { name: "properties.address", weight: 0.13 },
+      { name: "properties.owner", weight: 0.11 },
+      { name: "properties.zoning", weight: 0.08 },
+      { name: "properties.lbcsFunction", weight: 0.06 },
+      { name: "properties.lbcsOwnership", weight: 0.04 },
+      { name: "properties.neighborhood", weight: 0.03 },
+      { name: "properties.ward", weight: 0.02 },
+      { name: "properties.censusZcta", weight: 0.01 },
+    ],
+  });
+}
+
+function fuzzyFeatureMatches(text, source = allFeatures) {
+  if (!fuseSearch) return [];
+  const tokens = queryTokens(text);
+  const query = tokens.join(" ") || normalizeText(text);
+  if (!query) return [];
+  const allowed = source === allFeatures ? null : new Set(source.map((feature) => feature.properties.id));
+  return fuseSearch.search(query, { limit: 600 })
+    .filter((result) => result.score <= 0.34 && (!allowed || allowed.has(result.item.properties.id)))
+    .map((result) => result.item);
 }
 
 function countBy(features, key) {
@@ -1233,10 +1269,12 @@ function featuresMatchingText(text, source = allFeatures) {
     });
     return { feature, score };
   }).filter((item) => item.score > 0);
-  if (!scored.length) return [];
+  if (!scored.length) return fuzzyFeatureMatches(text, source);
   scored.sort((a, b) => b.score - a.score);
   const best = scored[0].score;
-  return scored.filter((item) => item.score >= Math.max(1, best - 1)).map((item) => item.feature);
+  const directMatches = scored.filter((item) => item.score >= Math.max(1, best - 1)).map((item) => item.feature);
+  if (directMatches.length) return directMatches;
+  return fuzzyFeatureMatches(text, source);
 }
 
 function findBestFieldMatch(text) {
@@ -1329,6 +1367,16 @@ function applyDataMatchFilter(text) {
       el("searchInput").value = phrase;
       applyFilters();
       return `Searched all parcel fields for "${phrase}". ${fmt(filtered.length)} parcels match.`;
+    }
+    const fuzzyMatches = fuzzyFeatureMatches(phrase, allFeatures);
+    if (fuzzyMatches.length) {
+      lastAssistantMatch = { label: phrase, features: fuzzyMatches };
+      selectedIds.clear();
+      fuzzyMatches.slice(0, 120).forEach((feature) => selectedIds.add(feature.properties.id));
+      updateSelectionUi();
+      renderParcelList();
+      document.querySelector("[data-tab='map']").click();
+      return `Fuse.js fuzzy search found ${fmt(fuzzyMatches.length)} likely parcel matches for "${phrase}". I selected the top ${fmt(Math.min(120, fuzzyMatches.length))} matches so you can export or inspect them without hiding the broader dashboard.`;
     }
   }
   return null;
@@ -1758,6 +1806,30 @@ function restoreAiLauncherPosition() {
   }
 }
 
+function setAiLauncherDock(position) {
+  const launcher = el("aiLauncher");
+  if (!launcher) return;
+  const margin = 20;
+  const w = launcher.offsetWidth || 58;
+  const h = launcher.offsetHeight || 58;
+  const slots = {
+    "top-left": { left: margin, top: 96 },
+    "top-right": { left: window.innerWidth - w - margin, top: 96 },
+    "mid-left": { left: margin, top: Math.round((window.innerHeight - h) / 2) },
+    "mid-right": { left: window.innerWidth - w - margin, top: Math.round((window.innerHeight - h) / 2) },
+    "bottom-left": { left: margin, top: window.innerHeight - h - 48 },
+    "bottom-right": { left: window.innerWidth - w - margin, top: window.innerHeight - h - 48 },
+  };
+  const slot = slots[position] || slots["top-right"];
+  const left = Math.max(8, Math.min(window.innerWidth - w - 8, slot.left));
+  const top = Math.max(8, Math.min(window.innerHeight - h - 8, slot.top));
+  launcher.style.left = `${left}px`;
+  launcher.style.top = `${top}px`;
+  launcher.style.right = "auto";
+  localStorage.setItem("newarkAiLauncherPosition", JSON.stringify({ left, top }));
+  positionAiPanel();
+}
+
 function initDraggableAiLauncher() {
   const launcher = el("aiLauncher");
   if (!launcher) return;
@@ -1837,6 +1909,9 @@ el("loginPassword").addEventListener("keydown", (event) => {
   if (event.key === "Enter") validateLogin();
 });
 initDraggableAiLauncher();
+document.querySelectorAll("[data-ai-dock]").forEach((button) => {
+  button.addEventListener("click", () => setAiLauncherDock(button.dataset.aiDock));
+});
 el("aiLauncher").addEventListener("click", () => {
   if (Number(el("aiLauncher").dataset.dragSuppress || 0) > Date.now()) return;
   el("aiPanel").classList.toggle("gone");
@@ -1854,5 +1929,8 @@ el("aiForm").addEventListener("submit", (event) => {
 document.querySelectorAll("[data-prompt]").forEach((button) => {
   button.addEventListener("click", () => askAssistant(button.dataset.prompt));
 });
-el("aiStatus").textContent = "No-token local assistant active. Exact answers come from the loaded parcel dataset.";
+fuseSearch = initFuseSearch();
+el("aiStatus").textContent = fuseSearch
+  ? "No-token local assistant active with Fuse.js fuzzy matching. Counts come from the loaded parcel dataset."
+  : "No-token local assistant active. Exact answers come from the loaded parcel dataset.";
 applyFilters();

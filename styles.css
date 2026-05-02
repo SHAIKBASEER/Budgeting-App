@@ -654,7 +654,7 @@ svg {
 }
 
 .workspace {
-  overflow: hidden;
+  overflow: auto;
   min-height: 0;
 }
 
@@ -669,15 +669,18 @@ svg {
 .view-map {
   display: grid;
   grid-template-columns: 292px 1fr;
+  height: 100%;
+  min-height: 0;
 }
 
 .sidebar {
   background: var(--surface);
   border-right: 1px solid var(--border);
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
+  scrollbar-gutter: stable;
 }
 
 .sidebar-head {
@@ -752,6 +755,7 @@ svg {
 
 .side-section {
   padding: 8px 16px;
+  flex: 0 0 auto;
 }
 
 .section-title {
@@ -809,8 +813,14 @@ svg {
 
 .parcel-list {
   overflow-y: auto;
-  max-height: 42vh;
+  max-height: none;
+  min-height: 360px;
+  height: clamp(360px, 50vh, 620px);
   padding-right: 4px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(248,250,252,.65), rgba(255,255,255,.96));
+  border: 1px solid var(--border);
+  padding-left: 8px;
 }
 
 .parcel-item {
@@ -1836,7 +1846,7 @@ svg {
   width: min(420px, calc(100vw - 28px));
   max-height: calc(100vh - 250px);
   display: grid;
-  grid-template-rows: auto auto 1fr auto auto;
+  grid-template-rows: auto auto auto 1fr auto auto;
   border-radius: 24px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.85);
@@ -1880,6 +1890,40 @@ svg {
   width: 30px;
   height: 30px;
   font-size: 20px;
+}
+
+.ai-dock-controls {
+  display: grid;
+  grid-template-columns: auto repeat(6, 1fr);
+  gap: 6px;
+  align-items: center;
+  padding: 9px 10px 0;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.ai-dock-controls span {
+  color: var(--soft);
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  white-space: nowrap;
+}
+
+.ai-dock-controls button {
+  min-width: 0;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--opp);
+  font: 800 9px "JetBrains Mono", monospace;
+}
+
+.ai-dock-controls button:hover {
+  background: var(--opp);
+  color: white;
+  transform: translateY(-1px);
 }
 
 .ai-suggestions {

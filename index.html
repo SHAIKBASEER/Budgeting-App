@@ -312,6 +312,15 @@
         </div>
         <button id="closeAi" type="button">×</button>
       </header>
+      <div class="ai-dock-controls" aria-label="Move AI launcher">
+        <span>Move AI</span>
+        <button data-ai-dock="top-left" type="button" title="Top left">TL</button>
+        <button data-ai-dock="top-right" type="button" title="Top right">TR</button>
+        <button data-ai-dock="mid-left" type="button" title="Middle left">ML</button>
+        <button data-ai-dock="mid-right" type="button" title="Middle right">MR</button>
+        <button data-ai-dock="bottom-left" type="button" title="Bottom left">BL</button>
+        <button data-ai-dock="bottom-right" type="button" title="Bottom right">BR</button>
+      </div>
       <div class="ai-suggestions">
         <button data-prompt="Summarize the current filtered dataset" type="button">Summarize</button>
         <button data-prompt="Show vacant parcels" type="button">Filter vacant</button>
@@ -330,6 +339,7 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.3.0"></script>
     <script src="./data_compact_01.js"></script>
     <script src="./data_compact_02.js"></script>
     <script src="./app.js"></script>

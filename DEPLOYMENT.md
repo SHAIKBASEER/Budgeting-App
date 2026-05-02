@@ -15,6 +15,7 @@ This keeps each browser-uploaded GitHub file under 25 MiB and avoids loading the
 
 - Do not commit `Api.txt` or any private API key.
 - The dashboard assistant is local/no-token by default.
+- Fuse.js is loaded from jsDelivr for free fuzzy search. If the CDN is unavailable, the assistant falls back to the built-in deterministic matcher.
 - Keep `data.js`, `data_attrs.js`, and `data_compact.js` out of the GitHub Pages deployment.
 - If GitHub Pages becomes slow due to data size, host `data_compact_*.js` and `data_geom.js` on object storage such as Cloudflare R2, S3, Supabase Storage, or GitHub Releases, then update the script paths in `index.html` / `app.js`.
 
