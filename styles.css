@@ -60,7 +60,7 @@ body {
 }
 
 .rain-layer {
-  opacity: 0.18;
+  opacity: 0.22;
   background-image:
     linear-gradient(115deg, rgba(255,255,255,0) 0 42%, rgba(255,255,255,.72) 44%, rgba(255,255,255,0) 48%),
     linear-gradient(115deg, rgba(255,255,255,0) 0 44%, rgba(167,243,208,.42) 46%, rgba(255,255,255,0) 50%);
@@ -100,6 +100,31 @@ body {
   animation: scanPass 7s cubic-bezier(.45,0,.2,1) infinite;
 }
 
+.login-screen::before {
+  content: "";
+  position: absolute;
+  inset: auto -10% -24% -10%;
+  height: 46%;
+  background:
+    linear-gradient(180deg, transparent, rgba(8, 13, 35, 0.28)),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.18) 0 2px, transparent 2px 44px);
+  transform: perspective(560px) rotateX(58deg);
+  transform-origin: bottom;
+  opacity: .34;
+  animation: floorGlide 8s linear infinite;
+}
+
+.login-screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(125deg, transparent 0 58%, rgba(255,255,255,.12) 60%, transparent 66%),
+    linear-gradient(35deg, transparent 0 54%, rgba(16,185,129,.14) 56%, transparent 63%);
+  transform: translateX(-16%);
+  animation: lightPanels 9s ease-in-out infinite alternate;
+}
+
 @keyframes gridDrift {
   from { background-position: 0 0, 0 0, 0 0, 0 0; }
   to { background-position: 144px 72px, 144px 72px, 220px 220px, -260px 260px; }
@@ -119,6 +144,16 @@ body {
 @keyframes auroraMove {
   from { transform: scale(1) translate3d(-1%, 0, 0); opacity: .8; }
   to { transform: scale(1.08) translate3d(2%, -2%, 0); opacity: 1; }
+}
+
+@keyframes floorGlide {
+  from { background-position: 0 0, 0 0; }
+  to { background-position: 0 0, 176px 0; }
+}
+
+@keyframes lightPanels {
+  from { transform: translateX(-16%); opacity: .46; }
+  to { transform: translateX(12%); opacity: .72; }
 }
 
 .login-screen.gone {
@@ -224,6 +259,16 @@ body {
   overflow: hidden;
 }
 
+.login-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid rgba(255,255,255,.66);
+  pointer-events: none;
+  animation: cardGlow 4.4s ease-in-out infinite;
+}
+
 .glass-sheen {
   position: absolute;
   inset: -40% auto auto -30%;
@@ -243,6 +288,11 @@ body {
 @keyframes loginCardIn {
   from { opacity: 0; transform: translateY(18px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes cardGlow {
+  0%, 100% { box-shadow: inset 0 0 0 rgba(67,56,202,0), 0 0 0 rgba(16,185,129,0); }
+  50% { box-shadow: inset 0 0 34px rgba(255,255,255,.36), 0 0 34px rgba(16,185,129,.18); }
 }
 
 .login-eyebrow {
@@ -286,6 +336,20 @@ body {
   letter-spacing: 0;
 }
 
+.login-card input[readonly] {
+  color: #0f766e;
+  font-weight: 900;
+  background: linear-gradient(135deg, #ecfeff, #f8fafc);
+}
+
+.login-error {
+  min-height: 18px;
+  margin: -4px 0 10px;
+  color: var(--vac);
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .login-card button {
   width: 100%;
   height: 46px;
@@ -296,6 +360,47 @@ body {
   font-weight: 900;
   box-shadow: 0 12px 24px rgba(67, 56, 202, 0.26);
   margin-bottom: 12px;
+  position: relative;
+  overflow: hidden;
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+
+.login-card button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 34px rgba(67, 56, 202, 0.34);
+}
+
+.login-screen.authenticating .login-card {
+  animation: loginUnlock .7s cubic-bezier(.2,.8,.2,1) both;
+}
+
+.login-screen.authenticating .login-card button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.42), transparent);
+  animation: authSweep .7s ease both;
+}
+
+.login-card.invalid {
+  animation: loginShake .32s ease;
+}
+
+@keyframes loginUnlock {
+  0% { transform: translateY(0) scale(1); filter: blur(0); }
+  70% { transform: translateY(-8px) scale(1.02); filter: blur(0); }
+  100% { transform: translateY(12px) scale(.96); filter: blur(10px); opacity: 0; }
+}
+
+@keyframes authSweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+@keyframes loginShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
 }
 
 button, input, select {
@@ -1694,11 +1799,33 @@ svg {
   box-shadow: var(--shadow-2);
   font-weight: 900;
   animation: pulseAi 2.8s ease-in-out infinite;
+  touch-action: none;
+  user-select: none;
 }
 
 @keyframes pulseAi {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-5px); }
+}
+
+.ai-launcher::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border-radius: 28px;
+  border: 1px solid rgba(67,56,202,.22);
+  animation: aiRing 2.8s ease-in-out infinite;
+}
+
+.ai-launcher.dragging {
+  animation: none;
+  cursor: grabbing;
+  transform: scale(1.04);
+}
+
+@keyframes aiRing {
+  0%, 100% { opacity: .2; transform: scale(.94); }
+  50% { opacity: .7; transform: scale(1.08); }
 }
 
 .ai-panel {

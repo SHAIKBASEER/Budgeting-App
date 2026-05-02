@@ -294,7 +294,7 @@ function pointStyle(feature) {
 
 function mapRenderMode() {
   if (!map) return "points";
-  if (filtered.length <= 2200 || map.getZoom() >= 16) return "polygons";
+  if (filtered.length <= 900 || map.getZoom() >= 17) return "polygons";
   return "points";
 }
 
@@ -1387,6 +1387,32 @@ function statusBreakdownText() {
   return `Status counts from county fields: Vacant ${fmt(m.vacantOnly)} (IMPRVT_VAL = 0), Underutilized ${fmt(m.underOnly)} (IMPRVT_VAL <= 20% of LAND_VAL), Active ${fmt(active)}. Total visible: ${fmt(m.total)}.`;
 }
 
+function analystBriefText(source = filtered, label = "current view") {
+  const m = reportMetrics(source);
+  const opportunity = source.filter((f) => f.properties.vacancy !== "Occupied / active");
+  const topGeo = topEntry(opportunity.length ? opportunity : source, "neighborhood");
+  const topWard = topEntry(opportunity.length ? opportunity : source, "ward");
+  const topOwner = topEntry(source, "ownership");
+  const topSubtype = topEntry(source, "ownerSubtype");
+  const topLbcs = topEntry(source.filter((f) => f.properties.lbcsFunction !== "Unknown"), "lbcsFunction");
+  const topZoning = topEntry(source.filter((f) => f.properties.zoning !== "Unknown"), "zoning");
+  const highScore = source.filter((f) => f.properties.opportunity >= 45).length;
+  const civicOpp = opportunity.filter((f) => ["Public", "Nonprofit"].includes(f.properties.ownership)).length;
+  const totalValue = m.landValue + m.improvementValue;
+  const improvementRatio = m.landValue ? (m.improvementValue / m.landValue) : 0;
+  const recommendation = opportunity.length
+    ? `Start with ${topGeo[0]} / ${topWard[0]}, then prioritize ${fmt(civicOpp)} public or nonprofit opportunity parcels because they may be easier for coordinated partnership, acquisition, or land-bank conversations.`
+    : "This scope is mostly active, so use it as a comparison baseline rather than a vacancy acquisition target.";
+  return [
+    `Analyst brief for ${label}: ${fmt(m.total)} parcels; ${fmt(m.vacantOnly)} vacant, ${fmt(m.underOnly)} underutilized, and ${fmt(m.active)} active.`,
+    `Concentration: ${topGeo[0]} is the leading opportunity geography (${fmt(topGeo[1])} parcels), with ${topWard[0]} as the leading ward signal.`,
+    `Ownership: ${topOwner[0]} dominates (${fmt(topOwner[1])} parcels); strongest owner subtype is ${topSubtype[0]} (${fmt(topSubtype[1])}).`,
+    `Land use / zoning: leading LBCS function is ${topLbcs[0]} (${fmt(topLbcs[1])}); leading zoning is ${topZoning[0]} (${fmt(topZoning[1])}).`,
+    `Value signal: land value ${money(m.landValue)}, improvement value ${money(m.improvementValue)}, combined value ${money(totalValue)}, improvement-to-land ratio ${improvementRatio ? `${(improvementRatio * 100).toFixed(1)}%` : "not available"}.`,
+    `Action read: ${fmt(highScore)} parcels score 45+ for opportunity. ${recommendation}`
+  ].join("\n");
+}
+
 function strongestOpportunitiesText() {
   const rows = [...filtered]
     .sort((a, b) => b.properties.opportunity - a.properties.opportunity || b.properties.landValue - a.properties.landValue)
@@ -1521,8 +1547,9 @@ function applyAssistantCommand(text) {
   }
   if (q.includes("report") || q.includes("pdf")) {
     const reportOptions = inferReportOptions(text, wantsNonprofit);
+    const scope = reportScope(reportOptions);
     exportReport({ ...reportOptions, prompt: text, print: q.includes("pdf") });
-    return `Generated a detailed report for ${reportOptions.title || reportOptions.focus || "current view"} with KPI cards, chart summaries, method notes, and parcel table. If you asked for PDF, use the print dialog to save as PDF.`;
+    return `Generated a detailed report for ${scope.title} with KPI cards, chart summaries, method notes, and parcel table.\n\n${analystBriefText(scope.features, scope.title)}\n\nIf you asked for PDF, use the print dialog to save as PDF.`;
   }
   if (q.includes("export")) {
     exportCsv();
@@ -1535,15 +1562,18 @@ function localAiAnswer(text) {
   const command = applyAssistantCommand(text);
   if (command) return command;
   const q = text.toLowerCase();
+  if (q.includes("summary") || q.includes("summarize") || q.includes("insight") || q.includes("brief") || q.includes("analysis")) {
+    return analystBriefText(filtered, "current visible dashboard");
+  }
   if (q.includes("ownership")) {
-    return `${exactBreakdown("ownership", "Ownership")} ${exactBreakdown("ownerSubtype", "Owner subtype", 6)}`;
+    return `${analystBriefText(filtered, "ownership analysis")}\n\n${exactBreakdown("ownership", "Ownership")} ${exactBreakdown("ownerSubtype", "Owner subtype", 6)}`;
   }
   if (q.includes("non profit") || q.includes("nonprofit") || q.includes("ngo") || q.includes("non-profit")) {
     const nonprofit = filtered.filter((f) => f.properties.ownership === "Nonprofit");
-    return `${fmt(nonprofit.length)} nonprofit parcels are in the current view. ${exactBreakdown("ownerSubtype", "Nonprofit subtype", 6, nonprofit)} ${exactBreakdown("vacancy", "Nonprofit status", 6, nonprofit)}`;
+    return `${analystBriefText(nonprofit, "nonprofit parcel scope")}\n\n${fmt(nonprofit.length)} nonprofit parcels are in the current view. ${exactBreakdown("ownerSubtype", "Nonprofit subtype", 6, nonprofit)} ${exactBreakdown("vacancy", "Nonprofit status", 6, nonprofit)}`;
   }
   if (q.includes("status") || q.includes("vacant") || q.includes("active") || q.includes("underutil")) {
-    return statusBreakdownText();
+    return `${statusBreakdownText()}\n\n${analystBriefText(filtered, "utilization status analysis")}`;
   }
   if (q.includes("where") || q.includes("concentrated") || q.includes("cluster")) {
     const candidates = filtered.filter((f) => f.properties.vacancy !== "Occupied / active");
@@ -1694,16 +1724,124 @@ el("selectRecordParcel").addEventListener("click", () => {
 });
 el("exportSingleParcel").addEventListener("click", exportActiveSingleCsv);
 el("exportParcelJson").addEventListener("click", exportActiveJson);
-el("enterDashboard").addEventListener("click", () => {
+
+function positionAiPanel() {
+  const launcher = el("aiLauncher");
+  const panel = el("aiPanel");
+  if (!launcher || !panel || panel.classList.contains("gone")) return;
+  const rect = launcher.getBoundingClientRect();
+  const width = Math.min(420, window.innerWidth - 28);
+  const height = Math.min(window.innerHeight - 28, 520);
+  const left = Math.max(14, Math.min(window.innerWidth - width - 14, rect.left + rect.width + 12));
+  const fallbackLeft = Math.max(14, rect.left - width - 12);
+  const finalLeft = rect.left + rect.width + width + 26 <= window.innerWidth ? left : fallbackLeft;
+  const top = Math.max(14, Math.min(window.innerHeight - height - 14, rect.top));
+  panel.style.left = `${finalLeft}px`;
+  panel.style.right = "auto";
+  panel.style.top = `${top}px`;
+  panel.style.maxHeight = `${height}px`;
+}
+
+function restoreAiLauncherPosition() {
+  const launcher = el("aiLauncher");
+  if (!launcher) return;
+  try {
+    const saved = JSON.parse(localStorage.getItem("newarkAiLauncherPosition") || "null");
+    if (!saved) return;
+    const left = Math.max(8, Math.min(window.innerWidth - 66, saved.left));
+    const top = Math.max(8, Math.min(window.innerHeight - 66, saved.top));
+    launcher.style.left = `${left}px`;
+    launcher.style.top = `${top}px`;
+    launcher.style.right = "auto";
+  } catch {
+    localStorage.removeItem("newarkAiLauncherPosition");
+  }
+}
+
+function initDraggableAiLauncher() {
+  const launcher = el("aiLauncher");
+  if (!launcher) return;
+  restoreAiLauncherPosition();
+  let drag = null;
+  launcher.addEventListener("pointerdown", (event) => {
+    const rect = launcher.getBoundingClientRect();
+    drag = {
+      pointerId: event.pointerId,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+      moved: false,
+    };
+    launcher.setPointerCapture(event.pointerId);
+  });
+  launcher.addEventListener("pointermove", (event) => {
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const left = Math.max(8, Math.min(window.innerWidth - launcher.offsetWidth - 8, event.clientX - drag.offsetX));
+    const top = Math.max(8, Math.min(window.innerHeight - launcher.offsetHeight - 8, event.clientY - drag.offsetY));
+    if (Math.abs(left - launcher.getBoundingClientRect().left) > 2 || Math.abs(top - launcher.getBoundingClientRect().top) > 2) {
+      drag.moved = true;
+      launcher.classList.add("dragging");
+    }
+    launcher.style.left = `${left}px`;
+    launcher.style.top = `${top}px`;
+    launcher.style.right = "auto";
+    positionAiPanel();
+  });
+  launcher.addEventListener("pointerup", (event) => {
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const rect = launcher.getBoundingClientRect();
+    localStorage.setItem("newarkAiLauncherPosition", JSON.stringify({ left: rect.left, top: rect.top }));
+    launcher.classList.remove("dragging");
+    const moved = drag.moved;
+    drag = null;
+    if (moved) {
+      launcher.dataset.dragSuppress = String(Date.now() + 250);
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  });
+  window.addEventListener("resize", () => {
+    restoreAiLauncherPosition();
+    positionAiPanel();
+  });
+}
+
+function enterDashboard() {
   dashboardEntered = true;
-  el("loginScreen").classList.add("gone");
+  el("loginScreen").classList.add("authenticating");
   setTimeout(() => {
+    el("loginScreen").classList.add("gone");
+    el("loginScreen").classList.remove("authenticating");
     map.invalidateSize();
     renderMap();
     if (parcelLayer) fitVisible();
-  }, 180);
+  }, 720);
+}
+
+function validateLogin() {
+  const password = el("loginPassword").value.trim();
+  const card = document.querySelector(".login-card");
+  el("loginError").textContent = "";
+  card.classList.remove("invalid");
+  if (password !== "Newark") {
+    el("loginError").textContent = "Password must be Newark.";
+    card.classList.add("invalid");
+    setTimeout(() => card.classList.remove("invalid"), 360);
+    el("loginPassword").focus();
+    return;
+  }
+  enterDashboard();
+}
+
+el("enterDashboard").addEventListener("click", validateLogin);
+el("loginPassword").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") validateLogin();
 });
-el("aiLauncher").addEventListener("click", () => el("aiPanel").classList.toggle("gone"));
+initDraggableAiLauncher();
+el("aiLauncher").addEventListener("click", () => {
+  if (Number(el("aiLauncher").dataset.dragSuppress || 0) > Date.now()) return;
+  el("aiPanel").classList.toggle("gone");
+  positionAiPanel();
+});
 el("closeAi").addEventListener("click", () => el("aiPanel").classList.add("gone"));
 el("aiForm").addEventListener("submit", (event) => {
   event.preventDefault();

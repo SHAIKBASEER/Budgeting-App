@@ -43,6 +43,11 @@ This is safer for GitHub Pages because frontend API keys are visible to users.
 5. Choose branch `main` and folder `/root`.
 6. Save and wait for the Pages URL.
 
+## Dashboard Login
+
+- User name: `Living Cities`
+- Password: `Newark`
+
 ## Credits
 
 Data Analyst Consultant: Abdul Baseer Shaik  

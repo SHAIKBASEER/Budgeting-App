@@ -32,6 +32,11 @@ Open:
 http://127.0.0.1:8765/index.html
 ```
 
+Login with:
+
+- User name: `Living Cities`
+- Password: `Newark`
+
 ## Publish Checklist
 
 - [ ] Hard refresh locally and confirm login loads.
