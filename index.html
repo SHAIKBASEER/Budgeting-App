@@ -6,7 +6,7 @@
     <title>Newark City - Parcel Intelligence</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
@@ -84,18 +84,24 @@
       </nav>
 
       <section class="filterbar" aria-label="Quick filters">
-        <span class="filter-label">Status</span>
-        <button class="filter-pill on all" data-filter="status" data-value="All" type="button">All</button>
-        <button class="filter-pill vacant" data-filter="status" data-value="Vacant Group" type="button">Vacant / vacant land</button>
-        <button class="filter-pill under" data-filter="status" data-value="Likely underutilized" type="button">Underutilized</button>
-        <button class="filter-pill good" data-filter="status" data-value="Occupied / active" type="button">Active</button>
-        <span class="filter-sep"></span>
-        <span class="filter-label">Ownership</span>
-        <button class="filter-pill on all" data-filter="ownership" data-value="All" type="button">All</button>
-        <button class="filter-pill" data-filter="ownership" data-value="Public" type="button">Public</button>
-        <button class="filter-pill" data-filter="ownership" data-value="Private" type="button">Private</button>
-        <button class="filter-pill" data-filter="ownership" data-value="Nonprofit" type="button">Nonprofit</button>
-        <span class="filter-sep"></span>
+        <div class="filter-group">
+          <span class="filter-label">Status</span>
+          <div class="segmented">
+            <button class="filter-pill on all" data-filter="status" data-value="All" type="button">All</button>
+            <button class="filter-pill vacant" data-filter="status" data-value="Vacant Group" type="button">Vacant / vacant land</button>
+            <button class="filter-pill under" data-filter="status" data-value="Likely underutilized" type="button">Underutilized</button>
+            <button class="filter-pill good" data-filter="status" data-value="Occupied / active" type="button">Active</button>
+          </div>
+        </div>
+        <div class="filter-group ownership-group">
+          <span class="filter-label">Ownership</span>
+          <div class="segmented">
+            <button class="filter-pill on all" data-filter="ownership" data-value="All" type="button">All</button>
+            <button class="filter-pill" data-filter="ownership" data-value="Public" type="button">Public</button>
+            <button class="filter-pill" data-filter="ownership" data-value="Private" type="button">Private</button>
+            <button class="filter-pill" data-filter="ownership" data-value="Nonprofit" type="button">Nonprofit</button>
+          </div>
+        </div>
         <label class="search-control">
           <span>Search</span>
           <input id="searchInput" type="search" placeholder="Block, lot, owner, address" />
