@@ -57,6 +57,13 @@ const state = {
   geography: "All",
   zoning: "All",
   search: "",
+  scoreMin: "",
+  scoreMax: "",
+  landMin: "",
+  landMax: "",
+  improvementMin: "",
+  improvementMax: "",
+  drilldown: null,
   clusters: true,
   tab: "map",
 };
@@ -356,14 +363,54 @@ function bindPopupActions() {
   });
 }
 
+function matchesDrilldown(p) {
+  if (!state.drilldown) return true;
+  const { type, value, extra } = state.drilldown;
+  if (type === "status") return planningStatus(p) === value;
+  if (type === "ownerSubtype") return p.ownerSubtype === value;
+  if (type === "ownership") return p.ownership === value;
+  if (type === "lbcsFunction") {
+    if (p.lbcsFunction !== value) return false;
+    return !extra?.status || planningStatus(p) === extra.status;
+  }
+  if (type === "landUse") return p.landUse === value;
+  if (type === "zcta") return String(p.censusZcta || "") === String(value);
+  if (type === "parcel") return p.id === value || p.regridParcel === value;
+  if (type === "valuePositive") {
+    return value === "Land value" ? Number(p.landValue || 0) > 0 : Number(p.improvementValue || 0) > 0;
+  }
+  return true;
+}
+
+function setDrilldown(type, value, extra = {}) {
+  state.drilldown = { type, value, extra };
+  selectedIds.clear();
+  applyFilters();
+  updateSelectionUi();
+}
+
+function clearDrilldown() {
+  state.drilldown = null;
+}
+
 function applyFilters() {
   const query = normalizeText(state.search);
+  const scoreMin = Number(state.scoreMin || 0);
+  const scoreMax = state.scoreMax === "" ? Infinity : Number(state.scoreMax);
+  const landMin = Number(state.landMin || 0);
+  const landMax = state.landMax === "" ? Infinity : Number(state.landMax);
+  const improvementMin = Number(state.improvementMin || 0);
+  const improvementMax = state.improvementMax === "" ? Infinity : Number(state.improvementMax);
   filtered = allFeatures.filter(({ properties: p }) => {
     if (state.status === "Vacant Group" && !["Vacant", "Vacant land"].includes(p.vacancy)) return false;
     if (state.status !== "All" && state.status !== "Vacant Group" && p.vacancy !== state.status) return false;
     if (state.ownership !== "All" && p.ownership !== state.ownership) return false;
     if (state.geography !== "All" && p.ward !== state.geography && p.neighborhood !== state.geography) return false;
     if (state.zoning !== "All" && p.zoning !== state.zoning) return false;
+    if (Number(p.opportunity || 0) < scoreMin || Number(p.opportunity || 0) > scoreMax) return false;
+    if (Number(p.landValue || 0) < landMin || Number(p.landValue || 0) > landMax) return false;
+    if (Number(p.improvementValue || 0) < improvementMin || Number(p.improvementValue || 0) > improvementMax) return false;
+    if (!matchesDrilldown(p)) return false;
     if (query) {
       const haystack = featureHaystack(p);
       if (!haystack.includes(query)) return false;
@@ -536,15 +583,16 @@ function fitVisible() {
   if (bounds.isValid()) map.fitBounds(bounds.pad(0.04), { animate: false });
 }
 
-function renderBars(containerId, entries, color, total) {
+function renderBars(containerId, entries, color, total, drillType = "") {
   const max = Math.max(...entries.map((entry) => entry[1]), 1);
   el(containerId).innerHTML = entries.map(([label, value]) => `
-    <div class="bar-row">
+    <div class="bar-row" ${drillType ? `data-drill-type="${drillType}" data-drill-value="${escapeHtml(label)}" title="Double-click to filter ${escapeHtml(label)}"` : ""}>
       <div class="bar-label" title="${escapeHtml(label)}">${escapeHtml(label)}</div>
       <div class="bar-track"><div class="bar-fill" style="width:${(value / max) * 100}%;background:${color};"></div></div>
       <div class="bar-num">${total ? `${((value / total) * 100).toFixed(0)}%` : fmt(value)}</div>
     </div>
   `).join("");
+  bindHtmlDrilldowns();
 }
 
 function renderProgressChart(containerId, entries, palette) {
@@ -553,7 +601,7 @@ function renderProgressChart(containerId, entries, palette) {
   el(containerId).innerHTML = entries.map(([label, value], idx) => {
     const pct = (value / total) * 100;
     return `
-      <div class="progress-row" style="--delay:${idx * 35}ms">
+      <div class="progress-row" data-drill-type="landUse" data-drill-value="${escapeHtml(label)}" title="Double-click to filter ${escapeHtml(label)} parcels" style="--delay:${idx * 35}ms">
         <div class="progress-meta">
           <strong title="${escapeHtml(label)}">${escapeHtml(label)}</strong>
           <span>${pct.toFixed(0)}%</span>
@@ -566,6 +614,7 @@ function renderProgressChart(containerId, entries, palette) {
       </div>
     `;
   }).join("");
+  bindHtmlDrilldowns();
 }
 
 function renderStatusLegend(entries) {
@@ -586,13 +635,22 @@ function renderTreemap(containerId, entries) {
   el(containerId).innerHTML = entries.map(([label, value], idx) => {
     const pct = (value / total) * 100;
     return `
-      <div class="tree-cell" style="--grow:${Math.max(8, pct)};background:${colors[idx % colors.length]};--delay:${idx * 45}ms">
+      <div class="tree-cell" data-drill-type="zcta" data-drill-value="${escapeHtml(label)}" title="Double-click to filter ZCTA ${escapeHtml(String(label))}" style="--grow:${Math.max(8, pct)};background:${colors[idx % colors.length]};--delay:${idx * 45}ms">
         <strong>${escapeHtml(String(label).replace(/\.0$/, ""))}</strong>
         <span>${fmt(value)}</span>
         <small>${pct.toFixed(0)}%</small>
       </div>
     `;
   }).join("");
+  bindHtmlDrilldowns();
+}
+
+function bindHtmlDrilldowns() {
+  document.querySelectorAll("[data-drill-type]").forEach((node) => {
+    if (node.dataset.drillReady) return;
+    node.dataset.drillReady = "1";
+    node.addEventListener("dblclick", () => setDrilldown(node.dataset.drillType, node.dataset.drillValue));
+  });
 }
 
 function renderParcelList() {
@@ -665,7 +723,8 @@ function renderKpis() {
   el("cUnderOnly").textContent = fmt(m.underOnly);
   el("cOpportunity").textContent = fmt(m.vacant);
   el("cValue").textContent = money(m.sumValue);
-  el("statusText").textContent = `${fmt(m.total)} parcels visible - ${fmt(m.vacant)} vacant or underutilized - ${fmt(m.clusters)} opportunity clusters`;
+  const drillText = state.drilldown ? ` - drilldown: ${state.drilldown.value}` : "";
+  el("statusText").textContent = `${fmt(m.total)} parcels visible - ${fmt(m.vacant)} vacant or underutilized - ${fmt(m.clusters)} opportunity clusters${drillText}`;
   updateSelectionUi();
 }
 
@@ -693,6 +752,9 @@ function renderLegend() {
 
 function makeChart(id, type, labels, values, colors, extra = {}) {
   if (!window.Chart) return;
+  Chart.defaults.font.family = "Inter, ui-sans-serif, system-ui, sans-serif";
+  Chart.defaults.font.size = 11;
+  Chart.defaults.color = "#4b5565";
   if (charts[id]) charts[id].destroy();
   charts[id] = new Chart(el(id), {
     type,
@@ -717,19 +779,66 @@ function makeChart(id, type, labels, values, colors, extra = {}) {
             boxWidth: 10,
             usePointStyle: true,
             color: "#4b5565",
-            font: { family: "Outfit", size: 11, weight: 700 },
+            font: { family: "Inter", size: 11, weight: 600 },
             padding: 14,
           },
         },
-        tooltip: { callbacks: { label: (context) => `${context.label}: ${fmt(context.raw)}` } },
+        tooltip: {
+          backgroundColor: "rgba(15,23,42,.94)",
+          titleFont: { family: "Inter", size: 12, weight: 700 },
+          bodyFont: { family: "Inter", size: 12, weight: 500 },
+          padding: 12,
+          cornerRadius: 10,
+          callbacks: { label: (context) => `${context.label}: ${fmt(context.raw)}` },
+        },
       },
       scales: type === "bar" ? {
-        x: { grid: { color: "#edf0f6" }, ticks: { precision: 0, color: "#8a93a6", font: { family: "JetBrains Mono", size: 10 } } },
-        y: { grid: { display: false }, ticks: { color: "#4b5565", font: { family: "Outfit", weight: 700 }, callback: wrapTick } },
+        x: { grid: { color: "#edf0f6" }, ticks: { precision: 0, color: "#8a93a6", font: { family: "Inter", size: 10, weight: 600 } } },
+        y: { grid: { display: false }, ticks: { color: "#4b5565", font: { family: "Inter", weight: 600 }, callback: wrapTick } },
       } : {},
       ...extra,
     },
   });
+  bindChartDrilldown(id, charts[id]);
+}
+
+function bindChartDrilldown(id, chart) {
+  const canvas = el(id);
+  if (!canvas || !chart) return;
+  canvas.ondblclick = (event) => {
+    const points = chart.getElementsAtEventForMode(event, "nearest", { intersect: true }, true);
+    if (!points.length) return;
+    handleChartDrilldown(id, chart, points[0]);
+  };
+}
+
+function handleChartDrilldown(id, chart, point) {
+  const label = chart.data.labels?.[point.index];
+  const dataset = chart.data.datasets?.[point.datasetIndex || 0];
+  if (!label && !dataset) return;
+  if (id === "statusChart") {
+    setDrilldown("status", label);
+    return;
+  }
+  if (id === "ownershipChart") {
+    setDrilldown("ownerSubtype", label);
+    return;
+  }
+  if (id === "matrixChart") {
+    setDrilldown("lbcsFunction", label, { status: dataset?.drillStatus });
+    return;
+  }
+  if (id === "scatterChart") {
+    const raw = dataset?.data?.[point.index];
+    if (raw?.id) {
+      setDrilldown("parcel", raw.id);
+      openParcelRecord(raw.id);
+    }
+    return;
+  }
+  if (id === "valueSplitChart") {
+    setDrilldown("valuePositive", label);
+  }
 }
 
 function wrapTick(value) {
@@ -752,6 +861,9 @@ function wrapTick(value) {
 
 function makeScatter(id, datasets) {
   if (!window.Chart) return;
+  Chart.defaults.font.family = "Inter, ui-sans-serif, system-ui, sans-serif";
+  Chart.defaults.font.size = 11;
+  Chart.defaults.color = "#4b5565";
   if (charts[id]) charts[id].destroy();
   charts[id] = new Chart(el(id), {
     type: "scatter",
@@ -761,8 +873,13 @@ function makeScatter(id, datasets) {
       maintainAspectRatio: false,
       parsing: false,
       plugins: {
-        legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true } },
+        legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { family: "Inter", weight: 600 } } },
           tooltip: {
+            backgroundColor: "rgba(15,23,42,.94)",
+            titleFont: { family: "Inter", size: 12, weight: 700 },
+            bodyFont: { family: "Inter", size: 12, weight: 500 },
+            padding: 12,
+            cornerRadius: 10,
             callbacks: {
             label(context) {
               const raw = context.raw;
@@ -778,12 +895,12 @@ function makeScatter(id, datasets) {
           min: 0,
           max: 4_500,
           grid: { color: "#edf0f6" },
-          ticks: { color: "#8a93a6", font: { family: "JetBrains Mono", size: 10 } },
+          ticks: { color: "#8a93a6", font: { family: "Inter", size: 10, weight: 600 } },
         },
         y: {
           type: "linear",
           title: { display: true, text: "IMPRVT_VAL / LAND_VAL %" },
-          ticks: { callback: (value) => `${value}%`, color: "#8a93a6", font: { family: "JetBrains Mono", size: 10 } },
+          ticks: { callback: (value) => `${value}%`, color: "#8a93a6", font: { family: "Inter", size: 10, weight: 600 } },
           grid: { color: "#edf0f6" },
         },
       },
@@ -793,6 +910,9 @@ function makeScatter(id, datasets) {
 
 function makeRadar(id, labels, values) {
   if (!window.Chart) return;
+  Chart.defaults.font.family = "Inter, ui-sans-serif, system-ui, sans-serif";
+  Chart.defaults.font.size = 11;
+  Chart.defaults.color = "#4b5565";
   if (charts[id]) charts[id].destroy();
   charts[id] = new Chart(el(id), {
     type: "radar",
@@ -817,7 +937,7 @@ function makeRadar(id, labels, values) {
           ticks: { display: false },
           grid: { color: "#dfe3ed" },
           angleLines: { color: "#dfe3ed" },
-          pointLabels: { color: "#4b5565", font: { weight: 700 } },
+          pointLabels: { color: "#4b5565", font: { family: "Inter", weight: 600 } },
         },
       },
       plugins: { legend: { display: false } },
@@ -861,6 +981,7 @@ function renderCharts() {
         x: Math.min(4_500, Number(p.landValue || 0) / 1000),
         y: Math.min(350, Number(p.landValue || 0) ? (Number(p.improvementValue || 0) / Number(p.landValue || 1)) * 100 : 0),
         label: p.address || `${p.block}/${p.lot}`,
+        id: p.id,
         score: p.opportunity,
       })),
     backgroundColor: statusColors[statusName] || "#8a93a6",
@@ -876,6 +997,7 @@ function renderCharts() {
     ["Occupied / active", "#0a8f60"],
   ].map(([label, color]) => ({
     label: label.replace("Likely ", ""),
+    drillStatus: label,
     data: lbcsMatrixLabels.map((lbcs) => filtered.filter((f) => f.properties.lbcsFunction === lbcs && planningStatus(f.properties) === label).length),
     backgroundColor: color,
     borderRadius: 4,
@@ -887,20 +1009,39 @@ function renderCharts() {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { position: "top", labels: { usePointStyle: true, boxWidth: 8, color: "#4b5565", font: { family: "Outfit", weight: 700 } } } },
+      plugins: {
+        legend: { position: "top", labels: { usePointStyle: true, boxWidth: 8, color: "#4b5565", font: { family: "Inter", weight: 600 } } },
+        tooltip: {
+          backgroundColor: "rgba(15,23,42,.94)",
+          titleFont: { family: "Inter", size: 12, weight: 700 },
+          bodyFont: { family: "Inter", size: 12, weight: 500 },
+          padding: 12,
+          cornerRadius: 10,
+        },
+      },
       scales: {
-        x: { stacked: true, grid: { display: false }, ticks: { callback: wrapTick, color: "#4b5565", font: { family: "Outfit", size: 10, weight: 700 } } },
-        y: { stacked: true, grid: { color: "#edf0f6" }, ticks: { color: "#8a93a6", font: { family: "JetBrains Mono", size: 10 } } },
+        x: { stacked: true, grid: { display: false }, ticks: { callback: wrapTick, color: "#4b5565", font: { family: "Inter", size: 10, weight: 600 } } },
+        y: { stacked: true, grid: { color: "#edf0f6" }, ticks: { color: "#8a93a6", font: { family: "Inter", size: 10, weight: 600 } } },
       },
       animation: { duration: 900, easing: "easeOutQuart" },
     },
   });
+  bindChartDrilldown("matrixChart", charts.matrixChart);
 
   makeChart("valueSplitChart", "doughnut", ["Land value", "Improvement value"], [
     filtered.reduce((sum, f) => sum + Number(f.properties.landValue || 0), 0),
     filtered.reduce((sum, f) => sum + Number(f.properties.improvementValue || 0), 0),
   ], ["#0a8f60", "#4338ca"], {
-    plugins: { tooltip: { callbacks: { label: (context) => `${context.label}: ${money(context.raw)}` } } },
+    plugins: {
+      tooltip: {
+        backgroundColor: "rgba(15,23,42,.94)",
+        titleFont: { family: "Inter", size: 12, weight: 700 },
+        bodyFont: { family: "Inter", size: 12, weight: 500 },
+        padding: 12,
+        cornerRadius: 10,
+        callbacks: { label: (context) => `${context.label}: ${money(context.raw)}` },
+      },
+    },
   });
 }
 
@@ -927,9 +1068,9 @@ function renderInsights() {
 
 function renderAll() {
   renderKpis();
-  renderBars("ownershipBars", countBy(filtered, "ownership"), "#4338ca", filtered.length);
-  renderBars("landUseBars", countBy(filtered, "landUse").slice(0, 7), "#0a8f60", filtered.length);
-  renderBars("lbcsBars", countBy(filtered, "lbcsFunction").filter(([label]) => label !== "Unknown").slice(0, 7), "#2563eb", filtered.length);
+  renderBars("ownershipBars", countBy(filtered, "ownership"), "#4338ca", filtered.length, "ownership");
+  renderBars("landUseBars", countBy(filtered, "landUse").slice(0, 7), "#0a8f60", filtered.length, "landUse");
+  renderBars("lbcsBars", countBy(filtered, "lbcsFunction").filter(([label]) => label !== "Unknown").slice(0, 7), "#2563eb", filtered.length, "lbcsFunction");
   renderProgressChart("landUseProgress", countBy(filtered, "landUse").slice(0, 7), ["#3478f6", "#8b5cf6", "#f59e0b", "#06a6bf", "#10b981", "#c0334e", "#64748b"]);
   renderTreemap("zctaTreemap", countBy(filtered.filter((f) => f.properties.censusZcta), "censusZcta").slice(0, 10));
   renderParcelList();
@@ -973,6 +1114,16 @@ function initFilters() {
     }, 150);
   });
 
+  ["scoreMin", "scoreMax", "landMin", "landMax", "improvementMin", "improvementMax"].forEach((id) => {
+    el(id).addEventListener("input", (event) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        state[id] = event.target.value;
+        applyFilters();
+      }, 180);
+    });
+  });
+
   el("resetFilters").addEventListener("click", () => {
     resetDashboardFilters();
   });
@@ -984,9 +1135,19 @@ function resetDashboardFilters() {
   state.geography = "All";
   state.zoning = "All";
   state.search = "";
+  state.scoreMin = "";
+  state.scoreMax = "";
+  state.landMin = "";
+  state.landMax = "";
+  state.improvementMin = "";
+  state.improvementMax = "";
+  clearDrilldown();
   el("searchInput").value = "";
   el("geoSelect").value = "All";
   el("zoningSelect").value = "All";
+  ["scoreMin", "scoreMax", "landMin", "landMax", "improvementMin", "improvementMax"].forEach((id) => {
+    el(id).value = "";
+  });
   document.querySelectorAll("[data-filter='status']").forEach((b) => b.classList.toggle("on", b.dataset.value === "All"));
   document.querySelectorAll("[data-filter='ownership']").forEach((b) => b.classList.toggle("on", b.dataset.value === "All"));
   applyFilters();
@@ -1406,6 +1567,9 @@ function dashboardDomContext() {
       geography: el("geoSelect")?.value || "All",
       zoning: el("zoningSelect")?.value || "All",
       search: el("searchInput")?.value || "",
+      score: `${state.scoreMin || "min"}-${state.scoreMax || "max"}`,
+      landValue: `${state.landMin || "min"}-${state.landMax || "max"}`,
+      improvementValue: `${state.improvementMin || "min"}-${state.improvementMax || "max"}`,
     },
     counts: {
       filtered: filtered.length,
@@ -1420,7 +1584,7 @@ function dashboardDomContext() {
 
 function dashboardContextText() {
   const ctx = dashboardDomContext();
-  return `Dashboard UI context: active tab=${ctx.activeTab}; visible view=${ctx.visibleViews.join(",")}; filters=status ${ctx.filters.status}, ownership ${ctx.filters.ownership}, geography ${ctx.filters.geography}, zoning ${ctx.filters.zoning}, search "${ctx.filters.search}"; filtered parcels=${fmt(ctx.counts.filtered)}; selected parcels=${fmt(ctx.counts.selected)}; available tabs=${ctx.availableTabs.join(", ")}; map layers=${ctx.availableMapLayers.join(", ")}; charts=${ctx.visibleCharts.join(", ") || "charts render on Analytics tab"}.`;
+  return `Dashboard UI context: active tab=${ctx.activeTab}; visible view=${ctx.visibleViews.join(",")}; filters=status ${ctx.filters.status}, ownership ${ctx.filters.ownership}, geography ${ctx.filters.geography}, zoning ${ctx.filters.zoning}, score ${ctx.filters.score}, land value ${ctx.filters.landValue}, improvement value ${ctx.filters.improvementValue}, search "${ctx.filters.search}"; filtered parcels=${fmt(ctx.counts.filtered)}; selected parcels=${fmt(ctx.counts.selected)}; available tabs=${ctx.availableTabs.join(", ")}; map layers=${ctx.availableMapLayers.join(", ")}; charts=${ctx.visibleCharts.join(", ") || "charts render on Analytics tab"}.`;
 }
 
 function exactBreakdown(key, label, limit = 8, source = filtered) {

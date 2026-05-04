@@ -6,7 +6,7 @@
     <title>Newark City - Parcel Intelligence</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
@@ -23,8 +23,8 @@
         <h1>Newark City Parcel Project</h1>
         <p>Parcel intelligence for vacancy, underutilization, ownership, LBCS function, census context, and coordinated development opportunities.</p>
         <div class="login-credits">
-          <span>Data Analyst Consultant</span><strong>Abdul Baseer Shaik</strong>
           <span>Director, Centre of Wealth</span><strong>Dr. Ahmed Whitt</strong>
+          <span>Data Analyst Consultant</span><strong>Abdul Baseer Shaik</strong>
         </div>
       </div>
       <div class="login-card">
@@ -107,6 +107,21 @@
         <label class="select-control">
           <span>Zoning</span>
           <select id="zoningSelect"><option value="All">All zoning</option></select>
+        </label>
+        <label class="range-control">
+          <span>Score</span>
+          <input id="scoreMin" type="number" min="0" max="100" placeholder="Min" />
+          <input id="scoreMax" type="number" min="0" max="100" placeholder="Max" />
+        </label>
+        <label class="range-control">
+          <span>Land value</span>
+          <input id="landMin" type="number" min="0" step="1000" placeholder="Min $" />
+          <input id="landMax" type="number" min="0" step="1000" placeholder="Max $" />
+        </label>
+        <label class="range-control">
+          <span>Improvement</span>
+          <input id="improvementMin" type="number" min="0" step="1000" placeholder="Min $" />
+          <input id="improvementMax" type="number" min="0" step="1000" placeholder="Max $" />
         </label>
         <button class="reset-button" id="resetFilters" type="button">Reset</button>
       </section>
@@ -241,8 +256,8 @@
 
         <section class="view view-insights gone" id="view-insights">
           <div class="credit-strip">
-            <strong>Data Analyst Consultant: Abdul Baseer Shaik</strong>
             <span>Director, Centre of Wealth: Dr. Ahmed Whitt</span>
+            <strong>Data Analyst Consultant: Abdul Baseer Shaik</strong>
           </div>
           <article class="insight danger"><span class="tag">Concentration</span><h2>Where are vacant or underutilized parcels concentrated?</h2><strong id="iVacant">-</strong><p id="iVacantText">-</p></article>
           <article class="insight info"><span class="tag">Assemblage</span><h2>Which clusters could support coordinated development?</h2><strong id="iClusters">-</strong><p id="iClusterText">-</p></article>
