@@ -21,7 +21,7 @@
   --blue: #2563eb;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 8px 28px rgba(15, 23, 42, 0.08);
   --shadow-2: 0 24px 70px rgba(15, 23, 42, 0.2);
-  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Libre Baskerville", Georgia, serif;
 }
 
 body {
@@ -423,7 +423,7 @@ svg {
 
 .app {
   display: grid;
-  grid-template-rows: 54px 38px 78px 1fr 24px;
+  grid-template-rows: 54px 38px 78px 1fr 38px;
   height: 100vh;
   animation: appReveal .7s cubic-bezier(.2,.8,.2,1) both;
 }
@@ -435,8 +435,7 @@ svg {
 
 .topbar,
 .tabbar,
-.filterbar,
-.statusbar {
+.filterbar {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   display: flex;
@@ -470,21 +469,20 @@ svg {
   letter-spacing: 0;
 }
 
-.brand-sub,
-.statusbar {
+.brand-sub {
   color: var(--soft);
-  font: 10px/1.2 "JetBrains Mono", monospace;
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 700;
 }
 
-.divider,
-.status-sep {
+.divider {
   width: 1px;
   background: var(--border-2);
   flex: 0 0 auto;
 }
 
 .divider { height: 26px; }
-.status-sep { height: 12px; }
 
 .chip {
   display: inline-flex;
@@ -507,16 +505,18 @@ svg {
 }
 
 .live-dot {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
   background: #10b981;
-  animation: blink 2s infinite;
+  box-shadow: 0 0 0 0 rgba(16,185,129,.45);
+  animation: statusPulse 1.8s infinite;
 }
 
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+@keyframes statusPulse {
+  0% { opacity: 1; box-shadow: 0 0 0 0 rgba(16,185,129,.45); }
+  70% { opacity: .72; box-shadow: 0 0 0 9px rgba(16,185,129,0); }
+  100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16,185,129,0); }
 }
 
 .primary-action {
@@ -553,7 +553,7 @@ svg {
 .tab:hover { color: var(--muted); }
 .tab.on { color: var(--opp); border-bottom-color: var(--opp); }
 .tab span {
-  font: 10px "JetBrains Mono", monospace;
+  font: 10px "Libre Baskerville", Georgia, serif;
   padding: 2px 7px;
   border-radius: 999px;
   background: var(--opp-soft);
@@ -684,7 +684,7 @@ svg {
 .range-control input {
   width: 86px;
   min-width: 86px;
-  font: 600 11px "Inter", ui-sans-serif, system-ui, sans-serif;
+  font: 600 11px "Libre Baskerville", Georgia, serif;
 }
 
 .reset-button {
@@ -800,7 +800,7 @@ svg {
 
 .slider-control strong {
   color: var(--opp);
-  font: 700 10px "Inter", ui-sans-serif, system-ui, sans-serif;
+  font: 700 10px "Libre Baskerville", Georgia, serif;
 }
 
 .slider-control input[type="range"] {
@@ -859,7 +859,7 @@ svg {
 }
 
 .sidebar-head strong {
-  font: 700 12px "JetBrains Mono", monospace;
+  font: 700 12px "Libre Baskerville", Georgia, serif;
   color: var(--opp);
 }
 
@@ -908,7 +908,7 @@ svg {
   display: block;
   margin-top: 3px;
   color: var(--soft);
-  font: 10px "JetBrains Mono", monospace;
+  font: 10px "Libre Baskerville", Georgia, serif;
 }
 
 .side-section {
@@ -966,7 +966,7 @@ svg {
   width: 42px;
   text-align: right;
   color: var(--soft);
-  font: 10px "JetBrains Mono", monospace;
+  font: 10px "Libre Baskerville", Georgia, serif;
 }
 
 .parcel-list {
@@ -1075,7 +1075,7 @@ svg {
 .parcel-meta {
   margin-top: 2px;
   color: var(--soft);
-  font: 600 10px "Inter", ui-sans-serif, system-ui, sans-serif;
+  font: 600 10px "Libre Baskerville", Georgia, serif;
 }
 
 .badges {
@@ -1161,7 +1161,7 @@ svg {
 
 .loading-sub {
   color: var(--soft);
-  font: 11px "JetBrains Mono", monospace;
+  font: 11px "Libre Baskerville", Georgia, serif;
 }
 
 .map-stats {
@@ -1291,7 +1291,7 @@ svg {
 .legend-count {
   margin-left: auto;
   color: var(--soft);
-  font: 9.5px "JetBrains Mono", monospace;
+  font: 9.5px "Libre Baskerville", Georgia, serif;
 }
 
 .map-controls {
@@ -1331,7 +1331,7 @@ svg {
   max-width: min(460px, calc(100vw - 28px));
   max-height: min(78vh, 760px);
   overflow-y: auto;
-  font-family: "Inter", ui-sans-serif, system-ui, sans-serif !important;
+  font-family: "Libre Baskerville", Georgia, serif !important;
 }
 
 .popup-head {
@@ -1340,7 +1340,7 @@ svg {
 
 .popup-pin {
   color: var(--soft);
-  font: 9px "JetBrains Mono", monospace;
+  font: 9px "Libre Baskerville", Georgia, serif;
   letter-spacing: 0.04em;
 }
 
@@ -1601,13 +1601,13 @@ svg {
 .status-leg-row em {
   font-style: normal;
   color: var(--soft);
-  font: 700 10px "JetBrains Mono", monospace;
+  font: 700 10px "Libre Baskerville", Georgia, serif;
 }
 
 .status-leg-row small {
   color: var(--soft);
   text-align: right;
-  font: 700 10px "JetBrains Mono", monospace;
+  font: 700 10px "Libre Baskerville", Georgia, serif;
 }
 
 .progress-chart {
@@ -1645,7 +1645,7 @@ svg {
 .progress-meta span {
   justify-self: end;
   color: var(--soft);
-  font: 800 10px "JetBrains Mono", monospace;
+  font: 800 10px "Libre Baskerville", Georgia, serif;
 }
 
 .progress-track {
@@ -1670,7 +1670,7 @@ svg {
 }
 
 .progress-fill b {
-  font: 800 10px "JetBrains Mono", monospace;
+  font: 800 10px "Libre Baskerville", Georgia, serif;
 }
 
 .note-pill {
@@ -1723,7 +1723,7 @@ svg {
 }
 
 .tree-cell small {
-  font: 800 10px "JetBrains Mono", monospace;
+  font: 800 10px "Libre Baskerville", Georgia, serif;
   opacity: 0.9;
 }
 
@@ -1861,7 +1861,7 @@ svg {
 
 .record-head span {
   color: var(--soft);
-  font: 800 11px "JetBrains Mono", monospace;
+  font: 800 11px "Libre Baskerville", Georgia, serif;
 }
 
 .record-head h2 {
@@ -2077,7 +2077,7 @@ svg {
   border-radius: 9px;
   background: var(--surface-2);
   color: var(--opp);
-  font: 800 9px "JetBrains Mono", monospace;
+  font: 800 9px "Libre Baskerville", Georgia, serif;
 }
 
 .ai-dock-controls button:hover {
@@ -2223,10 +2223,90 @@ svg {
 }
 
 .statusbar {
-  border-top: 1px solid var(--border);
-  border-bottom: 0;
-  gap: 12px;
-  padding: 0 18px;
+  position: relative;
+  z-index: 1200;
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 5px 14px;
+  border-top: 1px solid rgba(67,56,202,.18);
+  background:
+    linear-gradient(90deg, rgba(67,56,202,.13), transparent 24%, rgba(16,185,129,.13)),
+    rgba(255,255,255,.92);
+  box-shadow: 0 -12px 34px rgba(15,23,42,.08);
+  overflow: hidden;
+}
+
+.statusbar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 0 36%, rgba(255,255,255,.72) 50%, transparent 64%);
+  transform: translateX(-120%);
+  animation: statusSweep 5.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes statusSweep {
+  0%, 34% { transform: translateX(-120%); opacity: 0; }
+  52% { opacity: .72; }
+  82%, 100% { transform: translateX(120%); opacity: 0; }
+}
+
+.status-pulse,
+.status-chip {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 27px;
+  border: 1px solid rgba(67,56,202,.16);
+  border-radius: 999px;
+  background: rgba(255,255,255,.78);
+  color: var(--muted);
+  padding: 5px 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  backdrop-filter: blur(12px);
+}
+
+.status-pulse strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.status-chip.accent {
+  color: #065f46;
+  border-color: rgba(16,185,129,.24);
+  background: rgba(236,253,245,.86);
+}
+
+.status-marquee {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-marquee span {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: statusFloat 3.8s ease-in-out infinite;
+}
+
+@keyframes statusFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1px); }
 }
 
 @media (max-width: 1100px) {
@@ -2254,3 +2334,4 @@ svg {
   .ai-launcher { top: auto; right: 16px; bottom: 96px; }
   .ai-panel { top: 90px; right: 14px; max-height: calc(100vh - 112px); }
 }
+

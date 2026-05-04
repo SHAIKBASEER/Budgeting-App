@@ -752,7 +752,7 @@ function renderLegend() {
 
 function makeChart(id, type, labels, values, colors, extra = {}) {
   if (!window.Chart) return;
-  Chart.defaults.font.family = "Inter, ui-sans-serif, system-ui, sans-serif";
+  Chart.defaults.font.family = "Libre Baskerville, Georgia, serif";
   Chart.defaults.font.size = 11;
   Chart.defaults.color = "#4b5565";
   if (charts[id]) charts[id].destroy();
@@ -779,22 +779,22 @@ function makeChart(id, type, labels, values, colors, extra = {}) {
             boxWidth: 10,
             usePointStyle: true,
             color: "#4b5565",
-            font: { family: "Inter", size: 11, weight: 600 },
+            font: { family: "Libre Baskerville", size: 11, weight: 600 },
             padding: 14,
           },
         },
         tooltip: {
           backgroundColor: "rgba(15,23,42,.94)",
-          titleFont: { family: "Inter", size: 12, weight: 700 },
-          bodyFont: { family: "Inter", size: 12, weight: 500 },
+          titleFont: { family: "Libre Baskerville", size: 12, weight: 700 },
+          bodyFont: { family: "Libre Baskerville", size: 12, weight: 500 },
           padding: 12,
           cornerRadius: 10,
           callbacks: { label: (context) => `${context.label}: ${fmt(context.raw)}` },
         },
       },
       scales: type === "bar" ? {
-        x: { grid: { color: "#edf0f6" }, ticks: { precision: 0, color: "#8a93a6", font: { family: "Inter", size: 10, weight: 600 } } },
-        y: { grid: { display: false }, ticks: { color: "#4b5565", font: { family: "Inter", weight: 600 }, callback: wrapTick } },
+        x: { grid: { color: "#edf0f6" }, ticks: { precision: 0, color: "#8a93a6", font: { family: "Libre Baskerville", size: 10, weight: 600 } } },
+        y: { grid: { display: false }, ticks: { color: "#4b5565", font: { family: "Libre Baskerville", weight: 600 }, callback: wrapTick } },
       } : {},
       ...extra,
     },
@@ -861,7 +861,7 @@ function wrapTick(value) {
 
 function makeScatter(id, datasets) {
   if (!window.Chart) return;
-  Chart.defaults.font.family = "Inter, ui-sans-serif, system-ui, sans-serif";
+  Chart.defaults.font.family = "Libre Baskerville, Georgia, serif";
   Chart.defaults.font.size = 11;
   Chart.defaults.color = "#4b5565";
   if (charts[id]) charts[id].destroy();
@@ -873,11 +873,11 @@ function makeScatter(id, datasets) {
       maintainAspectRatio: false,
       parsing: false,
       plugins: {
-        legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { family: "Inter", weight: 600 } } },
+        legend: { position: "bottom", labels: { boxWidth: 10, usePointStyle: true, font: { family: "Libre Baskerville", weight: 600 } } },
           tooltip: {
             backgroundColor: "rgba(15,23,42,.94)",
-            titleFont: { family: "Inter", size: 12, weight: 700 },
-            bodyFont: { family: "Inter", size: 12, weight: 500 },
+            titleFont: { family: "Libre Baskerville", size: 12, weight: 700 },
+            bodyFont: { family: "Libre Baskerville", size: 12, weight: 500 },
             padding: 12,
             cornerRadius: 10,
             callbacks: {
@@ -895,12 +895,12 @@ function makeScatter(id, datasets) {
           min: 0,
           max: 4_500,
           grid: { color: "#edf0f6" },
-          ticks: { color: "#8a93a6", font: { family: "Inter", size: 10, weight: 600 } },
+          ticks: { color: "#8a93a6", font: { family: "Libre Baskerville", size: 10, weight: 600 } },
         },
         y: {
           type: "linear",
           title: { display: true, text: "IMPRVT_VAL / LAND_VAL %" },
-          ticks: { callback: (value) => `${value}%`, color: "#8a93a6", font: { family: "Inter", size: 10, weight: 600 } },
+          ticks: { callback: (value) => `${value}%`, color: "#8a93a6", font: { family: "Libre Baskerville", size: 10, weight: 600 } },
           grid: { color: "#edf0f6" },
         },
       },
@@ -910,7 +910,7 @@ function makeScatter(id, datasets) {
 
 function makeRadar(id, labels, values) {
   if (!window.Chart) return;
-  Chart.defaults.font.family = "Inter, ui-sans-serif, system-ui, sans-serif";
+  Chart.defaults.font.family = "Libre Baskerville, Georgia, serif";
   Chart.defaults.font.size = 11;
   Chart.defaults.color = "#4b5565";
   if (charts[id]) charts[id].destroy();
@@ -937,7 +937,7 @@ function makeRadar(id, labels, values) {
           ticks: { display: false },
           grid: { color: "#dfe3ed" },
           angleLines: { color: "#dfe3ed" },
-          pointLabels: { color: "#4b5565", font: { family: "Inter", weight: 600 } },
+          pointLabels: { color: "#4b5565", font: { family: "Libre Baskerville", weight: 600 } },
         },
       },
       plugins: { legend: { display: false } },
@@ -1010,18 +1010,18 @@ function renderCharts() {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { position: "top", labels: { usePointStyle: true, boxWidth: 8, color: "#4b5565", font: { family: "Inter", weight: 600 } } },
+        legend: { position: "top", labels: { usePointStyle: true, boxWidth: 8, color: "#4b5565", font: { family: "Libre Baskerville", weight: 600 } } },
         tooltip: {
           backgroundColor: "rgba(15,23,42,.94)",
-          titleFont: { family: "Inter", size: 12, weight: 700 },
-          bodyFont: { family: "Inter", size: 12, weight: 500 },
+          titleFont: { family: "Libre Baskerville", size: 12, weight: 700 },
+          bodyFont: { family: "Libre Baskerville", size: 12, weight: 500 },
           padding: 12,
           cornerRadius: 10,
         },
       },
       scales: {
-        x: { stacked: true, grid: { display: false }, ticks: { callback: wrapTick, color: "#4b5565", font: { family: "Inter", size: 10, weight: 600 } } },
-        y: { stacked: true, grid: { color: "#edf0f6" }, ticks: { color: "#8a93a6", font: { family: "Inter", size: 10, weight: 600 } } },
+        x: { stacked: true, grid: { display: false }, ticks: { callback: wrapTick, color: "#4b5565", font: { family: "Libre Baskerville", size: 10, weight: 600 } } },
+        y: { stacked: true, grid: { color: "#edf0f6" }, ticks: { color: "#8a93a6", font: { family: "Libre Baskerville", size: 10, weight: 600 } } },
       },
       animation: { duration: 900, easing: "easeOutQuart" },
     },
@@ -1035,8 +1035,8 @@ function renderCharts() {
     plugins: {
       tooltip: {
         backgroundColor: "rgba(15,23,42,.94)",
-        titleFont: { family: "Inter", size: 12, weight: 700 },
-        bodyFont: { family: "Inter", size: 12, weight: 500 },
+        titleFont: { family: "Libre Baskerville", size: 12, weight: 700 },
+        bodyFont: { family: "Libre Baskerville", size: 12, weight: 500 },
         padding: 12,
         cornerRadius: 10,
         callbacks: { label: (context) => `${context.label}: ${money(context.raw)}` },
@@ -1482,7 +1482,7 @@ function exportReport(options = {}) {
   const lbcsEntries = countBy(reportFeatures.filter((f) => f.properties.lbcsFunction !== "Unknown"), "lbcsFunction");
   const zoningEntries = countBy(reportFeatures, "zoning");
   const narrative = reportNarrative(scope, rm, reportFeatures);
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${scope.title}</title><style>body{font-family:Inter,Arial,sans-serif;padding:30px;color:#111827;background:#f4f6fb}h1{margin:0 0 8px;font-size:30px}.sub{color:#667085}.wrap{max-width:1240px;margin:auto}.hero{background:linear-gradient(135deg,#101827,#4338ca);color:white;border-radius:24px;padding:24px;margin-bottom:16px}.hero .sub{color:rgba(255,255,255,.72)}.card{background:white;border:1px solid #e5e7eb;border-radius:18px;padding:18px;box-shadow:0 8px 26px rgba(15,23,42,.08);margin:14px 0}.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:20px 0}.kpi{background:white;border:1px solid #e5e7eb;border-radius:16px;padding:16px}.kpi span{font-size:11px;color:#8a93a6;font-weight:800;text-transform:uppercase}.kpi strong{display:block;font-size:26px;margin-top:5px}.charts{display:grid;grid-template-columns:1fr 1fr;gap:14px}.rbar{display:grid;grid-template-columns:160px 1fr 125px;gap:10px;align-items:center;margin:10px 0;font-size:12px}.rbar div{height:14px;background:#eef0f6;border-radius:99px;overflow:hidden}.rbar b{display:block;height:100%;border-radius:99px}.rbar em{font-style:normal;text-align:right;color:#667085}.donut-wrap{display:grid;grid-template-columns:130px 1fr;gap:16px;align-items:center}.donut-wrap svg{width:130px;height:130px;transform:rotate(-90deg)}.donut-wrap text{transform:rotate(90deg);transform-origin:center;fill:#111827}.legend{display:grid;grid-template-columns:12px 1fr 70px;gap:8px;align-items:center;margin:7px 0;font-size:12px}.legend b{width:10px;height:10px;border-radius:3px}.legend em{text-align:right;color:#667085;font-style:normal}table{border-collapse:collapse;width:100%;font-size:11px;background:white}td,th{border-bottom:1px solid #e5e7eb;padding:8px;text-align:left;vertical-align:top}th{background:#f8fafc;color:#667085}.prompt,.method,.narrative{padding:12px 14px;background:#eef2ff;border-radius:12px;color:#4338ca;font-weight:700}.method{background:#ecfdf5;color:#065f46;font-weight:600;line-height:1.5}.narrative{background:#fff7ed;color:#9a3412;line-height:1.55}@media print{body{background:white;padding:12px}.card,.kpi{box-shadow:none}.no-print{display:none}.charts{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}table{font-size:9px}.hero{background:#111827!important;color:white!important}}</style></head><body><div class="wrap"><div class="hero"><h1>Living Cities - Newark City Parcel Project</h1><p class="sub">Prepared by Abdul Baseer Shaik, Data Analyst Consultant. Director, Centre of Wealth: Dr. Ahmed Whitt.</p></div>${options.prompt ? `<p class="prompt">User request: ${escapeHtml(options.prompt)}</p>` : ""}<p class="method">Method: Vacant = county IMPRVT_VAL is 0. Underutilized = county IMPRVT_VAL is greater than 0 and less than or equal to 20% of LAND_VAL. Active = improvement ratio above 20%. Report scope: ${escapeHtml(scope.title)}.</p><h2>${scope.title}</h2><p class="narrative">${escapeHtml(narrative)}</p><div class="kpis"><div class="kpi"><span>Report parcels</span><strong>${fmt(rm.total)}</strong></div><div class="kpi"><span>Vacant</span><strong>${fmt(rm.vacantOnly)}</strong></div><div class="kpi"><span>Underutilized</span><strong>${fmt(rm.underOnly)}</strong></div><div class="kpi"><span>Land value</span><strong>${money(rm.landValue)}</strong></div><div class="kpi"><span>Improvement value</span><strong>${money(rm.improvementValue)}</strong></div></div><div class="charts"><div class="card"><h3>Status Composition</h3>${svgDonut(statusEntries, ["#c0334e","#e09a3e","#0a8f60"])}</div><div class="card"><h3>Ownership</h3>${reportBars(ownerEntries, rm.total, "#4338ca")}</div><div class="card"><h3>Top Geographies</h3>${reportBars(geoEntries, rm.total, "#0a8f60")}</div><div class="card"><h3>LBCS Function</h3>${reportBars(lbcsEntries, rm.total, "#2563eb")}</div><div class="card"><h3>Zoning</h3>${reportBars(zoningEntries, rm.total, "#c96a2a")}</div></div><div class="card"><h2>Parcel Table</h2><p class="sub">Showing up to 80 parcels. Export CSV from the dashboard for the complete table.</p><table><thead><tr><th>Parcel</th><th>Address</th><th>Owner</th><th>Ownership</th><th>Status</th><th>LBCS function</th><th>Land value</th><th>Improvement</th><th>Score</th></tr></thead><tbody>${rows}</tbody></table></div><button class="no-print" onclick="window.print()" style="padding:12px 16px;border:0;border-radius:12px;background:#4338ca;color:white;font-weight:800">Print / Save PDF</button></div>${options.print ? "<script>setTimeout(()=>window.print(),500)</script>" : ""}</body></html>`;
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${scope.title}</title><style>body{font-family:'Libre Baskerville',Georgia,serif;padding:30px;color:#111827;background:#f4f6fb}h1{margin:0 0 8px;font-size:30px}.sub{color:#667085}.wrap{max-width:1240px;margin:auto}.hero{background:linear-gradient(135deg,#101827,#4338ca);color:white;border-radius:24px;padding:24px;margin-bottom:16px}.hero .sub{color:rgba(255,255,255,.72)}.card{background:white;border:1px solid #e5e7eb;border-radius:18px;padding:18px;box-shadow:0 8px 26px rgba(15,23,42,.08);margin:14px 0}.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:20px 0}.kpi{background:white;border:1px solid #e5e7eb;border-radius:16px;padding:16px}.kpi span{font-size:11px;color:#8a93a6;font-weight:800;text-transform:uppercase}.kpi strong{display:block;font-size:26px;margin-top:5px}.charts{display:grid;grid-template-columns:1fr 1fr;gap:14px}.rbar{display:grid;grid-template-columns:160px 1fr 125px;gap:10px;align-items:center;margin:10px 0;font-size:12px}.rbar div{height:14px;background:#eef0f6;border-radius:99px;overflow:hidden}.rbar b{display:block;height:100%;border-radius:99px}.rbar em{font-style:normal;text-align:right;color:#667085}.donut-wrap{display:grid;grid-template-columns:130px 1fr;gap:16px;align-items:center}.donut-wrap svg{width:130px;height:130px;transform:rotate(-90deg)}.donut-wrap text{transform:rotate(90deg);transform-origin:center;fill:#111827}.legend{display:grid;grid-template-columns:12px 1fr 70px;gap:8px;align-items:center;margin:7px 0;font-size:12px}.legend b{width:10px;height:10px;border-radius:3px}.legend em{text-align:right;color:#667085;font-style:normal}table{border-collapse:collapse;width:100%;font-size:11px;background:white}td,th{border-bottom:1px solid #e5e7eb;padding:8px;text-align:left;vertical-align:top}th{background:#f8fafc;color:#667085}.prompt,.method,.narrative{padding:12px 14px;background:#eef2ff;border-radius:12px;color:#4338ca;font-weight:700}.method{background:#ecfdf5;color:#065f46;font-weight:600;line-height:1.5}.narrative{background:#fff7ed;color:#9a3412;line-height:1.55}@media print{body{background:white;padding:12px}.card,.kpi{box-shadow:none}.no-print{display:none}.charts{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}table{font-size:9px}.hero{background:#111827!important;color:white!important}}</style></head><body><div class="wrap"><div class="hero"><h1>Living Cities - Newark City Parcel Project</h1><p class="sub">Prepared by Abdul Baseer Shaik, Data Analyst Consultant. Director, Centre of Wealth: Dr. Ahmed Whitt.</p></div>${options.prompt ? `<p class="prompt">User request: ${escapeHtml(options.prompt)}</p>` : ""}<p class="method">Method: Vacant = county IMPRVT_VAL is 0. Underutilized = county IMPRVT_VAL is greater than 0 and less than or equal to 20% of LAND_VAL. Active = improvement ratio above 20%. Report scope: ${escapeHtml(scope.title)}.</p><h2>${scope.title}</h2><p class="narrative">${escapeHtml(narrative)}</p><div class="kpis"><div class="kpi"><span>Report parcels</span><strong>${fmt(rm.total)}</strong></div><div class="kpi"><span>Vacant</span><strong>${fmt(rm.vacantOnly)}</strong></div><div class="kpi"><span>Underutilized</span><strong>${fmt(rm.underOnly)}</strong></div><div class="kpi"><span>Land value</span><strong>${money(rm.landValue)}</strong></div><div class="kpi"><span>Improvement value</span><strong>${money(rm.improvementValue)}</strong></div></div><div class="charts"><div class="card"><h3>Status Composition</h3>${svgDonut(statusEntries, ["#c0334e","#e09a3e","#0a8f60"])}</div><div class="card"><h3>Ownership</h3>${reportBars(ownerEntries, rm.total, "#4338ca")}</div><div class="card"><h3>Top Geographies</h3>${reportBars(geoEntries, rm.total, "#0a8f60")}</div><div class="card"><h3>LBCS Function</h3>${reportBars(lbcsEntries, rm.total, "#2563eb")}</div><div class="card"><h3>Zoning</h3>${reportBars(zoningEntries, rm.total, "#c96a2a")}</div></div><div class="card"><h2>Parcel Table</h2><p class="sub">Showing up to 80 parcels. Export CSV from the dashboard for the complete table.</p><table><thead><tr><th>Parcel</th><th>Address</th><th>Owner</th><th>Ownership</th><th>Status</th><th>LBCS function</th><th>Land value</th><th>Improvement</th><th>Score</th></tr></thead><tbody>${rows}</tbody></table></div><button class="no-print" onclick="window.print()" style="padding:12px 16px;border:0;border-radius:12px;background:#4338ca;color:white;font-weight:800">Print / Save PDF</button></div>${options.print ? "<script>setTimeout(()=>window.print(),500)</script>" : ""}</body></html>`;
   downloadText(`${scope.title.toLowerCase().replaceAll(" ", "_")}.html`, html, "text/html;charset=utf-8");
 }
 
@@ -2204,3 +2204,5 @@ el("aiStatus").textContent = fuseSearch
   ? "No-token local assistant active with Fuse.js fuzzy matching. Counts come from the loaded parcel dataset."
   : "No-token local assistant active. Exact answers come from the loaded parcel dataset.";
 applyFilters();
+
+

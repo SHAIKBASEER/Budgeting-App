@@ -6,7 +6,7 @@
     <title>Newark City - Parcel Intelligence</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
@@ -286,12 +286,10 @@
       </main>
 
       <footer class="statusbar">
-        <span class="live-dot"></span>
-        <span id="statusText">Initializing dashboard</span>
-        <span class="status-sep"></span>
-        <span>Source: Newark_Essex_Regrid_Final.gpkg</span>
-        <span class="status-sep"></span>
-        <span>Local bundles: compact shards + lazy map geometry</span>
+        <div class="status-pulse"><span class="live-dot"></span><strong>Live Portfolio</strong></div>
+        <div class="status-marquee"><span id="statusText">Initializing dashboard</span></div>
+        <div class="status-chip">Source: Newark_Essex_Regrid_Final.gpkg</div>
+        <div class="status-chip accent">Compact shards + lazy geometry</div>
       </footer>
     </div>
 
