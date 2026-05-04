@@ -54,6 +54,40 @@
     { key: 'assessedSource',   label: 'Value Source',     type: 'string'               },
   ];
 
+  function titleizeField(key) {
+    return String(key || '')
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  function inferFieldType(key) {
+    const sample = (window.allFeatures || [])
+      .map(f => f.properties?.[key])
+      .find(v => v !== null && v !== undefined && v !== '');
+    return typeof sample === 'number' ? 'number' : 'string';
+  }
+
+  function enrichFieldsFromDataset() {
+    const schema = window.NEWARK_COMPACT?.schema
+      || window.NEWARK_COMPACT_SHARDS?.find(shard => Array.isArray(shard.schema))?.schema
+      || Object.keys(window.allFeatures?.[0]?.properties || {});
+    const known = new Set(FIELDS.map(f => f.key));
+    schema.forEach(key => {
+      if (known.has(key)) return;
+      const type = inferFieldType(key);
+      FIELDS.push({
+        key,
+        label: titleizeField(key),
+        type,
+        mono: /id|path|parcel|block|lot|tract|zcta|key/i.test(key),
+        money: /value|assessed|income|parval|landval|improv/i.test(key),
+        score: /score|opportunity/i.test(key),
+      });
+      known.add(key);
+    });
+  }
+
   const SQL_OPS_STRING  = ['=', '!=', 'LIKE', 'NOT LIKE', 'IN', 'IS NULL', 'IS NOT NULL'];
   const SQL_OPS_NUMBER  = ['=', '!=', '>', '<', '>=', '<=', 'IS NULL', 'IS NOT NULL'];
 
@@ -67,7 +101,7 @@
   let deSortField = '';
   let deSortDir = 'asc';
   let deSelectedIds = new Set();
-  let deVisibleCols = new Set(FIELDS.slice(0, 12).map(f => f.key)); // default visible cols
+  let deVisibleCols = new Set(FIELDS.map(f => f.key)); // show full available parcel record by default
 
   function deGetData() {
     // Always read from the live app.js filter result. Fall back to all parcels before the first filter pass.
@@ -592,8 +626,8 @@
     }
     empty?.classList.add('gone');
 
-    // Show first 15 columns
-    const cols = FIELDS.slice(0,15);
+    // Show the full parcel field set. The wrapper scrolls horizontally for wide records.
+    const cols = FIELDS;
     head.innerHTML = `<tr>${cols.map(f=>`<th>${esc(f.label)}</th>`).join('')}</tr>`;
     body.innerHTML = rows.slice(0,500).map(r => `<tr>${cols.map(f=>{
       let v=r[f.key]; 
@@ -676,6 +710,8 @@
      BOOT
   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
   function boot() {
+    enrichFieldsFromDataset();
+    deVisibleCols = new Set(FIELDS.map(f => f.key));
     fixMapSync();
     wireNewTabs();
     initDataExplorer();

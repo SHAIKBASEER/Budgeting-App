@@ -92,6 +92,9 @@ let firstFit = true;
 const CLUSTER_STEP = 0.0045;
 let currentMapRenderMode = "";
 let zoomRenderTimer = null;
+let filterInputSeq = 0;
+let fullLandMax = Infinity;
+let fullImprovementMax = Infinity;
 
 function el(id) {
   return document.getElementById(id);
@@ -1183,6 +1186,8 @@ function initRangeSliders() {
   const improvementMax = valueCeil(allProps.map((p) => p.improvementValue), 1_000_000);
   state.landMax = landMax;
   state.improvementMax = improvementMax;
+  fullLandMax = landMax;
+  fullImprovementMax = improvementMax;
   const configs = [
     ["scoreMin", "scoreMax", 0, 100],
     ["landMin", "landMax", 0, landMax],
@@ -1230,7 +1235,9 @@ function initFilters() {
   let timer;
   el("searchInput").addEventListener("input", (event) => {
     clearTimeout(timer);
+    const seq = ++filterInputSeq;
     timer = setTimeout(() => {
+      if (seq !== filterInputSeq) return;
       state.search = event.target.value;
       applyFilters();
     }, 150);
@@ -1242,7 +1249,9 @@ function initFilters() {
       const pair = id.endsWith("Min") ? id.replace("Min", "Max") : id.replace("Max", "Min");
       if (id.endsWith("Min") && Number(event.target.value) > Number(el(pair).value)) el(pair).value = event.target.value;
       if (id.endsWith("Max") && Number(event.target.value) < Number(el(pair).value)) el(pair).value = event.target.value;
+      const seq = ++filterInputSeq;
       timer = setTimeout(() => {
+        if (seq !== filterInputSeq) return;
         ["scoreMin", "scoreMax", "landMin", "landMax", "improvementMin", "improvementMax"].forEach((rangeId) => {
           state[rangeId] = Number(el(rangeId).value);
         });
@@ -1253,6 +1262,8 @@ function initFilters() {
   });
 
   el("resetFilters").addEventListener("click", () => {
+    clearTimeout(timer);
+    filterInputSeq++;
     resetDashboardFilters();
   });
 }
@@ -1268,8 +1279,8 @@ function resetDashboardFilters() {
   state.scoreMax = 100;
   state.landMin = 0;
   state.improvementMin = 0;
-  state.landMax = Number(el("landMax").max);
-  state.improvementMax = Number(el("improvementMax").max);
+  state.landMax = Number.isFinite(fullLandMax) ? fullLandMax : Number(el("landMax").max);
+  state.improvementMax = Number.isFinite(fullImprovementMax) ? fullImprovementMax : Number(el("improvementMax").max);
   clearDrilldown();
   el("searchInput").value = "";
   const cmdSearch = el("cmdSearch");
@@ -1288,6 +1299,12 @@ function resetDashboardFilters() {
   document.querySelectorAll("[data-filter='status']").forEach((b) => b.classList.toggle("on", b.dataset.value === "All"));
   document.querySelectorAll("[data-filter='ownership']").forEach((b) => b.classList.toggle("on", b.dataset.value === "All"));
   applyFilters();
+  if (filtered.length !== allFeatures.length && state.status === "All" && state.ownership === "All" && !state.geographies.length && !state.zonings.length && !state.search && !state.drilldown && !externalFilterIds) {
+    console.warn("Reset expected full dataset but filters returned", filtered.length, state);
+    filtered = [...allFeatures];
+    syncDashboardGlobals();
+    renderAll();
+  }
 }
 
 function initTabs() {
@@ -2242,6 +2259,7 @@ el("aiStatus").textContent = fuseSearch
   ? "No-token local assistant active with Fuse.js fuzzy matching. Counts come from the loaded parcel dataset."
   : "No-token local assistant active. Exact answers come from the loaded parcel dataset.";
 applyFilters();
+
 
 
 
