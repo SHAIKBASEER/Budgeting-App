@@ -48,7 +48,7 @@ This is safer for GitHub Pages because frontend API keys are visible to users.
 ## Dashboard Login
 
 - User name: `Living Cities`
-- Password: ``
+- Password: `Newark`
 
 ## Credits
 

@@ -54,15 +54,15 @@ const USE_REMOTE_AI = false;
 const state = {
   status: "All",
   ownership: "All",
-  geography: "All",
-  zoning: "All",
+  geographies: [],
+  zonings: [],
   search: "",
-  scoreMin: "",
-  scoreMax: "",
-  landMin: "",
-  landMax: "",
-  improvementMin: "",
-  improvementMax: "",
+  scoreMin: 0,
+  scoreMax: 100,
+  landMin: 0,
+  landMax: Infinity,
+  improvementMin: 0,
+  improvementMax: Infinity,
   drilldown: null,
   clusters: true,
   tab: "map",
@@ -396,17 +396,17 @@ function clearDrilldown() {
 function applyFilters() {
   const query = normalizeText(state.search);
   const scoreMin = Number(state.scoreMin || 0);
-  const scoreMax = state.scoreMax === "" ? Infinity : Number(state.scoreMax);
+  const scoreMax = Number(state.scoreMax || 100);
   const landMin = Number(state.landMin || 0);
-  const landMax = state.landMax === "" ? Infinity : Number(state.landMax);
+  const landMax = Number.isFinite(Number(state.landMax)) ? Number(state.landMax) : Infinity;
   const improvementMin = Number(state.improvementMin || 0);
-  const improvementMax = state.improvementMax === "" ? Infinity : Number(state.improvementMax);
+  const improvementMax = Number.isFinite(Number(state.improvementMax)) ? Number(state.improvementMax) : Infinity;
   filtered = allFeatures.filter(({ properties: p }) => {
     if (state.status === "Vacant Group" && !["Vacant", "Vacant land"].includes(p.vacancy)) return false;
     if (state.status !== "All" && state.status !== "Vacant Group" && p.vacancy !== state.status) return false;
     if (state.ownership !== "All" && p.ownership !== state.ownership) return false;
-    if (state.geography !== "All" && p.ward !== state.geography && p.neighborhood !== state.geography) return false;
-    if (state.zoning !== "All" && p.zoning !== state.zoning) return false;
+    if (state.geographies.length && !state.geographies.includes(p.ward) && !state.geographies.includes(p.neighborhood)) return false;
+    if (state.zonings.length && !state.zonings.includes(p.zoning)) return false;
     if (Number(p.opportunity || 0) < scoreMin || Number(p.opportunity || 0) > scoreMax) return false;
     if (Number(p.landValue || 0) < landMin || Number(p.landValue || 0) > landMax) return false;
     if (Number(p.improvementValue || 0) < improvementMin || Number(p.improvementValue || 0) > improvementMax) return false;
@@ -806,7 +806,7 @@ function bindChartDrilldown(id, chart) {
   const canvas = el(id);
   if (!canvas || !chart) return;
   canvas.ondblclick = (event) => {
-    const points = chart.getElementsAtEventForMode(event, "nearest", { intersect: true }, true);
+    const points = chart.getElementsAtEventForMode(event, "nearest", { intersect: id !== "scatterChart" }, true);
     if (!points.length) return;
     handleChartDrilldown(id, chart, points[0]);
   };
@@ -1080,11 +1080,100 @@ function renderAll() {
   if (dashboardEntered && state.tab === "map") renderMap();
 }
 
+function updateMultiLabel(kind) {
+  const values = kind === "geo" ? state.geographies : state.zonings;
+  const labelId = kind === "geo" ? "geoMenuLabel" : "zoningMenuLabel";
+  const allText = kind === "geo" ? "All areas" : "All zoning";
+  el(labelId).textContent = values.length ? (values.length === 1 ? values[0] : `${values.length} selected`) : allText;
+}
+
+function buildMultiMenu(kind, values) {
+  const menu = el(kind === "geo" ? "geoMenu" : "zoningMenu");
+  const stateKey = kind === "geo" ? "geographies" : "zonings";
+  menu.innerHTML = `
+    <label class="multi-option all-option">
+      <input type="checkbox" value="__all__" checked />
+      <span>${kind === "geo" ? "All areas" : "All zoning"}</span>
+    </label>
+    ${values.map((value) => `
+      <label class="multi-option">
+        <input type="checkbox" value="${escapeHtml(value)}" />
+        <span>${escapeHtml(value)}</span>
+      </label>
+    `).join("")}
+  `;
+  menu.querySelectorAll("input").forEach((input) => {
+    input.addEventListener("change", () => {
+      if (input.value === "__all__") {
+        state[stateKey] = [];
+        menu.querySelectorAll("input:not([value='__all__'])").forEach((box) => { box.checked = false; });
+      } else {
+        const checked = [...menu.querySelectorAll("input:not([value='__all__']):checked")].map((box) => box.value);
+        state[stateKey] = checked;
+        menu.querySelector("input[value='__all__']").checked = checked.length === 0;
+      }
+      updateMultiLabel(kind);
+      applyFilters();
+    });
+  });
+  updateMultiLabel(kind);
+}
+
+function toggleMenu(kind) {
+  const menu = el(kind === "geo" ? "geoMenu" : "zoningMenu");
+  const button = el(kind === "geo" ? "geoMenuButton" : "zoningMenuButton");
+  document.querySelectorAll(".multi-menu").forEach((node) => {
+    if (node !== menu) node.classList.add("gone");
+  });
+  menu.classList.toggle("gone");
+  const rect = button.getBoundingClientRect();
+  menu.style.left = `${Math.max(12, Math.min(window.innerWidth - 272, rect.left))}px`;
+  menu.style.top = `${rect.bottom + 8}px`;
+}
+
+function valueCeil(values, fallback) {
+  const max = Math.max(...values.map((v) => Number(v || 0)), fallback);
+  if (max <= 100) return 100;
+  const power = Math.pow(10, Math.max(3, String(Math.round(max)).length - 2));
+  return Math.ceil(max / power) * power;
+}
+
+function updateSliderLabels() {
+  el("scoreRangeLabel").textContent = `${state.scoreMin} - ${state.scoreMax}`;
+  el("landRangeLabel").textContent = `${money(state.landMin)} - ${money(state.landMax)}`;
+  el("improvementRangeLabel").textContent = `${money(state.improvementMin)} - ${money(state.improvementMax)}`;
+}
+
+function initRangeSliders() {
+  const landMax = valueCeil(allProps.map((p) => p.landValue), 1_000_000);
+  const improvementMax = valueCeil(allProps.map((p) => p.improvementValue), 1_000_000);
+  state.landMax = landMax;
+  state.improvementMax = improvementMax;
+  const configs = [
+    ["scoreMin", "scoreMax", 0, 100],
+    ["landMin", "landMax", 0, landMax],
+    ["improvementMin", "improvementMax", 0, improvementMax],
+  ];
+  configs.forEach(([minId, maxId, min, max]) => {
+    const minInput = el(minId);
+    const maxInput = el(maxId);
+    [minInput, maxInput].forEach((input) => {
+      input.min = min;
+      input.max = max;
+      input.step = max > 100 ? Math.max(1000, Math.round(max / 250)) : 1;
+    });
+    minInput.value = min;
+    maxInput.value = max;
+  });
+  updateSliderLabels();
+}
+
 function initFilters() {
   const geos = [...new Set(allProps.flatMap((p) => [p.ward, p.neighborhood]).filter(Boolean))].sort();
   const zones = [...new Set(allProps.map((p) => p.zoning).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  el("geoSelect").innerHTML += geos.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("");
-  el("zoningSelect").innerHTML += zones.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("");
+  buildMultiMenu("geo", geos);
+  buildMultiMenu("zoning", zones);
+  initRangeSliders();
 
   document.querySelectorAll("[data-filter]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1096,13 +1185,12 @@ function initFilters() {
     });
   });
 
-  el("geoSelect").addEventListener("change", (event) => {
-    state.geography = event.target.value;
-    applyFilters();
-  });
-  el("zoningSelect").addEventListener("change", (event) => {
-    state.zoning = event.target.value;
-    applyFilters();
+  el("geoMenuButton").addEventListener("click", () => toggleMenu("geo"));
+  el("zoningMenuButton").addEventListener("click", () => toggleMenu("zoning"));
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".multi-select") && !event.target.closest(".multi-menu")) {
+      document.querySelectorAll(".multi-menu").forEach((node) => node.classList.add("gone"));
+    }
   });
 
   let timer;
@@ -1117,10 +1205,16 @@ function initFilters() {
   ["scoreMin", "scoreMax", "landMin", "landMax", "improvementMin", "improvementMax"].forEach((id) => {
     el(id).addEventListener("input", (event) => {
       clearTimeout(timer);
+      const pair = id.endsWith("Min") ? id.replace("Min", "Max") : id.replace("Max", "Min");
+      if (id.endsWith("Min") && Number(event.target.value) > Number(el(pair).value)) el(pair).value = event.target.value;
+      if (id.endsWith("Max") && Number(event.target.value) < Number(el(pair).value)) el(pair).value = event.target.value;
       timer = setTimeout(() => {
-        state[id] = event.target.value;
+        ["scoreMin", "scoreMax", "landMin", "landMax", "improvementMin", "improvementMax"].forEach((rangeId) => {
+          state[rangeId] = Number(el(rangeId).value);
+        });
+        updateSliderLabels();
         applyFilters();
-      }, 180);
+      }, 80);
     });
   });
 
@@ -1132,22 +1226,28 @@ function initFilters() {
 function resetDashboardFilters() {
   state.status = "All";
   state.ownership = "All";
-  state.geography = "All";
-  state.zoning = "All";
+  state.geographies = [];
+  state.zonings = [];
   state.search = "";
-  state.scoreMin = "";
-  state.scoreMax = "";
-  state.landMin = "";
-  state.landMax = "";
-  state.improvementMin = "";
-  state.improvementMax = "";
+  state.scoreMin = 0;
+  state.scoreMax = 100;
+  state.landMin = 0;
+  state.improvementMin = 0;
+  state.landMax = Number(el("landMax").max);
+  state.improvementMax = Number(el("improvementMax").max);
   clearDrilldown();
   el("searchInput").value = "";
-  el("geoSelect").value = "All";
-  el("zoningSelect").value = "All";
-  ["scoreMin", "scoreMax", "landMin", "landMax", "improvementMin", "improvementMax"].forEach((id) => {
-    el(id).value = "";
-  });
+  document.querySelectorAll(".multi-menu input[value='__all__']").forEach((box) => { box.checked = true; });
+  document.querySelectorAll(".multi-menu input:not([value='__all__'])").forEach((box) => { box.checked = false; });
+  el("scoreMin").value = 0;
+  el("scoreMax").value = 100;
+  el("landMin").value = 0;
+  el("landMax").value = state.landMax;
+  el("improvementMin").value = 0;
+  el("improvementMax").value = state.improvementMax;
+  updateMultiLabel("geo");
+  updateMultiLabel("zoning");
+  updateSliderLabels();
   document.querySelectorAll("[data-filter='status']").forEach((b) => b.classList.toggle("on", b.dataset.value === "All"));
   document.querySelectorAll("[data-filter='ownership']").forEach((b) => b.classList.toggle("on", b.dataset.value === "All"));
   applyFilters();
@@ -1502,14 +1602,20 @@ function applyDataMatchFilter(text) {
       return `Filtered by ${match.label}: ${match.value}. ${fmt(filtered.length)} parcels match.`;
     }
     if (match.key === "zoning") {
-      state.zoning = match.value;
-      el("zoningSelect").value = match.value;
+      state.zonings = [match.value];
+      document.querySelectorAll("#zoningMenu input").forEach((box) => { box.checked = box.value === match.value; });
+      const allBox = document.querySelector("#zoningMenu input[value='__all__']");
+      if (allBox) allBox.checked = false;
+      updateMultiLabel("zoning");
       applyFilters();
       return `Filtered by ${match.label}: ${match.value}. ${fmt(filtered.length)} parcels match.`;
     }
     if (match.key === "ward" || match.key === "neighborhood") {
-      state.geography = match.value;
-      el("geoSelect").value = match.value;
+      state.geographies = [match.value];
+      document.querySelectorAll("#geoMenu input").forEach((box) => { box.checked = box.value === match.value; });
+      const allBox = document.querySelector("#geoMenu input[value='__all__']");
+      if (allBox) allBox.checked = false;
+      updateMultiLabel("geo");
       applyFilters();
       return `Filtered by ${match.label}: ${match.value}. ${fmt(filtered.length)} parcels match.`;
     }
@@ -1564,12 +1670,12 @@ function dashboardDomContext() {
     filters: {
       status: activeStatus,
       ownership: activeOwnership,
-      geography: el("geoSelect")?.value || "All",
-      zoning: el("zoningSelect")?.value || "All",
+      geography: state.geographies.length ? state.geographies.join(", ") : "All",
+      zoning: state.zonings.length ? state.zonings.join(", ") : "All",
       search: el("searchInput")?.value || "",
-      score: `${state.scoreMin || "min"}-${state.scoreMax || "max"}`,
-      landValue: `${state.landMin || "min"}-${state.landMax || "max"}`,
-      improvementValue: `${state.improvementMin || "min"}-${state.improvementMax || "max"}`,
+      score: `${state.scoreMin}-${state.scoreMax}`,
+      landValue: `${money(state.landMin)}-${money(state.landMax)}`,
+      improvementValue: `${money(state.improvementMin)}-${money(state.improvementMax)}`,
     },
     counts: {
       filtered: filtered.length,

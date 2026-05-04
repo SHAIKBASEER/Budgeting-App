@@ -100,29 +100,29 @@
           <span>Search</span>
           <input id="searchInput" type="search" placeholder="Block, lot, owner, address" />
         </label>
-        <label class="select-control">
-          <span>Geography</span>
-          <select id="geoSelect"><option value="All">All areas</option></select>
-        </label>
-        <label class="select-control">
-          <span>Zoning</span>
-          <select id="zoningSelect"><option value="All">All zoning</option></select>
-        </label>
-        <label class="range-control">
-          <span>Score</span>
-          <input id="scoreMin" type="number" min="0" max="100" placeholder="Min" />
-          <input id="scoreMax" type="number" min="0" max="100" placeholder="Max" />
-        </label>
-        <label class="range-control">
-          <span>Land value</span>
-          <input id="landMin" type="number" min="0" step="1000" placeholder="Min $" />
-          <input id="landMax" type="number" min="0" step="1000" placeholder="Max $" />
-        </label>
-        <label class="range-control">
-          <span>Improvement</span>
-          <input id="improvementMin" type="number" min="0" step="1000" placeholder="Min $" />
-          <input id="improvementMax" type="number" min="0" step="1000" placeholder="Max $" />
-        </label>
+        <div class="multi-select" data-menu="geo">
+          <button class="multi-select-button" id="geoMenuButton" type="button"><span>Geography</span><strong id="geoMenuLabel">All areas</strong></button>
+          <div class="multi-menu gone" id="geoMenu"></div>
+        </div>
+        <div class="multi-select" data-menu="zoning">
+          <button class="multi-select-button" id="zoningMenuButton" type="button"><span>Zoning</span><strong id="zoningMenuLabel">All zoning</strong></button>
+          <div class="multi-menu gone" id="zoningMenu"></div>
+        </div>
+        <div class="slider-control">
+          <div><span>Score</span><strong id="scoreRangeLabel">0 - 100</strong></div>
+          <input id="scoreMin" type="range" min="0" max="100" value="0" />
+          <input id="scoreMax" type="range" min="0" max="100" value="100" />
+        </div>
+        <div class="slider-control">
+          <div><span>Land value</span><strong id="landRangeLabel">All</strong></div>
+          <input id="landMin" type="range" min="0" value="0" />
+          <input id="landMax" type="range" min="0" value="0" />
+        </div>
+        <div class="slider-control">
+          <div><span>Improvement</span><strong id="improvementRangeLabel">All</strong></div>
+          <input id="improvementMin" type="range" min="0" value="0" />
+          <input id="improvementMax" type="range" min="0" value="0" />
+        </div>
         <button class="reset-button" id="resetFilters" type="button">Reset</button>
       </section>
 
