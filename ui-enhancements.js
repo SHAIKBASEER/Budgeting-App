@@ -446,7 +446,9 @@
      COUNTER ANIMATIONS — observe KPI elements
   ─────────────────────────────────────────────────────────── */
   function initCounters() {
-    const ids = ['kVacant','kValue','kLandValue','kImprovedValue','mParcels','mVacant','mScore','sidebarCount','cParcels','cVacantOnly','cUnderOnly','cOpportunity','cValue'];
+    // Do not animate primary dataset counters. They are filter truth labels and must
+    // always match the current app.js filtered set exactly.
+    const ids = ['mScore'];
     const obs = new MutationObserver(muts => {
       muts.forEach(m => {
         const e = m.target;

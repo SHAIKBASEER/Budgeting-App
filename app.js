@@ -741,7 +741,10 @@ function renderKpis() {
 
   el("sourceCount").textContent = `${fmt(allFeatures.length)} real parcels`;
   el("mapTabCount").textContent = fmt(m.total);
+  const dataTabCount = el("dataTabCount");
+  if (dataTabCount) dataTabCount.textContent = fmt(m.total);
   el("sidebarCount").textContent = fmt(m.total);
+  if (window.devTab?.syncCounts) window.devTab.syncCounts(m.total);
   el("kVacant").textContent = fmt(m.vacant);
   el("kVacantPct").textContent = vacantPct;
   el("kValue").textContent = money(m.sumValue);

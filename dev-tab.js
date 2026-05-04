@@ -131,11 +131,25 @@
     // Update count badges
     const dtc = el('dataTabCount');
     if (dtc) dtc.textContent = fmt(total);
+    const mtc = el('mapTabCount');
+    if (mtc && mtc.textContent !== fmt(total)) mtc.textContent = fmt(total);
+    const sc = el('sidebarCount');
+    if (sc && sc.textContent !== fmt(total)) sc.textContent = fmt(total);
     const sub = el('dataExplorerSub');
     if (sub) sub.textContent = `Showing ${fmt(Math.min(dePageSize, slice.length))} of ${fmt(total)} filtered parcels. Sorted by ${deSortField || 'default'}.`;
 
     renderDeTable(slice);
     renderDePagination(total, pages);
+  }
+
+  function syncCounts(total) {
+    const text = fmt(total);
+    const dtc = el('dataTabCount');
+    const mtc = el('mapTabCount');
+    const sc = el('sidebarCount');
+    if (dtc) dtc.textContent = text;
+    if (mtc) mtc.textContent = text;
+    if (sc) sc.textContent = text;
   }
 
   function renderDeTable(rows) {
@@ -719,7 +733,7 @@
     // Initial data load
     deRefresh();
     // Expose for external use
-    window.devTab = { deRefresh, runSqlQuery, applySqlToDashboard };
+    window.devTab = { deRefresh, syncCounts, runSqlQuery, applySqlToDashboard };
   }
 
   waitForData(boot);
