@@ -822,15 +822,16 @@ svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width:
 .multi-select { position: relative; }
 .multi-menu {
   position: fixed;
-  z-index: 9500;
-  width: 260px;
-  max-height: 300px;
+  z-index: 99000;
+  width: 280px;
+  max-height: 320px;
   overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border-2);
   border-radius: 14px;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.6), 0 0 0 1px var(--border-2);
   padding: 6px;
+  backdrop-filter: blur(20px);
 }
 .multi-option {
   display: flex;
