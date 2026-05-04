@@ -1,14 +1,14 @@
-/* ═══════════════════════════════════════════════════════════════
-   dev-tab.js — Data Explorer + SQL Developer Console
+﻿/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   dev-tab.js â€” Data Explorer + SQL Developer Console
    Newark Parcel Intelligence
    
    Reads window.allFeatures and window.filtered from app.js.
    SQL results can be applied globally to re-filter the dashboard.
-════════════════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 (function () {
   'use strict';
 
-  /* ── wait for app.js to populate data ── */
+  /* â”€â”€ wait for app.js to populate data â”€â”€ */
   function waitForData(cb) {
     if (window.allFeatures && window.allFeatures.length) { cb(); return; }
     const iv = setInterval(() => {
@@ -16,14 +16,14 @@
     }, 300);
   }
 
-  /* ── helpers ── */
+  /* â”€â”€ helpers â”€â”€ */
   function el(id) { return document.getElementById(id); }
   function qsa(s) { return [...document.querySelectorAll(s)]; }
   function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
   function money(v) { const n=Number(v||0); if(n>=1e9) return `$${(n/1e9).toFixed(1)}B`; if(n>=1e6) return `$${(n/1e6).toFixed(1)}M`; if(n>=1e3) return `$${(n/1e3).toFixed(0)}K`; return `$${Math.round(n)}`; }
   function fmt(v) { return Number(v||0).toLocaleString(); }
 
-  /* ── FIELD DEFINITIONS ── */
+  /* â”€â”€ FIELD DEFINITIONS â”€â”€ */
   const FIELDS = [
     { key: 'id',               label: 'Parcel ID',        type: 'string',  mono: true  },
     { key: 'address',          label: 'Address',          type: 'string'               },
@@ -57,9 +57,9 @@
   const SQL_OPS_STRING  = ['=', '!=', 'LIKE', 'NOT LIKE', 'IN', 'IS NULL', 'IS NOT NULL'];
   const SQL_OPS_NUMBER  = ['=', '!=', '>', '<', '>=', '<=', 'IS NULL', 'IS NOT NULL'];
 
-  /* ════════════════════════════════════════════════════════════
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
      DATA EXPLORER
-  ════════════════════════════════════════════════════════════ */
+  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
   let deData = [];        // current filtered rows (from window.filtered)
   let deSorted = [];      // after sort applied
   let dePage = 1;
@@ -70,8 +70,9 @@
   let deVisibleCols = new Set(FIELDS.slice(0, 12).map(f => f.key)); // default visible cols
 
   function deGetData() {
-    // Always read from window.filtered (app.js updates this on every filter)
-    return (window.filtered || window.allFeatures || []).map(f => f.properties);
+    // Always read from the live app.js filter result. Fall back to all parcels before the first filter pass.
+    const source = Array.isArray(window.filtered) ? window.filtered : (window.allFeatures || []);
+    return source.map(f => f.properties || f);
   }
 
   function deRefresh() {
@@ -152,7 +153,7 @@
           if (f.key === 'vacancy') cls = vacClass;
           else if (f.score) cls = 'td-score';
           else if (f.money) cls = 'td-money';
-          let display = val === null || val === undefined || val === '' ? '<span style="color:var(--soft)">—</span>' : esc(f.money ? money(val) : f.key === 'lotAcres' ? Number(val).toFixed(3) : String(val));
+          let display = val === null || val === undefined || val === '' ? '<span style="color:var(--soft)">â€”</span>' : esc(f.money ? money(val) : f.key === 'lotAcres' ? Number(val).toFixed(3) : String(val));
           return `<td class="${cls}" title="${esc(String(val??''))}">${display}</td>`;
         }).join('')}
       </tr>`;
@@ -172,7 +173,7 @@
     const pp = el('pagPages');
     if (!info || !pp) return;
 
-    info.textContent = `Page ${dePage} of ${pages} · ${fmt(total)} rows`;
+    info.textContent = `Page ${dePage} of ${pages} Â· ${fmt(total)} rows`;
 
     const first = el('pagFirst'), prev = el('pagPrev'), next = el('pagNext'), last = el('pagLast');
     if (first) first.disabled = dePage <= 1;
@@ -262,9 +263,9 @@
     a.click();
   }
 
-  /* ════════════════════════════════════════════════════════════
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
      SQL DEVELOPER
-  ════════════════════════════════════════════════════════════ */
+  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
   let sqlConditions = [];  // [{join,field,op,value}]
   let sqlResults = [];
   let sqlMode = 'visual'; // 'visual' | 'raw'
@@ -273,7 +274,7 @@
     // Populate field dropdowns
     const orderSel = el('sqlOrderField');
     if (orderSel) {
-      orderSel.innerHTML = '<option value="">— none —</option>' +
+      orderSel.innerHTML = '<option value="">â€” none â€”</option>' +
         FIELDS.map(f=>`<option value="${f.key}">${f.label}</option>`).join('');
     }
 
@@ -305,15 +306,20 @@
       updateSqlPreview();
       sqlResults = [];
       renderSqlResults([]);
-      el('sqlResultCount').textContent = '—';
+      el('sqlResultCount').textContent = 'â€”';
     });
 
     // Reset all filters
     el('sqlReset')?.addEventListener('click', () => {
-      el('resetFilters')?.click(); // delegate to app.js
+      el('resetFilters')?.click(); // delegate to app.js, which also clears SQL/external scope
       sqlConditions = [];
+      sqlResults = [];
       renderSqlConditions();
       updateSqlPreview();
+      renderSqlResults([]);
+      const cnt = el('sqlResultCount');
+      if (cnt) cnt.textContent = '—';
+      deRefresh();
     });
 
     // Apply to dashboard
@@ -379,7 +385,7 @@
           ${ops.map(o=>`<option value="${o}" ${o===cond.op?'selected':''}>${o}</option>`).join('')}
         </select>
         ${['IS NULL','IS NOT NULL'].includes(cond.op) ? '<span></span>' :
-          `<input class="sql-text-input cond-val" data-idx="${idx}" placeholder="value…" value="${esc(cond.value)}" />`
+          `<input class="sql-text-input cond-val" data-idx="${idx}" placeholder="valueâ€¦" value="${esc(cond.value)}" />`
         }
         <button class="sql-del-btn" data-idx="${idx}" title="Remove condition">
           <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
@@ -592,20 +598,23 @@
     body.innerHTML = rows.slice(0,500).map(r => `<tr>${cols.map(f=>{
       let v=r[f.key]; 
       const vacClass = f.key==='vacancy' ? (v==='Vacant'||v==='Vacant land'?'td-vacant':v==='Likely underutilized'?'td-under':'td-active') : '';
-      const display = v===null||v===undefined||v==='' ? '<span style="color:var(--soft)">—</span>' : esc(f.money?money(v):String(v));
+      const display = v===null||v===undefined||v==='' ? '<span style="color:var(--soft)">â€”</span>' : esc(f.money?money(v):String(v));
       return `<td class="${vacClass}">${display}</td>`;
     }).join('')}</tr>`).join('');
   }
 
   function applySqlToDashboard() {
-    if (!sqlResults.length) { runSqlQuery(); return; }
-    // Override window.filtered with SQL results as Feature objects
+    if (!sqlResults.length) runSqlQuery();
+    if (!sqlResults.length) return;
     const idSet = new Set(sqlResults.map(r=>r.id));
-    if (window.allFeatures) {
-      window.filtered = window.allFeatures.filter(f => idSet.has(f.properties.id));
+    if (typeof window.applyExternalFeatureFilter === 'function') {
+      window.applyExternalFeatureFilter(idSet, `SQL query (${sqlResults.length.toLocaleString()} rows)`);
+    } else {
+      window.filtered = (window.allFeatures || []).filter(f => idSet.has(f.properties.id));
+      if (typeof window.renderAll === 'function') window.renderAll();
     }
-    // Trigger app.js renderAll if available
-    if (typeof window.renderAll === 'function') window.renderAll();
+    dePage = 1;
+    deRefresh();
     // Show feedback
     const btn = el('sqlApplyGlobal');
     if (btn) {
@@ -618,14 +627,14 @@
     }
   }
 
-  /* ════════════════════════════════════════════════════════════
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
      MAP SYNC FIX
      The map tab shows stale counts because app.js only calls
      renderMap() when dashboardEntered=true AND state.tab==="map".
      When filters change on another tab, map data is correct in
      window.filtered but the map layer isn't re-rendered when you
      switch back. We fix this by triggering renderMap on tab switch.
-  ════════════════════════════════════════════════════════════ */
+  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
   function fixMapSync() {
     const mapTab = document.querySelector('[data-tab="map"]');
     if (!mapTab) return;
@@ -637,9 +646,9 @@
     });
   }
 
-  /* ════════════════════════════════════════════════════════════
-     TAB WIRING — add data & dev tabs to app.js tab system
-  ════════════════════════════════════════════════════════════ */
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+     TAB WIRING â€” add data & dev tabs to app.js tab system
+  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
   function wireNewTabs() {
     document.querySelectorAll('.tab[data-tab]').forEach(tab => {
       tab.addEventListener('click', () => {
@@ -663,9 +672,9 @@
     });
   }
 
-  /* ════════════════════════════════════════════════════════════
+  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
      BOOT
-  ════════════════════════════════════════════════════════════ */
+  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
   function boot() {
     fixMapSync();
     wireNewTabs();
@@ -680,3 +689,6 @@
   waitForData(boot);
 
 })();
+
+
+

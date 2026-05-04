@@ -1,4 +1,4 @@
-const parcelSource = window.NEWARK_PARCELS;
+﻿const parcelSource = window.NEWARK_PARCELS;
 const compactSource = resolveCompactSource();
 
 if ((!parcelSource || !Array.isArray(parcelSource.features)) && (!compactSource || !Array.isArray(compactSource.rows))) {
@@ -81,6 +81,9 @@ const ownershipColors = {
 };
 
 let filtered = [];
+let externalFilterIds = null;
+let externalFilterLabel = "";
+let mapRenderSeq = 0;
 let map;
 let parcelLayer;
 let clusterLayer;
@@ -393,8 +396,33 @@ function clearDrilldown() {
   state.drilldown = null;
 }
 
+function syncDashboardGlobals() {
+  window.allFeatures = allFeatures;
+  window.filtered = filtered;
+  window.dashboardState = state;
+  window.renderAll = renderAll;
+  window.renderMap = renderMap;
+  window.applyFilters = applyFilters;
+  window.resetDashboardFilters = resetDashboardFilters;
+  window.applyExternalFeatureFilter = applyExternalFeatureFilter;
+  window.clearExternalFeatureFilter = clearExternalFeatureFilter;
+}
+
+function applyExternalFeatureFilter(ids, label = "SQL query scope") {
+  externalFilterIds = ids instanceof Set ? ids : new Set(ids || []);
+  externalFilterLabel = label;
+  state.drilldown = null;
+  applyFilters();
+}
+
+function clearExternalFeatureFilter() {
+  externalFilterIds = null;
+  externalFilterLabel = "";
+}
+
 function applyFilters() {
   const query = normalizeText(state.search);
+  const scopeIds = externalFilterIds;
   const scoreMin = Number(state.scoreMin || 0);
   const scoreMax = Number(state.scoreMax || 100);
   const landMin = Number(state.landMin || 0);
@@ -402,6 +430,7 @@ function applyFilters() {
   const improvementMin = Number(state.improvementMin || 0);
   const improvementMax = Number.isFinite(Number(state.improvementMax)) ? Number(state.improvementMax) : Infinity;
   filtered = allFeatures.filter(({ properties: p }) => {
+    if (scopeIds && !scopeIds.has(p.id)) return false;
     if (state.status === "Vacant Group" && !["Vacant", "Vacant land"].includes(p.vacancy)) return false;
     if (state.status !== "All" && state.status !== "Vacant Group" && p.vacancy !== state.status) return false;
     if (state.ownership !== "All" && p.ownership !== state.ownership) return false;
@@ -417,6 +446,7 @@ function applyFilters() {
     }
     return true;
   });
+  syncDashboardGlobals();
   renderAll();
 }
 
@@ -494,6 +524,7 @@ function loadGeometry() {
 
 function renderMap() {
   if (!map) return;
+  const renderSeq = ++mapRenderSeq;
   const mode = mapRenderMode();
   currentMapRenderMode = mode;
   el("mapLoading").classList.remove("gone");
@@ -503,6 +534,7 @@ function renderMap() {
 
   if (mode === "points") {
     requestAnimationFrame(() => {
+      if (renderSeq !== mapRenderSeq) return;
       if (parcelLayer) parcelLayer.remove();
       parcelLayer = L.geoJSON(pointFeatures(), {
         renderer: L.canvas({ padding: 0.35 }),
@@ -525,6 +557,7 @@ function renderMap() {
   }
 
   loadGeometry().then(() => requestAnimationFrame(() => {
+    if (renderSeq !== mapRenderSeq) return;
     if (parcelLayer) parcelLayer.remove();
     const geoFeatures = filtered.map((feature) => {
       const geometryFeature = geomById.get(feature.properties.id);
@@ -724,7 +757,8 @@ function renderKpis() {
   el("cOpportunity").textContent = fmt(m.vacant);
   el("cValue").textContent = money(m.sumValue);
   const drillText = state.drilldown ? ` - drilldown: ${state.drilldown.value}` : "";
-  el("statusText").textContent = `${fmt(m.total)} parcels visible - ${fmt(m.vacant)} vacant or underutilized - ${fmt(m.clusters)} opportunity clusters${drillText}`;
+  const scopeText = externalFilterIds ? ` - scoped by ${externalFilterLabel || "external query"}` : "";
+  el("statusText").textContent = `${fmt(m.total)} parcels visible - ${fmt(m.vacant)} vacant or underutilized - ${fmt(m.clusters)} opportunity clusters${drillText}${scopeText}`;
   updateSelectionUi();
 }
 
@@ -1224,6 +1258,7 @@ function initFilters() {
 }
 
 function resetDashboardFilters() {
+  clearExternalFeatureFilter();
   state.status = "All";
   state.ownership = "All";
   state.geographies = [];
@@ -1237,6 +1272,8 @@ function resetDashboardFilters() {
   state.improvementMax = Number(el("improvementMax").max);
   clearDrilldown();
   el("searchInput").value = "";
+  const cmdSearch = el("cmdSearch");
+  if (cmdSearch) cmdSearch.value = "";
   document.querySelectorAll(".multi-menu input[value='__all__']").forEach((box) => { box.checked = true; });
   document.querySelectorAll(".multi-menu input:not([value='__all__'])").forEach((box) => { box.checked = false; });
   el("scoreMin").value = 0;
@@ -2018,6 +2055,7 @@ function exportCsvOld() {
 }
 */
 
+syncDashboardGlobals();
 initMap();
 initFilters();
 initTabs();
@@ -2204,6 +2242,7 @@ el("aiStatus").textContent = fuseSearch
   ? "No-token local assistant active with Fuse.js fuzzy matching. Counts come from the loaded parcel dataset."
   : "No-token local assistant active. Exact answers come from the loaded parcel dataset.";
 applyFilters();
+
 
 
 
