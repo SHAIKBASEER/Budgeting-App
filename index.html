@@ -169,6 +169,15 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>
           <span>Documentation</span>
         </button>
+        <button class="tab" data-tab="data" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          <span>Data Explorer</span>
+          <span class="tab-count" id="dataTabCount">—</span>
+        </button>
+        <button class="tab tab--dev" data-tab="dev" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          <span>SQL Dev</span>
+        </button>
 
         <div class="tabbar-spacer"></div>
 
@@ -699,6 +708,187 @@
           </div>
         </section>
 
+        <!-- ─── DATA EXPLORER VIEW ─── -->
+        <section class="view view-data gone" id="view-data">
+          <div class="dev-header">
+            <div>
+              <h2>Data Explorer</h2>
+              <p id="dataExplorerSub">Browse, sort and export the current filtered parcel dataset.</p>
+            </div>
+            <div class="dev-header-actions">
+              <button class="btn-ghost" id="dataColToggle" type="button">
+                <svg viewBox="0 0 24 24"><path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7m0-18H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7m0-18v18"/></svg>
+                Columns
+              </button>
+              <button class="btn-ghost" id="dataExportPage" type="button">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></svg>
+                Export Page
+              </button>
+              <button class="btn-primary" id="dataExportAll" type="button">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></svg>
+                Export All Filtered
+              </button>
+            </div>
+          </div>
+          <!-- Column selector dropdown -->
+          <div class="col-selector-panel gone" id="colSelectorPanel"></div>
+          <!-- Table -->
+          <div class="data-table-wrap">
+            <table class="data-table" id="dataTable">
+              <thead id="dataTableHead"></thead>
+              <tbody id="dataTableBody"></tbody>
+            </table>
+            <div class="data-empty gone" id="dataEmpty">
+              <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              <p>No parcels match the current filters</p>
+            </div>
+          </div>
+          <!-- Pagination -->
+          <div class="data-pagination" id="dataPagination">
+            <button class="pag-btn" id="pagFirst" type="button">«</button>
+            <button class="pag-btn" id="pagPrev" type="button">‹</button>
+            <div class="pag-pages" id="pagPages"></div>
+            <button class="pag-btn" id="pagNext" type="button">›</button>
+            <button class="pag-btn" id="pagLast" type="button">»</button>
+            <div class="pag-info" id="pagInfo"></div>
+            <select class="pag-size" id="pagSize">
+              <option value="25">25 / page</option>
+              <option value="50" selected>50 / page</option>
+              <option value="100">100 / page</option>
+              <option value="250">250 / page</option>
+            </select>
+          </div>
+        </section>
+
+        <!-- ─── SQL DEVELOPER VIEW ─── -->
+        <section class="view view-dev gone" id="view-dev">
+          <div class="dev-header">
+            <div>
+              <h2>SQL Developer Console</h2>
+              <p>Query the live parcel dataset with field conditions. Results apply instantly across all dashboard views.</p>
+            </div>
+            <div class="dev-header-actions">
+              <button class="btn-ghost" id="sqlClear" type="button">
+                <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                Clear
+              </button>
+              <button class="btn-ghost" id="sqlReset" type="button">
+                <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                Reset All
+              </button>
+              <button class="btn-primary" id="sqlRun" type="button">
+                <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Run Query
+              </button>
+            </div>
+          </div>
+
+          <div class="sql-layout">
+            <!-- Left: query builder -->
+            <div class="sql-panel">
+              <div class="sql-panel-head">
+                <div class="sql-panel-title">
+                  <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  Query Builder
+                </div>
+                <div class="sql-mode-toggle">
+                  <button class="sql-mode-btn active" id="sqlModeVisual" type="button">Visual</button>
+                  <button class="sql-mode-btn" id="sqlModeRaw" type="button">Raw SQL</button>
+                </div>
+              </div>
+
+              <!-- Visual query builder -->
+              <div id="sqlVisualMode">
+                <div class="sql-select-row">
+                  <span class="sql-keyword">SELECT</span>
+                  <span class="sql-text">* FROM parcels</span>
+                </div>
+                <div class="sql-where-label">
+                  <span class="sql-keyword">WHERE</span>
+                  <button class="sql-add-condition" id="sqlAddCondition" type="button">
+                    <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                    Add Condition
+                  </button>
+                </div>
+                <div id="sqlConditions" class="sql-conditions"></div>
+                <div class="sql-order-row">
+                  <span class="sql-keyword">ORDER BY</span>
+                  <select id="sqlOrderField" class="sql-select-ctrl">
+                    <option value="">— none —</option>
+                  </select>
+                  <select id="sqlOrderDir" class="sql-select-ctrl" style="width:90px">
+                    <option value="asc">ASC</option>
+                    <option value="desc">DESC</option>
+                  </select>
+                  <span class="sql-keyword">LIMIT</span>
+                  <select id="sqlLimit" class="sql-select-ctrl" style="width:90px">
+                    <option value="100">100</option>
+                    <option value="500">500</option>
+                    <option value="1000">1000</option>
+                    <option value="5000">5000</option>
+                    <option value="0">All</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Raw SQL editor -->
+              <div id="sqlRawMode" class="gone">
+                <div class="sql-raw-note">
+                  <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                  Pseudo-SQL parsed against parcel fields. Supported: WHERE field = value, AND, OR, &gt;, &lt;, &gt;=, &lt;=, LIKE, IN (a,b,c)
+                </div>
+                <textarea id="sqlRawInput" class="sql-raw-editor" placeholder="SELECT * FROM parcels WHERE vacancy = 'Vacant' AND ownership = 'Public' ORDER BY opportunity DESC LIMIT 500"></textarea>
+              </div>
+
+              <!-- Generated SQL preview -->
+              <div class="sql-preview">
+                <div class="sql-preview-label">Generated Query</div>
+                <pre id="sqlPreview" class="sql-pre">SELECT * FROM parcels -- no conditions</pre>
+              </div>
+            </div>
+
+            <!-- Right: results -->
+            <div class="sql-results-panel">
+              <div class="sql-results-head">
+                <div class="sql-results-title">
+                  <svg viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+                  Results
+                  <span class="sql-result-count" id="sqlResultCount">—</span>
+                </div>
+                <div style="display:flex;gap:8px">
+                  <button class="btn-ghost" id="sqlApplyGlobal" type="button" title="Apply this query as the active dashboard filter">
+                    <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Apply to Dashboard
+                  </button>
+                  <button class="btn-ghost" id="sqlExportResults" type="button">
+                    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></svg>
+                    Export CSV
+                  </button>
+                </div>
+              </div>
+              <div class="sql-results-table-wrap">
+                <table class="data-table" id="sqlResultTable">
+                  <thead id="sqlResultHead"></thead>
+                  <tbody id="sqlResultBody"></tbody>
+                </table>
+                <div class="sql-results-empty" id="sqlResultEmpty">
+                  <svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                  <p>Run a query to see results here</p>
+                </div>
+              </div>
+
+              <!-- Field reference -->
+              <div class="sql-field-ref">
+                <div class="sql-field-ref-title">
+                  <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>
+                  Available Fields
+                </div>
+                <div class="sql-field-chips" id="sqlFieldChips"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
       </main>
 
       <!-- STATUS BAR -->
@@ -963,6 +1153,7 @@
     <script src="./app.js"></script>
     <script>if(window.__dlP){window.__dlP(94);window.__dlCap(99);}</script>
     <script src="./ui-enhancements.js"></script>
+    <script src="./dev-tab.js"></script>
     <script>
       // Remove loader after everything is done
       // app.js fires its own init on enterDashboard click, so we remove
