@@ -854,9 +854,123 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.3.0"></script>
+
+    <!-- ═══ LOADING OVERLAY — injected before data scripts, removed after app init ═══ -->
+    <script>
+    (function(){
+      var style = document.createElement('style');
+      style.textContent = `
+        #dataLoader {
+          position:fixed;inset:0;z-index:99999;
+          display:flex;align-items:center;justify-content:center;
+          background:#080c14;font-family:"DM Sans",ui-sans-serif,system-ui,sans-serif;
+          transition:opacity 0.7s ease,transform 0.7s ease;
+        }
+        #dataLoader.dl-hide{opacity:0;transform:scale(1.04);pointer-events:none;}
+        .dl-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none;}
+        .dl-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(99,102,241,0.1) 1px,transparent 1px),linear-gradient(90deg,rgba(99,102,241,0.1) 1px,transparent 1px);background-size:60px 60px;mask-image:radial-gradient(ellipse 70% 70% at 50% 50%,black 30%,transparent 80%);}
+        .dl-glow{position:absolute;border-radius:50%;filter:blur(80px);}
+        .dl-glow-1{width:600px;height:600px;top:-150px;left:-100px;background:radial-gradient(circle,rgba(99,102,241,0.3),transparent 70%);animation:dlG 7s ease-in-out infinite;}
+        .dl-glow-2{width:500px;height:500px;bottom:-100px;right:-50px;background:radial-gradient(circle,rgba(139,92,246,0.25),transparent 70%);animation:dlG 9s 2s ease-in-out infinite;}
+        @keyframes dlG{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.1)}}
+        .dl-content{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:20px;width:min(520px,90vw);text-align:center;}
+        .dl-logo{width:76px;height:76px;border-radius:22px;background:white;display:grid;place-items:center;overflow:hidden;padding:8px;box-shadow:0 0 40px rgba(99,102,241,0.45),0 10px 30px rgba(0,0,0,0.5);animation:dlBob 2.8s ease-in-out infinite;}
+        @keyframes dlBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+        .dl-logo img{width:100%;height:100%;object-fit:contain;}
+        .dl-title{font-family:"Outfit",sans-serif;font-size:28px;font-weight:800;letter-spacing:-0.02em;background:linear-gradient(135deg,#818cf8,#8b5cf6,#10b981);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+        .dl-sub{color:#64748b;font-size:13px;line-height:1.6;max-width:380px;}
+        .dl-bar-wrap{width:100%;display:flex;align-items:center;gap:12px;}
+        .dl-bar-track{flex:1;height:7px;border-radius:999px;background:#1e2a40;overflow:hidden;position:relative;}
+        .dl-bar-fill{height:100%;border-radius:999px;width:0%;background:linear-gradient(90deg,#6366f1,#8b5cf6,#10b981);transition:width 0.55s cubic-bezier(0.2,0.8,0.2,1);}
+        .dl-bar-track::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.25),transparent);animation:dlSh 1.6s linear infinite;}
+        @keyframes dlSh{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+        .dl-pct{color:#818cf8;font-family:"DM Mono",monospace;font-size:13px;font-weight:700;min-width:38px;text-align:right;}
+        .dl-steps{display:flex;flex-direction:column;gap:9px;width:100%;text-align:left;background:#0c1220;border:1px solid rgba(99,102,241,0.18);border-radius:16px;padding:18px;}
+        .dl-step{display:flex;align-items:center;gap:10px;color:#334155;font-size:12px;font-weight:500;transition:color 0.4s;}
+        .dl-step.active{color:#f1f5f9;}
+        .dl-step.done{color:#10b981;}
+        .dl-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:#1e2a40;transition:background 0.4s,box-shadow 0.4s;}
+        .dl-step.active .dl-dot{background:#6366f1;box-shadow:0 0 10px rgba(99,102,241,0.7);animation:dlDP 1s ease-in-out infinite;}
+        .dl-step.done .dl-dot{background:#10b981;box-shadow:0 0 8px rgba(16,185,129,0.6);}
+        @keyframes dlDP{0%,100%{opacity:1}50%{opacity:0.35}}
+        .dl-note{color:#1e2a40;font-size:11px;}
+      `;
+      document.head.appendChild(style);
+
+      var div = document.createElement('div');
+      div.id = 'dataLoader';
+      div.innerHTML = '<div class="dl-bg"><div class="dl-grid"></div><div class="dl-glow dl-glow-1"></div><div class="dl-glow dl-glow-2"></div></div>'
+        + '<div class="dl-content">'
+        + '<div class="dl-logo"><img src="https://media.licdn.com/dms/image/v2/D4E0BAQFxFEbQnMyvUA/company-logo_200_200/B4EZbPZusMHoAM-/0/1747236351571/living_cities_logo?e=2147483647&v=beta&t=IlYbc01njHdHRel9QMMx6YAmTpvRnOw7LxwKG1daIvU" alt="Living Cities"/></div>'
+        + '<div class="dl-title">Newark Parcel Intelligence</div>'
+        + '<div class="dl-sub">Loading 41,636 parcel records — this only happens once per browser session</div>'
+        + '<div class="dl-bar-wrap"><div class="dl-bar-track"><div class="dl-bar-fill" id="dlFill"></div></div><div class="dl-pct" id="dlPct">0%</div></div>'
+        + '<div class="dl-steps">'
+        + '<div class="dl-step active" id="dls1"><div class="dl-dot"></div><span>Initializing dashboard engine</span></div>'
+        + '<div class="dl-step" id="dls2"><div class="dl-dot"></div><span>Downloading parcel attributes — shard 1 of 2</span></div>'
+        + '<div class="dl-step" id="dls3"><div class="dl-dot"></div><span>Downloading parcel attributes — shard 2 of 2</span></div>'
+        + '<div class="dl-step" id="dls4"><div class="dl-dot"></div><span>Building search index &amp; filter engine</span></div>'
+        + '<div class="dl-step" id="dls5"><div class="dl-dot"></div><span>Ready — entering dashboard</span></div>'
+        + '</div>'
+        + '<div class="dl-note">Regrid-first · LBCS + census enriched · 41,636 parcels</div>'
+        + '</div>';
+      document.body.appendChild(div);
+
+      // helpers
+      window.__dlP = function(p) {
+        var f = document.getElementById('dlFill');
+        var t = document.getElementById('dlPct');
+        if(f) f.style.width = p + '%';
+        if(t) t.textContent = Math.round(p) + '%';
+      };
+      window.__dlS = function(n) {
+        for(var i=1;i<=5;i++){
+          var e = document.getElementById('dls'+i);
+          if(!e) continue;
+          e.className = 'dl-step' + (i<n?' done':i===n?' active':'');
+        }
+      };
+      window.__dlDone = function() {
+        window.__dlP(100); window.__dlS(5);
+        setTimeout(function(){
+          var el = document.getElementById('dataLoader');
+          if(el){ el.classList.add('dl-hide'); setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); }, 800); }
+        }, 700);
+      };
+
+      // smooth creep animation
+      var _cap = 14;
+      window.__dlCap = function(c){ _cap = c; };
+      var _t = setInterval(function(){
+        var f = document.getElementById('dlFill');
+        if(!f){ clearInterval(_t); return; }
+        var cur = parseFloat(f.style.width)||0;
+        if(cur < _cap - 0.5){ var n=Math.min(cur+0.35,_cap-0.3); f.style.width=n+'%'; var p=document.getElementById('dlPct'); if(p) p.textContent=Math.round(n)+'%'; }
+      }, 100);
+
+      window.__dlP(3); window.__dlS(1);
+      setTimeout(function(){ window.__dlP(8); window.__dlS(2); window.__dlCap(44); }, 300);
+    })();
+    </script>
+
+    <!-- DATA + APP — original synchronous load order preserved exactly -->
     <script src="./data_compact_01.js"></script>
+    <script>if(window.__dlP){window.__dlP(46);window.__dlS(3);window.__dlCap(74);}</script>
     <script src="./data_compact_02.js"></script>
+    <script>if(window.__dlP){window.__dlP(76);window.__dlS(4);window.__dlCap(93);}</script>
     <script src="./app.js"></script>
+    <script>if(window.__dlP){window.__dlP(94);window.__dlCap(99);}</script>
     <script src="./ui-enhancements.js"></script>
+    <script>
+      // Remove loader after everything is done
+      // app.js fires its own init on enterDashboard click, so we remove
+      // the data loader once scripts are parsed (data is in memory).
+      (function(){
+        if(window.__dlDone) {
+          // Give app.js 200ms to finish its top-level setup, then dismiss
+          setTimeout(function(){ window.__dlDone(); }, 200);
+        }
+      })();
+    </script>
   </body>
 </html>
