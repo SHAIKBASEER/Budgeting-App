@@ -211,17 +211,31 @@
       });
     });
 
-    // Live search passthrough to app searchInput
+    // Live search: sync cmdSearch → #searchInput (which app.js listens to)
     if (searchInput) {
       searchInput.addEventListener('input', e => {
         const appSearch = el('searchInput');
         if (appSearch) {
           appSearch.value = e.target.value;
-          appSearch.dispatchEvent(new Event('input'));
+          appSearch.dispatchEvent(new Event('input', { bubbles: true }));
           setTimeout(updateResultCount, 200);
         }
       });
     }
+
+    // Sync cmd-pill clicks → app.js [data-filter] buttons
+    qsa('[data-filter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        // find the matching hidden app.js pill and click it
+        const group = btn.dataset.filter;
+        const value = btn.dataset.value;
+        // update visual state of all cmd pills in this group
+        qsa(`[data-filter="${group}"]`).forEach(b => {
+          b.classList.toggle('on', b === btn);
+        });
+        setTimeout(updateResultCount, 200);
+      });
+    });
   }
 
   /* ───────────────────────────────────────────────────────────
