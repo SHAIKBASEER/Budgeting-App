@@ -12,53 +12,6 @@
 
   function el(id) { return document.getElementById(id); }
   function qsa(sel) { return [...document.querySelectorAll(sel)]; }
-  function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
-  function money(v) { const n=Number(v||0); if(n>=1e9) return `$${(n/1e9).toFixed(1)}B`; if(n>=1e6) return `$${(n/1e6).toFixed(1)}M`; if(n>=1e3) return `$${(n/1e3).toFixed(0)}K`; return `$${Math.round(n).toLocaleString()}`; }
-
-  /* boot zoning popup + last-year-tax filter once data loads */
-  function whenDataReady(cb){ if(window.allFeatures&&window.allFeatures.length) return cb(); const iv=setInterval(()=>{ if(window.allFeatures&&window.allFeatures.length){ clearInterval(iv); cb(); } },300); }
-  whenDataReady(()=>{ try{enhanceParcelPopups();}catch(e){} try{initLastYearTaxFilter();}catch(e){} });
-
-  /* ───────────────────────────────────────────────────────────
-     NEWARK ZONING CODE DICTIONARY
-  ─────────────────────────────────────────────────────────── */
-  const ZONING_DICT = {
-    'R-1':   'Detached Single-Family Residential',
-    'R-2':   'One- to Three-Family Residential',
-    'R-3':   'One- to Four-Family and Town House Residential',
-    'R-4':   'Low-Rise Multifamily Residential',
-    'R-5':   'Mid-Rise Multifamily Residential',
-    'R-6':   'High-Rise Multifamily Residential',
-    'C-1':   'Neighborhood Commercial and Residential',
-    'C-2':   'Community Commercial and Residential',
-    'C-3':   'Regional Commercial',
-    'I-1':   'Light Industrial',
-    'I-2':   'Medium Industrial',
-    'I-3':   'Heavy Industrial',
-    'MX-1':  'Mixed Use, Residential/Commercial',
-    'MX-2':  'Mixed Use, Residential/Commercial/Industrial',
-    'MX-3':  'Mixed Use, Residential/Commercial (High Density)',
-    'EWR':   'Airport',
-    'EWR-S': 'Airport Support',
-    'PORT':  'Port',
-    'INST':  'Institutional',
-    'PARK':  'Park',
-    'CEM':   'Cemetery',
-    'RDV/SD':'Redevelopment Zones and Special Districts',
-  };
-  function zoningDescription(code) {
-    if (!code) return '';
-    const k = String(code).trim().toUpperCase();
-    if (ZONING_DICT[k]) return ZONING_DICT[k];
-    // tolerate variants like "RDV-SD", "RDV SD", "MX2"
-    const norm = k.replace(/[^A-Z0-9/-]/g, '');
-    if (ZONING_DICT[norm]) return ZONING_DICT[norm];
-    if (/^RDV/.test(k) || /SPECIAL DISTRICT|REDEVELOPMENT/.test(k)) return ZONING_DICT['RDV/SD'];
-    if (/^MX[\s-]?(\d)/.test(k)) { const m = k.match(/^MX[\s-]?(\d)/); return ZONING_DICT[`MX-${m[1]}`] || ''; }
-    return '';
-  }
-  window.zoningDescription = zoningDescription;
-  window.NEWARK_ZONING_DICT = ZONING_DICT;
 
   /* ───────────────────────────────────────────────────────────
      COUNTER ANIMATION
