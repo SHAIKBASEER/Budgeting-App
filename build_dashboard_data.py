@@ -471,6 +471,8 @@ FIELDS = [
     "REGRID_population_growth_past_5_years",
     "REGRID_population_growth_next_5_years",
     "REGRID_housing_affordability_index",
+    "REGRID_landdescription",
+    "LAST_YR_TX",
 ]
 
 
@@ -566,6 +568,8 @@ def main():
                     "housingAffordabilityIndex": round(float(row["REGRID_housing_affordability_index"] or 0), 2),
                     "qoz": row["REGRID_qoz"] or "",
                     "redevelopment": row["REGRID_redev_2023"] or "",
+                    "landDescription": row["REGRID_landdescription"] or "",
+                    "lastYearTax": round(float(row["LAST_YR_TX"] or 0), 2),
                     "opportunity": score,
                     "clusterKey": ckey,
                 },
@@ -583,7 +587,7 @@ def main():
         "zoning", "zoningSource", "ward", "neighborhood", "lat", "lon", "latitude", "longitude",
         "censusTract", "censusBlock", "censusBlockGroup", "censusZcta", "medianHouseholdIncome",
         "populationDensity", "populationGrowthPast5", "populationGrowthNext5", "housingAffordabilityIndex",
-        "qoz", "redevelopment", "opportunity", "clusterKey", "clusterSize",
+        "qoz", "redevelopment", "landDescription", "lastYearTax", "opportunity", "clusterKey", "clusterSize",
     ]
     compact_rows = []
     for feature in features:

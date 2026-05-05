@@ -1,14 +1,14 @@
-﻿/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   dev-tab.js â€” Data Explorer + SQL Developer Console
+/* ═══════════════════════════════════════════════════════════════
+   dev-tab.js — Data Explorer + SQL Developer Console
    Newark Parcel Intelligence
    
    Reads window.allFeatures and window.filtered from app.js.
    SQL results can be applied globally to re-filter the dashboard.
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
 
-  /* â”€â”€ wait for app.js to populate data â”€â”€ */
+  /* ── wait for app.js to populate data ── */
   function waitForData(cb) {
     if (window.allFeatures && window.allFeatures.length) { cb(); return; }
     const iv = setInterval(() => {
@@ -16,15 +16,52 @@
     }, 300);
   }
 
-  /* â”€â”€ helpers â”€â”€ */
+  /* ── helpers ── */
   function el(id) { return document.getElementById(id); }
   function qsa(s) { return [...document.querySelectorAll(s)]; }
   function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
   function money(v) { const n=Number(v||0); if(n>=1e9) return `$${(n/1e9).toFixed(1)}B`; if(n>=1e6) return `$${(n/1e6).toFixed(1)}M`; if(n>=1e3) return `$${(n/1e3).toFixed(0)}K`; return `$${Math.round(n)}`; }
   function fmt(v) { return Number(v||0).toLocaleString(); }
 
-  /* â”€â”€ FIELD DEFINITIONS â”€â”€ */
-  const FIELDS = [
+  /* ── FIELD DEFINITIONS — auto-discovered from data + curated metadata ── */
+  const FIELD_META = {
+    id:{label:'Parcel ID',mono:true}, address:{label:'Address'}, owner:{label:'Owner'},
+    vacancy:{label:'Vacancy Status'}, ownership:{label:'Ownership Type'},
+    ownerSubtype:{label:'Owner Subtype'}, ownerConfidence:{label:'Owner Confidence'},
+    opportunity:{label:'Opp. Score',score:true,type:'number'},
+    assessed:{label:'Assessed Value',money:true,type:'number'},
+    landValue:{label:'Land Value',money:true,type:'number'},
+    improvementValue:{label:'Improv. Value',money:true,type:'number'},
+    lastYearTax:{label:'Last Year Tax',money:true,type:'number'},
+    landDescription:{label:'Land Description (Frontage)',mono:true},
+    lotAcres:{label:'Lot Acres',type:'number'}, zoning:{label:'Zoning',mono:true},
+    zoningDescription:{label:'Zoning Description'},
+    lbcsFunction:{label:'LBCS Function'}, lbcsOwnership:{label:'LBCS Ownership'},
+    landUse:{label:'Land Use'}, ward:{label:'Ward'}, neighborhood:{label:'Neighborhood'},
+    block:{label:'Block',mono:true}, lot:{label:'Lot',mono:true},
+    censusTract:{label:'Census Tract',mono:true}, censusZcta:{label:'ZCTA',mono:true},
+    qoz:{label:'QOZ'}, lat:{label:'Latitude',type:'number'}, lon:{label:'Longitude',type:'number'},
+  };
+  function buildFields() {
+    const sample = (window.allFeatures||[])[0]?.properties || {};
+    const keys = Object.keys(sample);
+    return keys.map(k=>{
+      const meta = FIELD_META[k] || {};
+      const v = sample[k];
+      const type = meta.type || (typeof v==='number'?'number':'string');
+      return { key:k, label:meta.label||k, type, mono:meta.mono, money:meta.money, score:meta.score };
+    });
+  }
+  // Inject zoning description as a virtual field on every parcel
+  function attachZoningDescriptions(){
+    if(!window.allFeatures||!window.zoningDescription) return;
+    window.allFeatures.forEach(f=>{
+      if(!f.properties.zoningDescription){
+        f.properties.zoningDescription = window.zoningDescription(f.properties.zoning) || '';
+      }
+    });
+  }
+  const FIELDS_LEGACY_UNUSED_DEAD = false; const _DEAD_ = [
     { key: 'id',               label: 'Parcel ID',        type: 'string',  mono: true  },
     { key: 'address',          label: 'Address',          type: 'string'               },
     { key: 'owner',            label: 'Owner',            type: 'string'               },
@@ -54,46 +91,12 @@
     { key: 'assessedSource',   label: 'Value Source',     type: 'string'               },
   ];
 
-  function titleizeField(key) {
-    return String(key || '')
-      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-      .replace(/_/g, ' ')
-      .replace(/\b\w/g, c => c.toUpperCase());
-  }
-
-  function inferFieldType(key) {
-    const sample = (window.allFeatures || [])
-      .map(f => f.properties?.[key])
-      .find(v => v !== null && v !== undefined && v !== '');
-    return typeof sample === 'number' ? 'number' : 'string';
-  }
-
-  function enrichFieldsFromDataset() {
-    const schema = window.NEWARK_COMPACT?.schema
-      || window.NEWARK_COMPACT_SHARDS?.find(shard => Array.isArray(shard.schema))?.schema
-      || Object.keys(window.allFeatures?.[0]?.properties || {});
-    const known = new Set(FIELDS.map(f => f.key));
-    schema.forEach(key => {
-      if (known.has(key)) return;
-      const type = inferFieldType(key);
-      FIELDS.push({
-        key,
-        label: titleizeField(key),
-        type,
-        mono: /id|path|parcel|block|lot|tract|zcta|key/i.test(key),
-        money: /value|assessed|income|parval|landval|improv/i.test(key),
-        score: /score|opportunity/i.test(key),
-      });
-      known.add(key);
-    });
-  }
-
   const SQL_OPS_STRING  = ['=', '!=', 'LIKE', 'NOT LIKE', 'IN', 'IS NULL', 'IS NOT NULL'];
   const SQL_OPS_NUMBER  = ['=', '!=', '>', '<', '>=', '<=', 'IS NULL', 'IS NOT NULL'];
 
-  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  /* ════════════════════════════════════════════════════════════
      DATA EXPLORER
-  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  ════════════════════════════════════════════════════════════ */
   let deData = [];        // current filtered rows (from window.filtered)
   let deSorted = [];      // after sort applied
   let dePage = 1;
@@ -101,15 +104,16 @@
   let deSortField = '';
   let deSortDir = 'asc';
   let deSelectedIds = new Set();
-  let deVisibleCols = new Set(FIELDS.map(f => f.key)); // show full available parcel record by default
+  let FIELDS = [];
+  let deVisibleCols = new Set();
 
   function deGetData() {
-    // Always read from the live app.js filter result. Fall back to all parcels before the first filter pass.
-    const source = Array.isArray(window.filtered) ? window.filtered : (window.allFeatures || []);
-    return source.map(f => f.properties || f);
+    // Always read from window.filtered (app.js updates this on every filter)
+    return (window.filtered || window.allFeatures || []).map(f => f.properties);
   }
 
   function deRefresh() {
+    if(!FIELDS.length){ attachZoningDescriptions(); FIELDS = buildFields(); deVisibleCols = new Set(FIELDS.slice(0,14).map(f=>f.key)); }
     deData = deGetData();
     if (deSortField) {
       const field = FIELDS.find(f => f.key === deSortField);
@@ -131,25 +135,11 @@
     // Update count badges
     const dtc = el('dataTabCount');
     if (dtc) dtc.textContent = fmt(total);
-    const mtc = el('mapTabCount');
-    if (mtc && mtc.textContent !== fmt(total)) mtc.textContent = fmt(total);
-    const sc = el('sidebarCount');
-    if (sc && sc.textContent !== fmt(total)) sc.textContent = fmt(total);
     const sub = el('dataExplorerSub');
     if (sub) sub.textContent = `Showing ${fmt(Math.min(dePageSize, slice.length))} of ${fmt(total)} filtered parcels. Sorted by ${deSortField || 'default'}.`;
 
     renderDeTable(slice);
     renderDePagination(total, pages);
-  }
-
-  function syncCounts(total) {
-    const text = fmt(total);
-    const dtc = el('dataTabCount');
-    const mtc = el('mapTabCount');
-    const sc = el('sidebarCount');
-    if (dtc) dtc.textContent = text;
-    if (mtc) mtc.textContent = text;
-    if (sc) sc.textContent = text;
   }
 
   function renderDeTable(rows) {
@@ -201,7 +191,7 @@
           if (f.key === 'vacancy') cls = vacClass;
           else if (f.score) cls = 'td-score';
           else if (f.money) cls = 'td-money';
-          let display = val === null || val === undefined || val === '' ? '<span style="color:var(--soft)">â€”</span>' : esc(f.money ? money(val) : f.key === 'lotAcres' ? Number(val).toFixed(3) : String(val));
+          let display = val === null || val === undefined || val === '' ? '<span style="color:var(--soft)">—</span>' : esc(f.money ? money(val) : f.key === 'lotAcres' ? Number(val).toFixed(3) : String(val));
           return `<td class="${cls}" title="${esc(String(val??''))}">${display}</td>`;
         }).join('')}
       </tr>`;
@@ -221,7 +211,7 @@
     const pp = el('pagPages');
     if (!info || !pp) return;
 
-    info.textContent = `Page ${dePage} of ${pages} Â· ${fmt(total)} rows`;
+    info.textContent = `Page ${dePage} of ${pages} · ${fmt(total)} rows`;
 
     const first = el('pagFirst'), prev = el('pagPrev'), next = el('pagNext'), last = el('pagLast');
     if (first) first.disabled = dePage <= 1;
@@ -311,9 +301,9 @@
     a.click();
   }
 
-  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  /* ════════════════════════════════════════════════════════════
      SQL DEVELOPER
-  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  ════════════════════════════════════════════════════════════ */
   let sqlConditions = [];  // [{join,field,op,value}]
   let sqlResults = [];
   let sqlMode = 'visual'; // 'visual' | 'raw'
@@ -322,7 +312,7 @@
     // Populate field dropdowns
     const orderSel = el('sqlOrderField');
     if (orderSel) {
-      orderSel.innerHTML = '<option value="">â€” none â€”</option>' +
+      orderSel.innerHTML = '<option value="">— none —</option>' +
         FIELDS.map(f=>`<option value="${f.key}">${f.label}</option>`).join('');
     }
 
@@ -354,20 +344,15 @@
       updateSqlPreview();
       sqlResults = [];
       renderSqlResults([]);
-      el('sqlResultCount').textContent = 'â€”';
+      el('sqlResultCount').textContent = '—';
     });
 
     // Reset all filters
     el('sqlReset')?.addEventListener('click', () => {
-      el('resetFilters')?.click(); // delegate to app.js, which also clears SQL/external scope
+      el('resetFilters')?.click(); // delegate to app.js
       sqlConditions = [];
-      sqlResults = [];
       renderSqlConditions();
       updateSqlPreview();
-      renderSqlResults([]);
-      const cnt = el('sqlResultCount');
-      if (cnt) cnt.textContent = '—';
-      deRefresh();
     });
 
     // Apply to dashboard
@@ -433,7 +418,7 @@
           ${ops.map(o=>`<option value="${o}" ${o===cond.op?'selected':''}>${o}</option>`).join('')}
         </select>
         ${['IS NULL','IS NOT NULL'].includes(cond.op) ? '<span></span>' :
-          `<input class="sql-text-input cond-val" data-idx="${idx}" placeholder="valueâ€¦" value="${esc(cond.value)}" />`
+          `<input class="sql-text-input cond-val" data-idx="${idx}" placeholder="value…" value="${esc(cond.value)}" />`
         }
         <button class="sql-del-btn" data-idx="${idx}" title="Remove condition">
           <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
@@ -640,29 +625,26 @@
     }
     empty?.classList.add('gone');
 
-    // Show the full parcel field set. The wrapper scrolls horizontally for wide records.
-    const cols = FIELDS;
+    // Show first 15 columns
+    const cols = FIELDS.slice(0,15);
     head.innerHTML = `<tr>${cols.map(f=>`<th>${esc(f.label)}</th>`).join('')}</tr>`;
     body.innerHTML = rows.slice(0,500).map(r => `<tr>${cols.map(f=>{
       let v=r[f.key]; 
       const vacClass = f.key==='vacancy' ? (v==='Vacant'||v==='Vacant land'?'td-vacant':v==='Likely underutilized'?'td-under':'td-active') : '';
-      const display = v===null||v===undefined||v==='' ? '<span style="color:var(--soft)">â€”</span>' : esc(f.money?money(v):String(v));
+      const display = v===null||v===undefined||v==='' ? '<span style="color:var(--soft)">—</span>' : esc(f.money?money(v):String(v));
       return `<td class="${vacClass}">${display}</td>`;
     }).join('')}</tr>`).join('');
   }
 
   function applySqlToDashboard() {
-    if (!sqlResults.length) runSqlQuery();
-    if (!sqlResults.length) return;
+    if (!sqlResults.length) { runSqlQuery(); return; }
+    // Override window.filtered with SQL results as Feature objects
     const idSet = new Set(sqlResults.map(r=>r.id));
-    if (typeof window.applyExternalFeatureFilter === 'function') {
-      window.applyExternalFeatureFilter(idSet, `SQL query (${sqlResults.length.toLocaleString()} rows)`);
-    } else {
-      window.filtered = (window.allFeatures || []).filter(f => idSet.has(f.properties.id));
-      if (typeof window.renderAll === 'function') window.renderAll();
+    if (window.allFeatures) {
+      window.filtered = window.allFeatures.filter(f => idSet.has(f.properties.id));
     }
-    dePage = 1;
-    deRefresh();
+    // Trigger app.js renderAll if available
+    if (typeof window.renderAll === 'function') window.renderAll();
     // Show feedback
     const btn = el('sqlApplyGlobal');
     if (btn) {
@@ -675,14 +657,14 @@
     }
   }
 
-  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  /* ════════════════════════════════════════════════════════════
      MAP SYNC FIX
      The map tab shows stale counts because app.js only calls
      renderMap() when dashboardEntered=true AND state.tab==="map".
      When filters change on another tab, map data is correct in
      window.filtered but the map layer isn't re-rendered when you
      switch back. We fix this by triggering renderMap on tab switch.
-  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  ════════════════════════════════════════════════════════════ */
   function fixMapSync() {
     const mapTab = document.querySelector('[data-tab="map"]');
     if (!mapTab) return;
@@ -694,9 +676,9 @@
     });
   }
 
-  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-     TAB WIRING â€” add data & dev tabs to app.js tab system
-  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  /* ════════════════════════════════════════════════════════════
+     TAB WIRING — add data & dev tabs to app.js tab system
+  ════════════════════════════════════════════════════════════ */
   function wireNewTabs() {
     document.querySelectorAll('.tab[data-tab]').forEach(tab => {
       tab.addEventListener('click', () => {
@@ -720,12 +702,10 @@
     });
   }
 
-  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  /* ════════════════════════════════════════════════════════════
      BOOT
-  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  ════════════════════════════════════════════════════════════ */
   function boot() {
-    enrichFieldsFromDataset();
-    deVisibleCols = new Set(FIELDS.map(f => f.key));
     fixMapSync();
     wireNewTabs();
     initDataExplorer();
@@ -733,12 +713,9 @@
     // Initial data load
     deRefresh();
     // Expose for external use
-    window.devTab = { deRefresh, syncCounts, runSqlQuery, applySqlToDashboard };
+    window.devTab = { deRefresh, runSqlQuery, applySqlToDashboard };
   }
 
   waitForData(boot);
 
 })();
-
-
-
