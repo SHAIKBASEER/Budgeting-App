@@ -23,8 +23,45 @@
   function money(v) { const n=Number(v||0); if(n>=1e9) return `$${(n/1e9).toFixed(1)}B`; if(n>=1e6) return `$${(n/1e6).toFixed(1)}M`; if(n>=1e3) return `$${(n/1e3).toFixed(0)}K`; return `$${Math.round(n)}`; }
   function fmt(v) { return Number(v||0).toLocaleString(); }
 
-  /* ── FIELD DEFINITIONS ── */
-  const FIELDS = [
+  /* ── FIELD DEFINITIONS — auto-discovered from data + curated metadata ── */
+  const FIELD_META = {
+    id:{label:'Parcel ID',mono:true}, address:{label:'Address'}, owner:{label:'Owner'},
+    vacancy:{label:'Vacancy Status'}, ownership:{label:'Ownership Type'},
+    ownerSubtype:{label:'Owner Subtype'}, ownerConfidence:{label:'Owner Confidence'},
+    opportunity:{label:'Opp. Score',score:true,type:'number'},
+    assessed:{label:'Assessed Value',money:true,type:'number'},
+    landValue:{label:'Land Value',money:true,type:'number'},
+    improvementValue:{label:'Improv. Value',money:true,type:'number'},
+    lastYearTax:{label:'Last Year Tax',money:true,type:'number'},
+    landDescription:{label:'Land Description (Frontage)',mono:true},
+    lotAcres:{label:'Lot Acres',type:'number'}, zoning:{label:'Zoning',mono:true},
+    zoningDescription:{label:'Zoning Description'},
+    lbcsFunction:{label:'LBCS Function'}, lbcsOwnership:{label:'LBCS Ownership'},
+    landUse:{label:'Land Use'}, ward:{label:'Ward'}, neighborhood:{label:'Neighborhood'},
+    block:{label:'Block',mono:true}, lot:{label:'Lot',mono:true},
+    censusTract:{label:'Census Tract',mono:true}, censusZcta:{label:'ZCTA',mono:true},
+    qoz:{label:'QOZ'}, lat:{label:'Latitude',type:'number'}, lon:{label:'Longitude',type:'number'},
+  };
+  function buildFields() {
+    const sample = (window.allFeatures||[])[0]?.properties || {};
+    const keys = Object.keys(sample);
+    return keys.map(k=>{
+      const meta = FIELD_META[k] || {};
+      const v = sample[k];
+      const type = meta.type || (typeof v==='number'?'number':'string');
+      return { key:k, label:meta.label||k, type, mono:meta.mono, money:meta.money, score:meta.score };
+    });
+  }
+  // Inject zoning description as a virtual field on every parcel
+  function attachZoningDescriptions(){
+    if(!window.allFeatures||!window.zoningDescription) return;
+    window.allFeatures.forEach(f=>{
+      if(!f.properties.zoningDescription){
+        f.properties.zoningDescription = window.zoningDescription(f.properties.zoning) || '';
+      }
+    });
+  }
+  const FIELDS_LEGACY_UNUSED_DEAD = false; const _DEAD_ = [
     { key: 'id',               label: 'Parcel ID',        type: 'string',  mono: true  },
     { key: 'address',          label: 'Address',          type: 'string'               },
     { key: 'owner',            label: 'Owner',            type: 'string'               },
@@ -67,7 +104,8 @@
   let deSortField = '';
   let deSortDir = 'asc';
   let deSelectedIds = new Set();
-  let deVisibleCols = new Set(FIELDS.slice(0, 12).map(f => f.key)); // default visible cols
+  let FIELDS = [];
+  let deVisibleCols = new Set();
 
   function deGetData() {
     // Always read from window.filtered (app.js updates this on every filter)
@@ -75,6 +113,7 @@
   }
 
   function deRefresh() {
+    if(!FIELDS.length){ attachZoningDescriptions(); FIELDS = buildFields(); deVisibleCols = new Set(FIELDS.slice(0,14).map(f=>f.key)); }
     deData = deGetData();
     if (deSortField) {
       const field = FIELDS.find(f => f.key === deSortField);
